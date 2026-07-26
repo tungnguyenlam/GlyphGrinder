@@ -1020,3 +1020,44 @@ func TestDoorOpeningAndFOV(t *testing.T) {
 		t.Errorf("player position after moving through open door = %+v, want (2,1)", stMoved.Player.Pos)
 	}
 }
+
+func TestPoisonAndRegenStatusEffects(t *testing.T) {
+	st := NewGameWithSeed(20, 10, 12345)
+	st.Player.Health = 50
+	st.Player.MaxHealth = 100
+	st.Player.Statuses = []ActiveStatus{
+		{Type: StatusPoison, Duration: 2, Power: 2},
+		{Type: StatusRegen, Duration: 2, Power: 5},
+	}
+
+	// Turn 1: 50 - 2 (poison) + 5 (regen) = 53 HP
+	stTurn1 := st.Step(ActionMoveUp)
+
+	if got, want := stTurn1.Player.Health, 53; got != want {
+		t.Errorf("player HP after turn 1 = %d, want %d", got, want)
+	}
+
+	fullLog := strings.Join(stTurn1.Log, "\n")
+	if !strings.Contains(fullLog, "poison damage") || !strings.Contains(fullLog, "soothing warmth") {
+		t.Errorf("expected status tick logs, got %q", fullLog)
+	}
+
+	// Check status duration decremented from 2 to 1
+	if len(stTurn1.Player.Statuses) != 2 || stTurn1.Player.Statuses[0].Duration != 1 {
+		t.Errorf("expected status durations to decrement to 1, got %+v", stTurn1.Player.Statuses)
+	}
+}
+
+func TestConfusedStatusMovement(t *testing.T) {
+	st := NewGameWithSeed(20, 10, 12345)
+	st.Player.Statuses = []ActiveStatus{
+		{Type: StatusConfused, Duration: 3, Power: 1},
+	}
+
+	nextState := st.Step(ActionMoveUp)
+
+	fullLog := strings.Join(nextState.Log, "\n")
+	if !strings.Contains(fullLog, "stumble about in confusion") {
+		t.Errorf("expected confusion log, got %q", fullLog)
+	}
+}

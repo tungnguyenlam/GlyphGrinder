@@ -13,24 +13,20 @@ Serves `GOAL.md` directly: "It is a real roguelike underneath the polish... item
 
 ## Exact next action
 
-**M5.3 — Status Effects (Poison, Regeneration, Confusion).**
+**M5.4 — Seed Replayability & Input Verification.**
 
-- In `game.go`:
-  - Add `StatusEffectType` enum (`StatusPoison`, `StatusRegen`, `StatusConfused`) and `ActiveStatus` struct (`Type`, `Duration`, `Power`).
-  - Add `Statuses []ActiveStatus` to `Entity`.
-  - Process status duration ticks in `Step`:
-    - `StatusPoison`: deals 1 HP damage per turn for N turns.
-    - `StatusRegen`: restores 1 HP per turn up to `MaxHealth`.
-    - `StatusConfused`: randomizes player movement direction for N turns.
-- Add unit and TUI tests in `game_test.go` and `tui_test.go` verifying status effect damage, healing, movement confusion, and expiration.
+- In `main.go`:
+  - Display run seed in HUD status bar (`Seed: X`) for run sharing and bug reproduction.
+  - Support setting initial seed via `GLYPHGRINDER_SEED` environment variable or CLI flag.
+- Add unit and TUI tests in `tui_test.go` verifying deterministic state replayability across identical seed and keypress sequences.
 
-Why next: M5.3 provides rich combat status conditions and tactical debuffs/buffs during dungeon runs.
+Why next: M5.4 makes runs 100% reproducible for bug reports, competitive seed sharing, and regression testing.
 
 ## Milestone plan
 
 - [x] **M5.1** Magic Scrolls (Fireball AoE damage & Teleportation scrolls).
 - [x] **M5.2** Interactive Doors (Carved closed doors `+` / open doors `/` between rooms).
-- [ ] **M5.3** Status Effects (Poison, Regeneration, Confusion with turn duration).
+- [x] **M5.3** Status Effects (Poison, Regeneration, Confusion with turn duration).
 - [ ] **M5.4** Seed Replayability & Input Verification (Deterministic seed options and golden frame tests).
 
 ## Acceptance criteria for M5
@@ -38,7 +34,7 @@ Why next: M5.3 provides rich combat status conditions and tactical debuffs/buffs
 - Magic scrolls generate, pick up to inventory, and execute spell effects (Fireball AoE damage, Teleportation).
 - Doors spawn between rooms/corridors and open upon player interaction.
 - Status effects apply over turns and affect player/monster combat.
-- All rules and interactions covered by unit and TUI tests.
+- Seed display and deterministic input replayability verified by unit and TUI tests.
 - `./scripts/verify.sh` passes.
 
 ## Blockers
@@ -51,6 +47,6 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-07-27  —  VERIFY OK
 ```
 
-gofmt clean, `go vet` clean, builds, headless smoke frame renders, 70 test functions pass (including 2 new door opening and FOV tests) + 3 performance benchmarks pass, `go.mod` tidy.
+gofmt clean, `go vet` clean, builds, headless smoke frame renders, 72 test functions pass (including 2 new status effect tests) + 3 performance benchmarks pass, `go.mod` tidy.
 
 

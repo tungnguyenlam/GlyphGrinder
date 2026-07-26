@@ -61,6 +61,22 @@ type GameMap struct {
 	Explored [][]bool // tiles that have been seen at least once
 }
 
+// StatusType defines a temporary status effect applied to an entity.
+type StatusType uint8
+
+const (
+	StatusPoison StatusType = iota
+	StatusRegen
+	StatusConfused
+)
+
+// ActiveStatus represents an ongoing buff or debuff on an entity.
+type ActiveStatus struct {
+	Type     StatusType
+	Duration int // remaining turns
+	Power    int // magnitude (damage, heal, etc.)
+}
+
 // Entity represents any movable actor (Player, Monster).
 type Entity struct {
 	ID        int
@@ -75,6 +91,7 @@ type Entity struct {
 	IsRanged  bool
 	Range     int
 	Inventory []Item
+	Statuses  []ActiveStatus
 }
 
 // Action represents an intent or action performed by the player on a turn.
@@ -235,20 +252,36 @@ func (s GameState) Step(act Action) GameState {
 
 		item := s.Player.Inventory[targetIdx]
 		if item.ItemType == ItemPotion {
-			heal := item.HealAmount
-			if s.Player.Health+heal > s.Player.MaxHealth {
-				heal = s.Player.MaxHealth - s.Player.Health
-			}
-			s.Player.Health += heal
-
-			newInv := make([]Item, 0, len(s.Player.Inventory)-1)
-			for i, it := range s.Player.Inventory {
-				if i != targetIdx {
-					newInv = append(newInv, it)
+			if item.Name == "Regeneration Potion" {
+				newInv := make([]Item, 0, len(s.Player.Inventory)-1)
+				for i, it := range s.Player.Inventory {
+					if i != targetIdx {
+						newInv = append(newInv, it)
+					}
 				}
+				s.Player.Inventory = newInv
+				s.Player.Statuses = append(s.Player.Statuses, ActiveStatus{
+					Type:     StatusRegen,
+					Duration: 5,
+					Power:    3,
+				})
+				s.Log = append(s.Log, "You drink the Regeneration Potion! Regenerative energy surges through you.")
+			} else {
+				heal := item.HealAmount
+				if s.Player.Health+heal > s.Player.MaxHealth {
+					heal = s.Player.MaxHealth - s.Player.Health
+				}
+				s.Player.Health += heal
+
+				newInv := make([]Item, 0, len(s.Player.Inventory)-1)
+				for i, it := range s.Player.Inventory {
+					if i != targetIdx {
+						newInv = append(newInv, it)
+					}
+				}
+				s.Player.Inventory = newInv
+				s.Log = append(s.Log, fmt.Sprintf("You drink the %s and recover %d HP.", item.Name, heal))
 			}
-			s.Player.Inventory = newInv
-			s.Log = append(s.Log, fmt.Sprintf("You drink the %s and recover %d HP.", item.Name, heal))
 		} else if item.ItemType == ItemWeapon {
 			s.Log = append(s.Log, fmt.Sprintf("You are wielding the %s (+%d damage).", item.Name, item.DamageBonus))
 		} else if item.ItemType == ItemScroll {
@@ -334,6 +367,24 @@ func (s GameState) Step(act Action) GameState {
 		dx = 1
 	}
 
+	isConfused := false
+	for _, st := range s.Player.Statuses {
+		if st.Type == StatusConfused && st.Duration > 0 {
+			isConfused = true
+			break
+		}
+	}
+	if isConfused && (act == ActionMoveUp || act == ActionMoveDown || act == ActionMoveLeft || act == ActionMoveRight) {
+		directions := [][2]int{{0, -1}, {0, 1}, {-1, 0}, {1, 0}}
+		scrambleIdx := (s.Player.Pos.X*3 + s.Player.Pos.Y*7 + len(s.Log)) % 4
+		if scrambleIdx < 0 {
+			scrambleIdx = -scrambleIdx
+		}
+		dx = directions[scrambleIdx][0]
+		dy = directions[scrambleIdx][1]
+		s.Log = append(s.Log, "You stumble about in confusion!")
+	}
+
 	newX := s.Player.Pos.X + dx
 	newY := s.Player.Pos.Y + dy
 
@@ -348,6 +399,9 @@ func (s GameState) Step(act Action) GameState {
 		s.Log = append([]string(nil), s.Log...)
 		s.Items = append([]Item(nil), s.Items...)
 		s.Player.Inventory = append([]Item(nil), s.Player.Inventory...)
+		if len(s.Player.Statuses) > 0 {
+			s.Player.Statuses = append([]ActiveStatus(nil), s.Player.Statuses...)
+		}
 
 		// Deep-copy Explored grid
 		oldExplored := s.Map.Explored
@@ -368,6 +422,9 @@ func (s GameState) Step(act Action) GameState {
 	s.Items = append([]Item(nil), s.Items...)
 	if len(s.Player.Inventory) > 0 {
 		s.Player.Inventory = append([]Item(nil), s.Player.Inventory...)
+	}
+	if len(s.Player.Statuses) > 0 {
+		s.Player.Statuses = append([]ActiveStatus(nil), s.Player.Statuses...)
 	}
 
 	// Deep-copy Explored so value semantics are preserved.
@@ -545,6 +602,38 @@ func (s *GameState) runMonsterTurns() {
 			}
 		}
 	}
+
+	s.processPlayerStatuses()
+}
+
+func (s *GameState) processPlayerStatuses() {
+	if len(s.Player.Statuses) == 0 {
+		return
+	}
+	var remaining []ActiveStatus
+	for _, st := range s.Player.Statuses {
+		st.Duration--
+		if st.Type == StatusPoison {
+			s.Player.Health -= st.Power
+			if s.Player.Health < 0 {
+				s.Player.Health = 0
+			}
+			s.Log = append(s.Log, fmt.Sprintf("You take %d poison damage.", st.Power))
+		} else if st.Type == StatusRegen {
+			heal := st.Power
+			if s.Player.Health+heal > s.Player.MaxHealth {
+				heal = s.Player.MaxHealth - s.Player.Health
+			}
+			if heal > 0 {
+				s.Player.Health += heal
+				s.Log = append(s.Log, fmt.Sprintf("You feel soothing warmth and recover %d HP.", heal))
+			}
+		}
+		if st.Duration > 0 {
+			remaining = append(remaining, st)
+		}
+	}
+	s.Player.Statuses = remaining
 }
 
 func abs(n int) int {
@@ -941,6 +1030,16 @@ func NewHealthPotion(id int, pos Position) Item {
 		Pos:        pos,
 		ItemType:   ItemPotion,
 		HealAmount: 25,
+	}
+}
+
+// NewRegenPotion creates a Regeneration Potion item.
+func NewRegenPotion(id int, pos Position) Item {
+	return Item{
+		ID:       id,
+		Name:     "Regeneration Potion",
+		Pos:      pos,
+		ItemType: ItemPotion,
 	}
 }
 
