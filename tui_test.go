@@ -193,3 +193,27 @@ func TestMapBorderIsWalled(t *testing.T) {
 		}
 	}
 }
+
+func TestViewRendersMonsters(t *testing.T) {
+	m := initialModelWithSeed(12345)
+	d := tuitest.New(t, m)
+
+	if len(m.state.Entities) == 0 {
+		t.Fatal("initial model with seed should have entities")
+	}
+
+	lines := d.Lines()
+	for _, e := range m.state.Entities {
+		if e.Pos.Y >= len(lines) {
+			t.Fatalf("monster pos Y %d out of bounds for lines len %d", e.Pos.Y, len(lines))
+		}
+		plainRow := []rune(stripANSI(lines[e.Pos.Y]))
+		if e.Pos.X >= len(plainRow) {
+			t.Fatalf("monster pos X %d out of bounds for plain row len %d", e.Pos.X, len(plainRow))
+		}
+		gotRune := string(plainRow[e.Pos.X])
+		if gotRune != e.Rune {
+			t.Errorf("expected monster rune %q at %+v, got %q", e.Rune, e.Pos, gotRune)
+		}
+	}
+}

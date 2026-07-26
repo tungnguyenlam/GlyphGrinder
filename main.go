@@ -61,11 +61,20 @@ func (m model) View() string {
 	wallStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
 	wall := wallStyle.Render("#")
 
+	entityMap := make(map[Position]string, len(m.state.Entities))
+	for _, e := range m.state.Entities {
+		style := lipgloss.NewStyle().Foreground(lipgloss.Color(e.Color)).Bold(true)
+		entityMap[e.Pos] = style.Render(e.Rune)
+	}
+
 	var sb strings.Builder
 	for y := 0; y < m.state.Map.Height; y++ {
 		for x := 0; x < m.state.Map.Width; x++ {
-			if x == m.state.Player.Pos.X && y == m.state.Player.Pos.Y {
+			pos := Position{X: x, Y: y}
+			if pos == m.state.Player.Pos {
 				sb.WriteString(player)
+			} else if renderedEntity, found := entityMap[pos]; found {
+				sb.WriteString(renderedEntity)
 			} else {
 				// Render floor tiles or walls based on the map state
 				if m.state.Map.Tiles[y][x] == TileWall {

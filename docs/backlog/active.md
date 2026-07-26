@@ -18,14 +18,16 @@ deliberately deferred to M2 — park ideas in `parking-lot.md`.
 
 ## Exact next action
 
-**Populate `GameState.Entities` with monsters at map generation time and render them in `View`.**
+**Implement bump-to-attack combat in `GameState.Step`.**
 
-- Define monster creation helpers (e.g. Goblin `'g'`, Orc `'o'`) with stats and colors.
-- Spawn monsters in generated rooms during `GenerateMap`/`NewGameWithSeed` (excluding player starting position).
-- Update `model.View()` in `main.go` to render non-player entities from `GameState.Entities`.
-- Add tests in `tui_test.go` and `game_test.go` verifying monster population and rendering.
+- When player attempts to move into a cell occupied by a monster in `GameState.Entities`:
+  - Player does NOT move into that tile.
+  - Player deals `Player.Damage` to the target monster's `Health`.
+  - Append a combat event log entry to `GameState.Log` (e.g., `"Player hits Goblin for 10 damage."`).
+  - If monster's `Health` reaches 0 or below, remove monster from `GameState.Entities` and append kill log (e.g., `"Goblin dies."`).
+- Add unit tests in `game_test.go` and TUI tests in `tui_test.go` verifying bump attack, health reduction, monster death removal, and combat log entries.
 
-Why next: monster population (M1.4) is required before implementing bump-to-attack combat (M1.5) and monster turns (M1.6).
+Why next: bump-to-attack combat (M1.5) requires monsters (M1.4, completed) and enables turn resolution / monster turns (M1.6).
 
 ## Milestone plan
 
@@ -36,9 +38,8 @@ Why next: monster population (M1.4) is required before implementing bump-to-atta
 - [x] **M1.3** Map generation — rooms plus corridors into `GameMap`, seeded
       from an explicit RNG stored in the model so tests are deterministic
       (ADR-0003). Replace the hard-coded 20x10 room in `initialModel`. — *completed 2026-07-27*.
-- [ ] **M1.4** Populate `GameState.Entities` with monsters at generation time
-      and render them in `View` (currently `Entities` is never read or
-      written).
+- [x] **M1.4** Populate `GameState.Entities` with monsters at generation time
+      and render them in `View`. — *completed 2026-07-27*.
 - [ ] **M1.5** Bump-to-attack: moving into an occupied tile deals
       `Entity.Damage`, reduces `Health`, removes the entity at zero, and
       appends a line to `GameState.Log`.
@@ -69,5 +70,5 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-07-27  —  VERIFY OK
 ```
 
-gofmt clean, `go vet` clean, builds, headless smoke frame renders, 8 test
+gofmt clean, `go vet` clean, builds, headless smoke frame renders, 11 test
 functions pass, `go.mod` tidy.

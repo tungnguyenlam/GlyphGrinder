@@ -240,16 +240,80 @@ func carveVCorridor(m *GameMap, y1, y2, x int) {
 	}
 }
 
+// NewGoblin creates a goblin monster entity.
+func NewGoblin(id int, pos Position) Entity {
+	return Entity{
+		ID:        id,
+		Pos:       pos,
+		IsPlayer:  false,
+		Rune:      "g",
+		Color:     "#00FF66",
+		Health:    10,
+		MaxHealth: 10,
+		Damage:    3,
+	}
+}
+
+// NewOrc creates an orc monster entity.
+func NewOrc(id int, pos Position) Entity {
+	return Entity{
+		ID:        id,
+		Pos:       pos,
+		IsPlayer:  false,
+		Rune:      "o",
+		Color:     "#FF5555",
+		Health:    20,
+		MaxHealth: 20,
+		Damage:    6,
+	}
+}
+
 // NewGameWithSeed initializes game state using a deterministic seed for map generation.
 func NewGameWithSeed(width, height int, seed int64) GameState {
 	rng := rand.New(rand.NewSource(seed))
 	gameMap, rooms := GenerateMap(width, height, rng)
 	spawnPos := rooms[0].Center()
 
+	nextID := 1
+	var entities []Entity
+
+	for _, r := range rooms {
+		numMonsters := rng.Intn(2) + 1
+		for m := 0; m < numMonsters; m++ {
+			rx := r.X + rng.Intn(r.W)
+			ry := r.Y + rng.Intn(r.H)
+			pos := Position{X: rx, Y: ry}
+
+			if pos == spawnPos {
+				continue
+			}
+			occupied := false
+			for _, e := range entities {
+				if e.Pos == pos {
+					occupied = true
+					break
+				}
+			}
+			if occupied {
+				continue
+			}
+
+			var monster Entity
+			if rng.Intn(10) < 7 {
+				monster = NewGoblin(nextID, pos)
+			} else {
+				monster = NewOrc(nextID, pos)
+			}
+			nextID++
+			entities = append(entities, monster)
+		}
+	}
+
 	return GameState{
 		Seed: seed,
 		Map:  gameMap,
 		Player: Entity{
+			ID:        0,
 			IsPlayer:  true,
 			Pos:       spawnPos,
 			Rune:      "@",
@@ -258,6 +322,7 @@ func NewGameWithSeed(width, height int, seed int64) GameState {
 			MaxHealth: 100,
 			Damage:    10,
 		},
+		Entities: entities,
 	}
 }
 
