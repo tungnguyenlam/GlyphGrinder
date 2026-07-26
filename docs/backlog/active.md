@@ -7,9 +7,9 @@ Update it continuously — as soon as a sub-task lands or the plan changes.
 
 ## Current milestone
 
-**Post-M5 Polish & Maintenance.** All milestones (M1 Playable Core Loop, M2 Visual Pitch & FOV, M3 Deep Progression & Items, M4 Shipping & CI, M5 Dungeon Mechanics & Magical Depth) are complete.
+**Post-M6 Polish & Maintenance.** All milestones (M1 Playable Core Loop, M2 Visual Pitch & FOV, M3 Deep Progression & Items, M4 Shipping & CI, M5 Dungeon Mechanics & Magical Depth, M6 Visual Brilliance & Tactical Systems) are complete.
 
-Serves `GOAL.md` directly: GlyphGrinder is a complete, polished, tactical, fast, and fully verified Go terminal roguelike.
+Serves `GOAL.md` directly: GlyphGrinder is a complete, highly polished, fast, responsive, and fully verified Go terminal roguelike.
 
 ## Exact next action
 
@@ -18,7 +18,7 @@ Serves `GOAL.md` directly: GlyphGrinder is a complete, polished, tactical, fast,
 - Run `./scripts/verify.sh` to confirm green build and test status.
 - Consult `docs/backlog/parking-lot.md` for post-launch ideas when starting new feature work.
 
-Why next: Milestones M1 through M5 have been completed and verified against `GOAL.md`.
+Why next: Milestones M1 through M6 have been completed and verified against `GOAL.md`.
 
 ## Milestone plan
 
@@ -27,12 +27,13 @@ Why next: Milestones M1 through M5 have been completed and verified against `GOA
 - [x] **M3** A run worth finishing (stairs & depth, items & inventory, Trolls & Archers with ranged AI, Amulet of Yendor win condition).
 - [x] **M4** Ships to other people (`go install`, README rewrite, degradation checks, benchmarks, GitHub Actions CI).
 - [x] **M5** Dungeon Mechanics & Magical Depth (Fireball/Teleport scrolls, interactive doors, status effects, seed replayability).
+- [x] **M6** Visual Brilliance & Tactical Systems (Title/End screens, hazard tiles, item dropping, targeting UI, save/resume, render optimization).
 
 ## Acceptance criteria
 
-- All milestones M1–M5 completed and logged in `docs/backlog/done.md`.
-- `README.md` is complete and accurate.
-- Performance benchmarks confirm sub-millisecond execution (< 0.09ms per View render).
+- All milestones M1–M6 completed and logged in `docs/backlog/done.md`.
+- `README.md` is complete and accurate with current features and controls.
+- Performance benchmarks confirm sub-millisecond execution (< 0.065ms per View render).
 - `./scripts/verify.sh` passes clean.
 
 ## Blockers
@@ -45,6 +46,8 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-07-27  —  VERIFY OK
 ```
 
-gofmt clean, `go vet` clean, builds, headless smoke frame renders, 74 test functions pass + 3 performance benchmarks pass, `go.mod` tidy.
+gofmt clean, `go vet` clean, builds, headless smoke frame renders, 81 test functions pass + 3 performance benchmarks pass, `go.mod` tidy.
+
+
 
 

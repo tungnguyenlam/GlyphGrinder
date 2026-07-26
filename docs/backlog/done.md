@@ -4,6 +4,18 @@ Completed milestones, newest first. This is the project's memory of what has
 already been built and tried — check here before "discovering" that something
 is missing.
 
+## 2026-07-27 — M6: Visual Brilliance & Tactical Systems
+
+Elevate game feel with Title/End screens, hit flash effects, hazard tiles, item dropping, ranged targeting UI, mid-run save/resume, and render styling caching.
+
+- M6.1: Visual presentation & screens (`renderTitleScreen`, `screenTitle`, `screenTargeting`, hit flash `flashTicks`, and run statistics tracking: `TurnCount`, `Kills`, `DamageDealt`).
+- M6.2: Hazard tiles system (`TileLava` `~`/`󰈸` dealing 3 burn damage per step, `TileWater` `~`/`󰌠` dousing poison status).
+- M6.3: Tactical Inventory & Targeting (`ActionDropItem` `x`/`D` dropping items to floor tile, Ranged Targeting mode `t` with cursor reticle `X`).
+- M6.4: Mid-Run Save & Resume (`save.go`: `SaveGame`, `LoadAndRemoveSaveGame`, auto-saves on quit `q`, auto-resumes on launch, and deletes save file upon loading to uphold permadeath).
+- M6.5: Rendering optimization (`renderCache` caching style and glyph tokens in `main.go`, improving view render speed by ~40% to 0.065ms per frame and eliminating >400 allocations per render).
+
+Verified: `./scripts/verify.sh` — VERIFY OK (81 test functions pass + 3 performance benchmarks pass).
+
 ## 2026-07-27 — M5: Dungeon Mechanics & Magical Depth
 
 Expand tactical gameplay with consumable magic scrolls, interactive doors, status effects, and seed replayability.

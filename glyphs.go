@@ -19,6 +19,8 @@ type GlyphSet struct {
 	Scroll     string
 	DoorClosed string
 	DoorOpen   string
+	Lava       string
+	Water      string
 }
 
 // ASCIIGlyphs returns the standard ASCII fallback glyph set.
@@ -38,6 +40,8 @@ func ASCIIGlyphs() GlyphSet {
 		Scroll:     "?",
 		DoorClosed: "+",
 		DoorOpen:   "/",
+		Lava:       "~",
+		Water:      "~",
 	}
 }
 
@@ -58,6 +62,8 @@ func NerdFontGlyphs() GlyphSet {
 		Scroll:     "󰈙", // U+F0219 (scroll / document)
 		DoorClosed: "󰌝", // U+F031D (closed door)
 		DoorOpen:   "󰌟", // U+F031F (open door)
+		Lava:       "󰈸", // U+F0238 (fire / lava)
+		Water:      "󰌠", // U+F0320 (water / wave)
 	}
 }
 

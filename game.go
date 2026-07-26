@@ -21,6 +21,8 @@ const (
 	TileStairsDown
 	TileDoorClosed
 	TileDoorOpen
+	TileLava
+	TileWater
 )
 
 // ScrollType defines the magic spell effect of a scroll.
@@ -105,6 +107,7 @@ const (
 	ActionMoveRight
 	ActionDescend
 	ActionPickup
+	ActionDropItem
 	ActionUseItem
 	ActionUseItem1
 	ActionUseItem2
@@ -119,14 +122,17 @@ const (
 
 // GameState is the flat root state of the game engine.
 type GameState struct {
-	Seed      int64
-	Depth     int
-	Map       GameMap
-	Player    Entity
-	Entities  []Entity
-	Items     []Item
-	Log       []string
-	IsVictory bool
+	Seed        int64
+	Depth       int
+	TurnCount   int
+	Kills       int
+	DamageDealt int
+	Map         GameMap
+	Player      Entity
+	Entities    []Entity
+	Items       []Item
+	Log         []string
+	IsVictory   bool
 }
 
 // Step processes a single game turn based on the provided player action.
@@ -134,6 +140,8 @@ func (s GameState) Step(act Action) GameState {
 	if act == ActionNone || s.IsVictory || s.Player.Health <= 0 {
 		return s
 	}
+
+	s.TurnCount++
 
 	if act == ActionDescend {
 		if s.Map.Tiles[s.Player.Pos.Y][s.Player.Pos.X] == TileStairsDown {
@@ -143,6 +151,9 @@ func (s GameState) Step(act Action) GameState {
 			}
 			nextSeed := s.Seed + int64(s.Depth)*10007
 			nextState := NewGameWithSeedAndDepth(s.Map.Width, s.Map.Height, nextSeed, nextDepth)
+			nextState.TurnCount = s.TurnCount
+			nextState.Kills = s.Kills
+			nextState.DamageDealt = s.DamageDealt
 			nextState.Player.Health = s.Player.Health
 			nextState.Player.MaxHealth = s.Player.MaxHealth
 			nextState.Player.Damage = s.Player.Damage
@@ -206,6 +217,30 @@ func (s GameState) Step(act Action) GameState {
 			s.Log = append(s.Log, "*** YOU HAVE FOUND THE AMULET OF YENDOR! VICTORY IS YOURS! ***")
 		}
 		s.Log = append(s.Log, fmt.Sprintf("You pick up the %s.", picked.Name))
+
+		s.runMonsterTurns()
+		s.Map.ComputeFOV(s.Player.Pos, FOVRadius)
+		return s
+	}
+
+	if act == ActionDropItem {
+		s.Log = append([]string(nil), s.Log...)
+		s.Entities = append([]Entity(nil), s.Entities...)
+		s.Items = append([]Item(nil), s.Items...)
+		s.Player.Inventory = append([]Item(nil), s.Player.Inventory...)
+
+		if len(s.Player.Inventory) == 0 {
+			s.Log = append(s.Log, "You have no items to drop.")
+			return s
+		}
+
+		// Drop the last item in inventory
+		droppedItem := s.Player.Inventory[len(s.Player.Inventory)-1]
+		s.Player.Inventory = s.Player.Inventory[:len(s.Player.Inventory)-1]
+
+		droppedItem.Pos = s.Player.Pos
+		s.Items = append(s.Items, droppedItem)
+		s.Log = append(s.Log, fmt.Sprintf("You drop the %s.", droppedItem.Name))
 
 		s.runMonsterTurns()
 		s.Map.ComputeFOV(s.Player.Pos, FOVRadius)
@@ -303,8 +338,10 @@ func (s GameState) Step(act Action) GameState {
 					dy := abs(e.Pos.Y - s.Player.Pos.Y)
 					if dx <= fireballRadius && dy <= fireballRadius {
 						e.Health -= fireballDamage
+						s.DamageDealt += fireballDamage
 						hitCount++
 						if e.Health <= 0 {
+							s.Kills++
 							s.Log = append(s.Log, fmt.Sprintf("The %s is engulfed in flames and dies!", e.Name))
 						} else {
 							s.Log = append(s.Log, fmt.Sprintf("The %s is scorched by fireball for %d damage.", e.Name, fireballDamage))
@@ -446,6 +483,7 @@ func (s GameState) Step(act Action) GameState {
 	if targetIdx != -1 {
 		target := s.Entities[targetIdx]
 		target.Health -= s.Player.Damage
+		s.DamageDealt += s.Player.Damage
 
 		playerName := s.Player.Name
 		if playerName == "" {
@@ -470,13 +508,37 @@ func (s GameState) Step(act Action) GameState {
 		}
 
 		if target.Health <= 0 {
+			s.Kills++
 			s.Log = append(s.Log, fmt.Sprintf("%s dies.", monsterName))
 		}
 
 		s.Entities = newEntities
 	} else {
 		s.Player.Pos = targetPos
-		if s.Map.Tiles[newY][newX] == TileStairsDown {
+		tile := s.Map.Tiles[newY][newX]
+		if tile == TileLava {
+			s.Player.Health -= 3
+			if s.Player.Health < 0 {
+				s.Player.Health = 0
+			}
+			s.Log = append(s.Log, "The molten lava burns you for 3 damage!")
+		} else if tile == TileWater {
+			var cleanStatuses []ActiveStatus
+			cleansed := false
+			for _, st := range s.Player.Statuses {
+				if st.Type == StatusPoison {
+					cleansed = true
+				} else {
+					cleanStatuses = append(cleanStatuses, st)
+				}
+			}
+			s.Player.Statuses = cleanStatuses
+			if cleansed {
+				s.Log = append(s.Log, "The cool water cleanses your poison!")
+			} else {
+				s.Log = append(s.Log, "You splash through cool water.")
+			}
+		} else if tile == TileStairsDown {
 			s.Log = append(s.Log, "You see a staircase leading down here. (Press > or Enter to descend)")
 		} else {
 			for _, it := range s.Items {
@@ -572,7 +634,8 @@ func (s *GameState) runMonsterTurns() {
 				if pos.X < 0 || pos.X >= s.Map.Width || pos.Y < 0 || pos.Y >= s.Map.Height {
 					return false
 				}
-				if s.Map.Tiles[pos.Y][pos.X] != TileFloor {
+				tile := s.Map.Tiles[pos.Y][pos.X]
+				if tile == TileWall || tile == TileDoorClosed {
 					return false
 				}
 				if pos == s.Player.Pos {

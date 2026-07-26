@@ -32,6 +32,16 @@ func tickCmd() tea.Cmd {
 	})
 }
 
+type screenMode uint8
+
+const (
+	screenPlaying screenMode = iota
+	screenTitle
+	screenGameOver
+	screenVictory
+	screenTargeting
+)
+
 type model struct {
 	state          GameState
 	width          int      // terminal columns (from tea.WindowSizeMsg)
@@ -42,6 +52,9 @@ type model struct {
 	camY           float64  // visual camera center Y coordinate
 	camInitialized bool     // whether camera position has been initialized
 	animTicks      int      // remaining animation ticks for current move step
+	flashTicks     int      // screen hit flash ticks
+	screen         screenMode
+	targetCursor   Position
 }
 
 // Default map dimensions for the larger dungeon.
@@ -58,6 +71,9 @@ func initialModel() model {
 		} else {
 			st = NewGame(defaultMapWidth, defaultMapHeight)
 		}
+	} else if loaded, ok, _ := LoadAndRemoveSaveGame(DefaultSaveFilePath); ok {
+		st = loaded
+		st.Log = append(st.Log, "Resumed previous run from save file.")
 	} else {
 		st = NewGame(defaultMapWidth, defaultMapHeight)
 	}
@@ -71,6 +87,12 @@ func initialModel() model {
 		camY:           float64(st.Player.Pos.Y),
 		camInitialized: true,
 	}
+}
+
+func initialTitleModel() model {
+	m := initialModel()
+	m.screen = screenTitle
+	return m
 }
 
 func initialModelWithSeed(seed int64) model {
@@ -167,16 +189,62 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.animTicks > 0 {
 			m.animTicks--
 		}
+		if m.flashTicks > 0 {
+			m.flashTicks--
+		}
 
-		if m.isAnimating() {
+		if m.isAnimating() || m.flashTicks > 0 {
 			return m, tickCmd()
 		}
 		return m, nil
 	case tea.KeyMsg:
 		k := msg.String()
 		if k == "ctrl+c" || k == "q" {
+			if m.state.Player.Health > 0 && !m.state.IsVictory {
+				_ = SaveGame(m.state, DefaultSaveFilePath)
+			}
 			return m, tea.Quit
 		}
+
+		if m.screen == screenTitle {
+			if k == " " || k == "enter" || k == "w" || k == "a" || k == "s" || k == "d" || k == "up" || k == "down" || k == "left" || k == "right" {
+				m.screen = screenPlaying
+			}
+			return m, nil
+		}
+
+		if m.screen == screenTargeting {
+			switch k {
+			case "up", "w":
+				if m.targetCursor.Y > 0 {
+					m.targetCursor.Y--
+				}
+			case "down", "s":
+				if m.targetCursor.Y < m.state.Map.Height-1 {
+					m.targetCursor.Y++
+				}
+			case "left", "a":
+				if m.targetCursor.X > 0 {
+					m.targetCursor.X--
+				}
+			case "right", "d":
+				if m.targetCursor.X < m.state.Map.Width-1 {
+					m.targetCursor.X++
+				}
+			case "esc":
+				m.screen = screenPlaying
+			case "enter", "f", " ":
+				m.screen = screenPlaying
+				oldHealth := m.state.Player.Health
+				m.state = m.state.Step(ActionUseItem)
+				if m.state.Player.Health < oldHealth {
+					m.flashTicks = 4
+				}
+				return m, tickCmd()
+			}
+			return m, nil
+		}
+
 		if m.state.Player.Health <= 0 || m.state.IsVictory {
 			if k == "r" {
 				m.state = NewGame(defaultMapWidth, defaultMapHeight)
@@ -184,7 +252,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.camY = float64(m.state.Player.Pos.Y)
 				m.camInitialized = true
 				m.animTicks = 0
+				m.screen = screenPlaying
 			}
+			return m, nil
+		}
+
+		if k == "t" {
+			m.screen = screenTargeting
+			m.targetCursor = m.state.Player.Pos
 			return m, nil
 		}
 
@@ -198,6 +273,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			act = ActionMoveLeft
 		case "right", "d":
 			act = ActionMoveRight
+		case "x", "D":
+			act = ActionDropItem
 		case ">", "enter":
 			act = ActionDescend
 		case "g", ",":
@@ -230,7 +307,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.camInitialized = true
 			}
 			oldDepth := m.state.Depth
+			oldHealth := m.state.Player.Health
 			m.state = m.state.Step(act)
+			if m.state.Player.Health < oldHealth {
+				m.flashTicks = 4
+			}
 			if m.state.Depth != oldDepth {
 				m.camX = float64(m.state.Player.Pos.X)
 				m.camY = float64(m.state.Player.Pos.Y)
@@ -291,12 +372,154 @@ func viewportCenter(centerX, centerY float64, mapW, mapH, viewW, viewH int) (x0,
 // (1 HUD line + up to 5 log lines).
 const reservedRows = 6
 
+func renderTitleScreen(pal Palette, gly GlyphSet, seed int64) string {
+	titleStyle := lipgloss.NewStyle().Foreground(pal.Stairs).Bold(true)
+	subStyle := lipgloss.NewStyle().Foreground(pal.Player).Bold(true)
+	keyStyle := lipgloss.NewStyle().Foreground(pal.Weapon)
+	descStyle := lipgloss.NewStyle().Foreground(pal.HUDLog)
+	promptStyle := lipgloss.NewStyle().Foreground(pal.HUDNormal).Bold(true)
+
+	var sb strings.Builder
+	sb.WriteString("\n")
+	sb.WriteString(titleStyle.Render("  ____ _                    ____    _         _           "))
+	sb.WriteString("\n")
+	sb.WriteString(titleStyle.Render(" / ___| |_   _ _ __ | |__  / ___| _ __(_)_ __   __| | ___ _ __ "))
+	sb.WriteString("\n")
+	sb.WriteString(titleStyle.Render("| |  _| | | | | '_ \\| '_ \\| |  _ | '__| | '_ \\ / _` |/ _ \\ '__|"))
+	sb.WriteString("\n")
+	sb.WriteString(titleStyle.Render("| |_| | | |_| | |_) | | | | |_| || |  | | | | | (_| |  __/ |   "))
+	sb.WriteString("\n")
+	sb.WriteString(titleStyle.Render(" \\____|_|\\__, | .__/|_| |_|\\____||_|  |_|_| |_|\\__,_|\\___|_|   "))
+	sb.WriteString("\n")
+	sb.WriteString(titleStyle.Render("         |___/|_|                                              "))
+	sb.WriteString("\n\n")
+
+	sb.WriteString(subStyle.Render("      --- A TERMINAL ROGUELIKE OF PROCEDURAL PERIL ---"))
+	sb.WriteString("\n\n")
+
+	sb.WriteString(fmt.Sprintf("                 Dungeon Seed: %d\n\n", seed))
+
+	sb.WriteString(keyStyle.Render("  [W/A/S/D / Arrows]") + descStyle.Render(" Move & Bump Attack\n"))
+	sb.WriteString(keyStyle.Render("  [G / ,]") + descStyle.Render(" Pick Up Item    ") + keyStyle.Render("[X / D]") + descStyle.Render(" Drop Item\n"))
+	sb.WriteString(keyStyle.Render("  [H / 1-9]") + descStyle.Render(" Use Item       ") + keyStyle.Render("[T]") + descStyle.Render(" Target Ranged / Scroll\n"))
+	sb.WriteString(keyStyle.Render("  [> / Enter]") + descStyle.Render(" Descend Stairs ") + keyStyle.Render("[Q]") + descStyle.Render(" Quit Game\n\n"))
+
+	sb.WriteString(promptStyle.Render("       === PRESS [SPACE] OR [ENTER] TO BEGIN DESCENT ==="))
+	sb.WriteString("\n")
+	return sb.String()
+}
+
+type renderCache struct {
+	pal Palette
+	gly GlyphSet
+
+	Player        string
+	Floor         string
+	Wall          string
+	Stairs        string
+	Lava          string
+	Water         string
+	DoorClosed    string
+	DoorOpen      string
+	DimFloor      string
+	DimWall       string
+	DimStairs     string
+	DimLava       string
+	DimWater      string
+	DimDoorClosed string
+	DimDoorOpen   string
+	TargetReticle string
+
+	HUDNormalStyle  lipgloss.Style
+	HUDWarningStyle lipgloss.Style
+	HUDLogStyle     lipgloss.Style
+
+	GoblinGlyph string
+	GoblinStyle lipgloss.Style
+	OrcGlyph    string
+	OrcStyle    lipgloss.Style
+	TrollGlyph  string
+	TrollStyle  lipgloss.Style
+	ArcherGlyph string
+	ArcherStyle lipgloss.Style
+
+	PotionGlyph string
+	PotionStyle lipgloss.Style
+	WeaponGlyph string
+	WeaponStyle lipgloss.Style
+	AmuletGlyph string
+	AmuletStyle lipgloss.Style
+	ScrollGlyph string
+	ScrollStyle lipgloss.Style
+}
+
+var globalRenderCache *renderCache
+
+func getRenderCache(pal Palette, gly GlyphSet) *renderCache {
+	if globalRenderCache != nil && globalRenderCache.pal == pal && globalRenderCache.gly == gly {
+		return globalRenderCache
+	}
+
+	c := &renderCache{
+		pal: pal,
+		gly: gly,
+
+		Player:        lipgloss.NewStyle().Foreground(pal.Player).Bold(true).Render(gly.Player),
+		Floor:         lipgloss.NewStyle().Foreground(pal.FloorLit).Render(gly.Floor),
+		Wall:          lipgloss.NewStyle().Foreground(pal.WallLit).Render(gly.Wall),
+		Stairs:        lipgloss.NewStyle().Foreground(pal.Stairs).Bold(true).Render(gly.StairsDown),
+		Lava:          lipgloss.NewStyle().Foreground(pal.Lava).Bold(true).Render(gly.Lava),
+		Water:         lipgloss.NewStyle().Foreground(pal.Water).Bold(true).Render(gly.Water),
+		DoorClosed:    lipgloss.NewStyle().Foreground(pal.Door).Render(gly.DoorClosed),
+		DoorOpen:      lipgloss.NewStyle().Foreground(pal.Door).Render(gly.DoorOpen),
+		DimFloor:      lipgloss.NewStyle().Foreground(pal.FloorDim).Render(gly.Floor),
+		DimWall:       lipgloss.NewStyle().Foreground(pal.WallDim).Render(gly.Wall),
+		DimStairs:     lipgloss.NewStyle().Foreground(pal.WallDim).Render(gly.StairsDown),
+		DimLava:       lipgloss.NewStyle().Foreground(pal.WallDim).Render(gly.Lava),
+		DimWater:      lipgloss.NewStyle().Foreground(pal.WallDim).Render(gly.Water),
+		DimDoorClosed: lipgloss.NewStyle().Foreground(pal.WallDim).Render(gly.DoorClosed),
+		DimDoorOpen:   lipgloss.NewStyle().Foreground(pal.WallDim).Render(gly.DoorOpen),
+		TargetReticle: lipgloss.NewStyle().Foreground(pal.HUDWarning).Bold(true).Render("X"),
+
+		HUDNormalStyle:  lipgloss.NewStyle().Foreground(pal.HUDNormal).Bold(true),
+		HUDWarningStyle: lipgloss.NewStyle().Foreground(pal.HUDWarning).Bold(true),
+		HUDLogStyle:     lipgloss.NewStyle().Foreground(pal.HUDLog),
+
+		GoblinGlyph: gly.Goblin,
+		GoblinStyle: lipgloss.NewStyle().Foreground(pal.Goblin).Bold(true),
+		OrcGlyph:    gly.Orc,
+		OrcStyle:    lipgloss.NewStyle().Foreground(pal.Orc).Bold(true),
+		TrollGlyph:  gly.Troll,
+		TrollStyle:  lipgloss.NewStyle().Foreground(pal.Troll).Bold(true),
+		ArcherGlyph: gly.Archer,
+		ArcherStyle: lipgloss.NewStyle().Foreground(pal.Archer).Bold(true),
+
+		PotionGlyph: gly.Potion,
+		PotionStyle: lipgloss.NewStyle().Foreground(pal.Potion).Bold(true),
+		WeaponGlyph: gly.Weapon,
+		WeaponStyle: lipgloss.NewStyle().Foreground(pal.Weapon).Bold(true),
+		AmuletGlyph: gly.Amulet,
+		AmuletStyle: lipgloss.NewStyle().Foreground(pal.Amulet).Bold(true),
+		ScrollGlyph: gly.Scroll,
+		ScrollStyle: lipgloss.NewStyle().Foreground(pal.Scroll).Bold(true),
+	}
+	globalRenderCache = c
+	return c
+}
+
 func (m model) View() string {
 	if m.state.Map.Width == 0 || m.state.Map.Height == 0 {
 		return ""
 	}
 
 	pal := m.getPalette()
+	gly := m.getGlyphs()
+
+	if m.screen == screenTitle {
+		return renderTitleScreen(pal, gly, m.state.Seed)
+	}
+
+	cache := getRenderCache(pal, gly)
 	var sb strings.Builder
 
 	// Render HUD / Status Bar
@@ -308,9 +531,9 @@ func (m model) View() string {
 	if depth < 1 {
 		depth = 1
 	}
-	hpStyle := lipgloss.NewStyle().Foreground(pal.HUDNormal).Bold(true)
-	if hp == 0 {
-		hpStyle = lipgloss.NewStyle().Foreground(pal.HUDWarning).Bold(true)
+	hpStyle := cache.HUDNormalStyle
+	if m.flashTicks > 0 || hp == 0 {
+		hpStyle = cache.HUDWarningStyle
 	}
 	hudStr := fmt.Sprintf("HP: %d/%d | Depth: %d | Seed: %d", hp, m.state.Player.MaxHealth, depth, m.state.Seed)
 	if len(m.state.Player.Inventory) > 0 {
@@ -322,12 +545,15 @@ func (m model) View() string {
 	}
 	hudText := hpStyle.Render(hudStr)
 
-	if m.state.IsVictory {
+	if m.screen == screenTargeting {
+		targetBannerStyle := cache.WeaponStyle
+		hudText += targetBannerStyle.Render(" | [TARGETING MODE: Use Arrows, Enter to fire, Esc to cancel]")
+	} else if m.state.IsVictory {
 		victoryStyle := lipgloss.NewStyle().Foreground(pal.Stairs).Bold(true)
-		hudText += victoryStyle.Render(" | *** VICTORY! YOU ESCAPED WITH THE AMULET OF YENDOR *** (Press r to restart)")
+		hudText += victoryStyle.Render(fmt.Sprintf(" | *** VICTORY! Slain: %d | Turns: %d *** (Press r to restart)", m.state.Kills, m.state.TurnCount))
 	} else if m.state.Player.Health <= 0 {
-		gameOverStyle := lipgloss.NewStyle().Foreground(pal.HUDWarning).Bold(true)
-		hudText += gameOverStyle.Render(" | *** GAME OVER *** (Press r to restart)")
+		gameOverStyle := cache.HUDWarningStyle
+		hudText += gameOverStyle.Render(fmt.Sprintf(" | *** GAME OVER *** Slain: %d | Turns: %d (Press r to restart)", m.state.Kills, m.state.TurnCount))
 	}
 	sb.WriteString(hudText)
 	sb.WriteString("\n")
@@ -344,45 +570,40 @@ func (m model) View() string {
 	camX, camY := m.getCamPos()
 	x0, y0, x1, y1 := viewportCenter(camX, camY, m.state.Map.Width, m.state.Map.Height, viewW, viewH)
 
-	gly := m.getGlyphs()
-
-	// Render Map Grid (visible sub-rectangle only)
-	playerStyle := lipgloss.NewStyle().Foreground(pal.Player).Bold(true)
-	player := playerStyle.Render(gly.Player)
-	floorStyle := lipgloss.NewStyle().Foreground(pal.FloorLit)
-	floor := floorStyle.Render(gly.Floor)
-	wallStyle := lipgloss.NewStyle().Foreground(pal.WallLit)
-	wall := wallStyle.Render(gly.Wall)
-	stairsStyle := lipgloss.NewStyle().Foreground(pal.Stairs).Bold(true)
-	stairs := stairsStyle.Render(gly.StairsDown)
-	// Dimmed styles for explored-but-not-visible tiles (map memory).
-	dimFloorStyle := lipgloss.NewStyle().Foreground(pal.FloorDim)
-	dimFloor := dimFloorStyle.Render(gly.Floor)
-	dimWallStyle := lipgloss.NewStyle().Foreground(pal.WallDim)
-	dimWall := dimWallStyle.Render(gly.Wall)
-	dimStairsStyle := lipgloss.NewStyle().Foreground(pal.WallDim)
-	dimStairs := dimStairsStyle.Render(gly.StairsDown)
-
-	doorStyle := lipgloss.NewStyle().Foreground(pal.Door)
-	doorClosed := doorStyle.Render(gly.DoorClosed)
-	doorOpen := doorStyle.Render(gly.DoorOpen)
-
-	dimDoorStyle := lipgloss.NewStyle().Foreground(pal.WallDim)
-	dimDoorClosed := dimDoorStyle.Render(gly.DoorClosed)
-	dimDoorOpen := dimDoorStyle.Render(gly.DoorOpen)
-
 	entityMap := make(map[Position]string, len(m.state.Entities))
 	for _, e := range m.state.Entities {
-		style := lipgloss.NewStyle().Foreground(ResolveEntityColor(e, pal)).Bold(true)
-		glyph := ResolveEntityGlyph(e, gly)
-		entityMap[e.Pos] = style.Render(glyph)
+		switch e.Name {
+		case "Goblin":
+			entityMap[e.Pos] = cache.GoblinStyle.Render(cache.GoblinGlyph)
+		case "Orc":
+			entityMap[e.Pos] = cache.OrcStyle.Render(cache.OrcGlyph)
+		case "Troll":
+			entityMap[e.Pos] = cache.TrollStyle.Render(cache.TrollGlyph)
+		case "Archer":
+			entityMap[e.Pos] = cache.ArcherStyle.Render(cache.ArcherGlyph)
+		default:
+			style := lipgloss.NewStyle().Foreground(ResolveEntityColor(e, pal)).Bold(true)
+			glyph := ResolveEntityGlyph(e, gly)
+			entityMap[e.Pos] = style.Render(glyph)
+		}
 	}
 
 	itemMap := make(map[Position]string, len(m.state.Items))
 	for _, it := range m.state.Items {
-		style := lipgloss.NewStyle().Foreground(ResolveItemColor(it, pal)).Bold(true)
-		glyph := ResolveItemGlyph(it, gly)
-		itemMap[it.Pos] = style.Render(glyph)
+		switch it.ItemType {
+		case ItemPotion:
+			itemMap[it.Pos] = cache.PotionStyle.Render(cache.PotionGlyph)
+		case ItemWeapon:
+			itemMap[it.Pos] = cache.WeaponStyle.Render(cache.WeaponGlyph)
+		case ItemAmulet:
+			itemMap[it.Pos] = cache.AmuletStyle.Render(cache.AmuletGlyph)
+		case ItemScroll:
+			itemMap[it.Pos] = cache.ScrollStyle.Render(cache.ScrollGlyph)
+		default:
+			style := lipgloss.NewStyle().Foreground(ResolveItemColor(it, pal)).Bold(true)
+			glyph := ResolveItemGlyph(it, gly)
+			itemMap[it.Pos] = style.Render(glyph)
+		}
 	}
 
 	hasFOV := m.state.Map.Visible != nil && m.state.Map.Explored != nil
@@ -392,13 +613,15 @@ func (m model) View() string {
 			visible := !hasFOV || m.state.Map.Visible[y][x]
 			explored := !hasFOV || m.state.Map.Explored[y][x]
 
-			if !explored {
+			if m.screen == screenTargeting && pos == m.targetCursor {
+				sb.WriteString(cache.TargetReticle)
+			} else if !explored {
 				// Tile has never been seen — render as blank.
 				sb.WriteString(" ")
 			} else if visible {
 				// Currently in line-of-sight — full brightness.
 				if pos == m.state.Player.Pos {
-					sb.WriteString(player)
+					sb.WriteString(cache.Player)
 				} else if renderedEntity, found := entityMap[pos]; found {
 					sb.WriteString(renderedEntity)
 				} else if renderedItem, found := itemMap[pos]; found {
@@ -406,30 +629,38 @@ func (m model) View() string {
 				} else {
 					switch m.state.Map.Tiles[y][x] {
 					case TileWall:
-						sb.WriteString(wall)
+						sb.WriteString(cache.Wall)
 					case TileStairsDown:
-						sb.WriteString(stairs)
+						sb.WriteString(cache.Stairs)
 					case TileDoorClosed:
-						sb.WriteString(doorClosed)
+						sb.WriteString(cache.DoorClosed)
 					case TileDoorOpen:
-						sb.WriteString(doorOpen)
+						sb.WriteString(cache.DoorOpen)
+					case TileLava:
+						sb.WriteString(cache.Lava)
+					case TileWater:
+						sb.WriteString(cache.Water)
 					default:
-						sb.WriteString(floor)
+						sb.WriteString(cache.Floor)
 					}
 				}
 			} else {
 				// Explored but not visible — dimmed, no monsters or items.
 				switch m.state.Map.Tiles[y][x] {
 				case TileWall:
-					sb.WriteString(dimWall)
+					sb.WriteString(cache.DimWall)
 				case TileStairsDown:
-					sb.WriteString(dimStairs)
+					sb.WriteString(cache.DimStairs)
 				case TileDoorClosed:
-					sb.WriteString(dimDoorClosed)
+					sb.WriteString(cache.DimDoorClosed)
 				case TileDoorOpen:
-					sb.WriteString(dimDoorOpen)
+					sb.WriteString(cache.DimDoorOpen)
+				case TileLava:
+					sb.WriteString(cache.DimLava)
+				case TileWater:
+					sb.WriteString(cache.DimWater)
 				default:
-					sb.WriteString(dimFloor)
+					sb.WriteString(cache.DimFloor)
 				}
 			}
 		}
@@ -442,7 +673,7 @@ func (m model) View() string {
 	if logCount > 5 {
 		start = logCount - 5
 	}
-	logStyle := lipgloss.NewStyle().Foreground(pal.HUDLog)
+	logStyle := cache.HUDLogStyle
 	for i := start; i < logCount; i++ {
 		sb.WriteString(logStyle.Render(m.state.Log[i]))
 		if i < logCount-1 {

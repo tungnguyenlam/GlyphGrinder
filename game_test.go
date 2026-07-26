@@ -1061,3 +1061,101 @@ func TestConfusedStatusMovement(t *testing.T) {
 		t.Errorf("expected confusion log, got %q", fullLog)
 	}
 }
+
+func TestActionDropItem(t *testing.T) {
+	st := NewGameWithSeed(20, 10, 12345)
+	item := NewHealthPotion(101, Position{X: -1, Y: -1})
+	st.Player.Inventory = []Item{item}
+	initialItemsCount := len(st.Items)
+
+	stDropped := st.Step(ActionDropItem)
+
+	if len(stDropped.Player.Inventory) != 0 {
+		t.Errorf("expected empty inventory after dropping item, got %d", len(stDropped.Player.Inventory))
+	}
+	if len(stDropped.Items) != initialItemsCount+1 {
+		t.Errorf("expected items count to increase by 1, got %d", len(stDropped.Items))
+	}
+	dropped := stDropped.Items[len(stDropped.Items)-1]
+	if dropped.Pos != stDropped.Player.Pos {
+		t.Errorf("dropped item pos = %+v, want player pos %+v", dropped.Pos, stDropped.Player.Pos)
+	}
+}
+
+func TestLavaAndWaterHazardTiles(t *testing.T) {
+	st := GameState{
+		Map: GameMap{
+			Width:  5,
+			Height: 5,
+			Tiles: [][]TileType{
+				{TileWall, TileWall, TileWall, TileWall, TileWall},
+				{TileWall, TileFloor, TileLava, TileWater, TileWall},
+				{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+				{TileWall, TileWall, TileWall, TileWall, TileWall},
+				{TileWall, TileWall, TileWall, TileWall, TileWall},
+			},
+		},
+		Player: Entity{
+			ID:        0,
+			Name:      "Player",
+			IsPlayer:  true,
+			Pos:       Position{X: 1, Y: 1},
+			Health:    50,
+			MaxHealth: 100,
+			Statuses:  []ActiveStatus{{Type: StatusPoison, Duration: 5, Power: 2}},
+		},
+	}
+
+	// Step right onto TileLava
+	stLava := st.Step(ActionMoveRight)
+	if stLava.Player.Health >= 50 {
+		t.Errorf("expected HP to decrease after stepping on lava, got %d", stLava.Player.Health)
+	}
+
+	// Step right onto TileWater
+	stWater := stLava.Step(ActionMoveRight)
+	for _, s := range stWater.Player.Statuses {
+		if s.Type == StatusPoison {
+			t.Errorf("expected poison status to be cleansed by water")
+		}
+	}
+}
+
+func TestTurnCountKillsAndDamageDealtTracking(t *testing.T) {
+	st := GameState{
+		Map: GameMap{
+			Width:  5,
+			Height: 5,
+			Tiles: [][]TileType{
+				{TileWall, TileWall, TileWall, TileWall, TileWall},
+				{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+				{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+				{TileWall, TileWall, TileWall, TileWall, TileWall},
+				{TileWall, TileWall, TileWall, TileWall, TileWall},
+			},
+		},
+		Player: Entity{
+			ID:        0,
+			Name:      "Player",
+			IsPlayer:  true,
+			Pos:       Position{X: 1, Y: 1},
+			Damage:    15,
+			Health:    100,
+			MaxHealth: 100,
+		},
+		Entities: []Entity{
+			{ID: 1, Name: "Goblin", Pos: Position{X: 2, Y: 1}, Health: 10, MaxHealth: 10, Damage: 2},
+		},
+	}
+
+	stAttack := st.Step(ActionMoveRight)
+	if stAttack.TurnCount != 1 {
+		t.Errorf("TurnCount = %d, want 1", stAttack.TurnCount)
+	}
+	if stAttack.DamageDealt != 15 {
+		t.Errorf("DamageDealt = %d, want 15", stAttack.DamageDealt)
+	}
+	if stAttack.Kills != 1 {
+		t.Errorf("Kills = %d, want 1", stAttack.Kills)
+	}
+}

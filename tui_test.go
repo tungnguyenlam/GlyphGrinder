@@ -1280,3 +1280,40 @@ func TestGLYPHGRINDER_SEEDEnvOverride(t *testing.T) {
 		t.Errorf("expected model seed = 777 from GLYPHGRINDER_SEED, got %d", m.state.Seed)
 	}
 }
+
+func TestTitleScreenRendering(t *testing.T) {
+	tm := initialTitleModel()
+	d := tuitest.New(t, tm)
+
+	view := stripANSI(d.View())
+	if !strings.Contains(view, "A TERMINAL ROGUELIKE OF PROCEDURAL PERIL") {
+		t.Errorf("title view expected subtitle, got:\n%s", view)
+	}
+
+	// Press space to begin descent
+	d.Key(" ")
+	viewPlaying := stripANSI(d.View())
+	if !strings.Contains(viewPlaying, "HP: 100/100") {
+		t.Errorf("expected playing view with HUD after pressing space, got:\n%s", viewPlaying)
+	}
+}
+
+func TestTargetingModeTUI(t *testing.T) {
+	m := initialModelWithSeed(12345)
+	d := tuitest.New(t, m)
+
+	// Press 't' to enter targeting mode
+	d.Key("t")
+	viewTargeting := stripANSI(d.View())
+	if !strings.Contains(viewTargeting, "TARGETING MODE") {
+		t.Errorf("expected TARGETING MODE in HUD after pressing t, got:\n%s", viewTargeting)
+	}
+
+	// Move targeting cursor right and press esc to cancel
+	d.Key("right")
+	d.Key("esc")
+	viewCancelled := stripANSI(d.View())
+	if strings.Contains(viewCancelled, "TARGETING MODE") {
+		t.Errorf("expected TARGETING MODE to exit after pressing esc")
+	}
+}
