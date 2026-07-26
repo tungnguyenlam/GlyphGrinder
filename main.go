@@ -175,6 +175,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			act = ActionMoveLeft
 		case "right", "d":
 			act = ActionMoveRight
+		case ">", "enter":
+			act = ActionDescend
 		}
 		if act != ActionNone {
 			if !m.camInitialized {
@@ -182,8 +184,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.camY = float64(m.state.Player.Pos.Y)
 				m.camInitialized = true
 			}
+			oldDepth := m.state.Depth
 			m.state = m.state.Step(act)
-			m.animTicks = maxAnimTicks
+			if m.state.Depth != oldDepth {
+				m.camX = float64(m.state.Player.Pos.X)
+				m.camY = float64(m.state.Player.Pos.Y)
+				m.animTicks = 0
+			} else {
+				m.animTicks = maxAnimTicks
+			}
 			return m, tickCmd()
 		}
 	}
@@ -250,11 +259,15 @@ func (m model) View() string {
 	if hp < 0 {
 		hp = 0
 	}
+	depth := m.state.Depth
+	if depth < 1 {
+		depth = 1
+	}
 	hpStyle := lipgloss.NewStyle().Foreground(pal.HUDNormal).Bold(true)
 	if hp == 0 {
 		hpStyle = lipgloss.NewStyle().Foreground(pal.HUDWarning).Bold(true)
 	}
-	hudText := hpStyle.Render(fmt.Sprintf("HP: %d/%d", hp, m.state.Player.MaxHealth))
+	hudText := hpStyle.Render(fmt.Sprintf("HP: %d/%d | Depth: %d", hp, m.state.Player.MaxHealth, depth))
 
 	if m.state.Player.Health <= 0 {
 		gameOverStyle := lipgloss.NewStyle().Foreground(pal.HUDWarning).Bold(true)
@@ -284,11 +297,15 @@ func (m model) View() string {
 	floor := floorStyle.Render(gly.Floor)
 	wallStyle := lipgloss.NewStyle().Foreground(pal.WallLit)
 	wall := wallStyle.Render(gly.Wall)
+	stairsStyle := lipgloss.NewStyle().Foreground(pal.Stairs).Bold(true)
+	stairs := stairsStyle.Render(gly.StairsDown)
 	// Dimmed styles for explored-but-not-visible tiles (map memory).
 	dimFloorStyle := lipgloss.NewStyle().Foreground(pal.FloorDim)
 	dimFloor := dimFloorStyle.Render(gly.Floor)
 	dimWallStyle := lipgloss.NewStyle().Foreground(pal.WallDim)
 	dimWall := dimWallStyle.Render(gly.Wall)
+	dimStairsStyle := lipgloss.NewStyle().Foreground(pal.WallDim)
+	dimStairs := dimStairsStyle.Render(gly.StairsDown)
 
 	entityMap := make(map[Position]string, len(m.state.Entities))
 	for _, e := range m.state.Entities {
@@ -314,17 +331,23 @@ func (m model) View() string {
 				} else if renderedEntity, found := entityMap[pos]; found {
 					sb.WriteString(renderedEntity)
 				} else {
-					if m.state.Map.Tiles[y][x] == TileWall {
+					switch m.state.Map.Tiles[y][x] {
+					case TileWall:
 						sb.WriteString(wall)
-					} else {
+					case TileStairsDown:
+						sb.WriteString(stairs)
+					default:
 						sb.WriteString(floor)
 					}
 				}
 			} else {
 				// Explored but not visible — dimmed, no monsters.
-				if m.state.Map.Tiles[y][x] == TileWall {
+				switch m.state.Map.Tiles[y][x] {
+				case TileWall:
 					sb.WriteString(dimWall)
-				} else {
+				case TileStairsDown:
+					sb.WriteString(dimStairs)
+				default:
 					sb.WriteString(dimFloor)
 				}
 			}

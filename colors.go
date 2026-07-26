@@ -16,6 +16,7 @@ type Palette struct {
 	WallLit    lipgloss.CompleteColor
 	FloorDim   lipgloss.CompleteColor
 	WallDim    lipgloss.CompleteColor
+	Stairs     lipgloss.CompleteColor
 	HUDNormal  lipgloss.CompleteColor
 	HUDWarning lipgloss.CompleteColor
 	HUDLog     lipgloss.CompleteColor
@@ -60,6 +61,11 @@ func DefaultPalette() Palette {
 			TrueColor: "#3B485E",
 			ANSI256:   "240",
 			ANSI:      "8",
+		},
+		Stairs: lipgloss.CompleteColor{
+			TrueColor: "#FFD700",
+			ANSI256:   "220",
+			ANSI:      "3",
 		},
 		HUDNormal: lipgloss.CompleteColor{
 			TrueColor: "#00FF87",

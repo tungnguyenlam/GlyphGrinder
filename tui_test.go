@@ -900,3 +900,51 @@ func TestInputResponsivenessDuringTicks(t *testing.T) {
 		t.Errorf("player position after rapid inputs = %+v, want %+v", m.state.Player.Pos, wantPos)
 	}
 }
+
+func TestHUDDisplaysDepth(t *testing.T) {
+	m := initialModelWithSeed(12345)
+	d := tuitest.New(t, m)
+
+	lines := d.Lines()
+	plainHUD := stripANSI(lines[0])
+	if !strings.Contains(plainHUD, "Depth: 1") {
+		t.Errorf("expected 'Depth: 1' in HUD line, got %q", plainHUD)
+	}
+}
+
+func TestDescendLevelViaTUI(t *testing.T) {
+	m := initialModelWithSeed(12345)
+	var stairsPos Position
+	found := false
+	for y := 0; y < m.state.Map.Height; y++ {
+		for x := 0; x < m.state.Map.Width; x++ {
+			if m.state.Map.Tiles[y][x] == TileStairsDown {
+				stairsPos = Position{X: x, Y: y}
+				found = true
+				break
+			}
+		}
+		if found {
+			break
+		}
+	}
+	if !found {
+		t.Fatal("no stairs in initial map")
+	}
+
+	m.state.Player.Pos = stairsPos
+	d := tuitest.New(t, m)
+
+	d.Key(">")
+
+	mdl := d.Model().(model)
+	if mdl.state.Depth != 2 {
+		t.Errorf("model depth after descend = %d, want 2", mdl.state.Depth)
+	}
+
+	lines := d.Lines()
+	plainHUD := stripANSI(lines[0])
+	if !strings.Contains(plainHUD, "Depth: 2") {
+		t.Errorf("expected 'Depth: 2' in HUD line after descend, got %q", plainHUD)
+	}
+}

@@ -5,32 +5,35 @@ import "os"
 // GlyphSet holds the display symbols for all game map tiles and entities.
 // It supports both Nerd Font unicode symbols and clean ASCII fallbacks.
 type GlyphSet struct {
-	Player string
-	Goblin string
-	Orc    string
-	Floor  string
-	Wall   string
+	Player     string
+	Goblin     string
+	Orc        string
+	Floor      string
+	Wall       string
+	StairsDown string
 }
 
 // ASCIIGlyphs returns the standard ASCII fallback glyph set.
 func ASCIIGlyphs() GlyphSet {
 	return GlyphSet{
-		Player: "@",
-		Goblin: "g",
-		Orc:    "o",
-		Floor:  ".",
-		Wall:   "#",
+		Player:     "@",
+		Goblin:     "g",
+		Orc:        "o",
+		Floor:      ".",
+		Wall:       "#",
+		StairsDown: ">",
 	}
 }
 
 // NerdFontGlyphs returns the enriched Nerd Font glyph set.
 func NerdFontGlyphs() GlyphSet {
 	return GlyphSet{
-		Player: "󰋋", // U+F02CB (nf-md-account / knight)
-		Goblin: "󰆧", // U+F01A7 (nf-md-ghost)
-		Orc:    "󰌆", // U+F0306 (nf-md-skull)
-		Floor:  "·", // U+00B7 (middle dot)
-		Wall:   "▓", // U+2593 (dark shade block)
+		Player:     "󰋋", // U+F02CB (nf-md-account / knight)
+		Goblin:     "󰆧", // U+F01A7 (nf-md-ghost)
+		Orc:        "󰌆", // U+F0306 (nf-md-skull)
+		Floor:      "·", // U+00B7 (middle dot)
+		Wall:       "▓", // U+2593 (dark shade block)
+		StairsDown: "󰌑", // U+F0311 (stairs down)
 	}
 }
 

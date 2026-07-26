@@ -14,22 +14,23 @@ Serves `GOAL.md` directly: "It is a real roguelike underneath the polish, not a 
 
 ## Exact next action
 
-**M3.1 — Multiple dungeon levels & stairs.**
+**M3.2 — Items & Inventory (Potions & Weapons).**
 
 - In `game.go`:
-  - Add `Depth int` to `GameState`.
-  - Add `TileStairsDown` to `TileType` and place down stairs (`>`) in the furthest room during `GenerateMap`.
-  - Handle descending stairs when player steps onto stairs or presses `>` / `enter`.
+  - Introduce `Item` struct (`ID`, `Name`, `Pos`, `ItemType`: `ItemPotion` / `ItemWeapon`, `HealAmount`, `DamageBonus`).
+  - Add `Items []Item` to `GameState` and `Inventory []Item` to `Entity` (player inventory).
+  - Spawn items (health potions `!`, iron daggers `/`) in rooms during map generation (`GenerateMap`).
+  - Add `ActionPickup` (`g` / `,`) to pick up items underfoot, and `ActionUseItem` (`h` / `1..9`) to consume health potions.
 - In `main.go`:
-  - Update HUD status bar to display `Depth: X`.
-  - Add stair glyph support to `GlyphSet`.
-- Add unit/TUI tests in `game_test.go` and `tui_test.go` verifying stair generation, descending level progression, depth HUD display, and FOV reset.
+  - Add item glyphs (`Potion`, `Weapon`) to `GlyphSet` and colors to `Palette`.
+  - Update `View()` to render visible floor items and display inventory status / log events.
+- Add unit/TUI tests in `game_test.go` and `tui_test.go` verifying item spawning, pickup to inventory, potion HP restoration, and weapon damage bonus.
 
-Why next: M3.1 establishes multi-floor dungeon progression, giving players a sense of descent and increasing challenge.
+Why next: M3.2 adds items that change how you play, fulfilling `GOAL.md` core roguelike gameplay requirements.
 
 ## Milestone plan
 
-- [ ] **M3.1** Multiple dungeon levels & stairs (`>`) with depth HUD tracking.
+- [x] **M3.1** Multiple dungeon levels & stairs (`>`) with depth HUD tracking.
 - [ ] **M3.2** Items & Inventory (health potions `!`, weapons `/`, pickup `g`/`,`, drink `h`).
 - [ ] **M3.3** Enhanced monster types & AI (Troll `T`, Archer `A`).
 - [ ] **M3.4** Win condition & victory screen (Amulet of Yendor on Depth 5).
@@ -53,5 +54,6 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-07-27  —  VERIFY OK
 ```
 
-gofmt clean, `go vet` clean, builds, headless smoke frame renders, 41 test functions pass (2 new tick animation & camera easing tests), `go.mod` tidy.
+gofmt clean, `go vet` clean, builds, headless smoke frame renders, 46 test functions pass (5 new stairs & multi-floor depth tests), `go.mod` tidy.
+
 

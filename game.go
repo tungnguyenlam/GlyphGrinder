@@ -18,6 +18,7 @@ type TileType uint8
 const (
 	TileFloor TileType = iota
 	TileWall
+	TileStairsDown
 )
 
 // GameMap holds the grid.
@@ -51,11 +52,13 @@ const (
 	ActionMoveDown
 	ActionMoveLeft
 	ActionMoveRight
+	ActionDescend
 )
 
 // GameState is the flat root state of the game engine.
 type GameState struct {
 	Seed     int64
+	Depth    int
 	Map      GameMap
 	Player   Entity
 	Entities []Entity
@@ -64,6 +67,34 @@ type GameState struct {
 
 // Step processes a single game turn based on the provided player action.
 func (s GameState) Step(act Action) GameState {
+	if act == ActionNone {
+		return s
+	}
+
+	if act == ActionDescend {
+		if s.Map.Tiles[s.Player.Pos.Y][s.Player.Pos.X] == TileStairsDown {
+			nextDepth := s.Depth + 1
+			if nextDepth <= 0 {
+				nextDepth = 2
+			}
+			nextSeed := s.Seed + int64(s.Depth)*10007
+			nextState := NewGameWithSeedAndDepth(s.Map.Width, s.Map.Height, nextSeed, nextDepth)
+			nextState.Player.Health = s.Player.Health
+			nextState.Player.MaxHealth = s.Player.MaxHealth
+			nextState.Player.Damage = s.Player.Damage
+			if s.Player.Name != "" {
+				nextState.Player.Name = s.Player.Name
+			}
+			nextState.Log = append([]string(nil), s.Log...)
+			nextState.Log = append(nextState.Log, fmt.Sprintf("You descend to dungeon level %d.", nextDepth))
+			return nextState
+		} else {
+			s.Log = append([]string(nil), s.Log...)
+			s.Log = append(s.Log, "There are no stairs here.")
+			return s
+		}
+	}
+
 	var dx, dy int
 	switch act {
 	case ActionMoveUp:
@@ -74,8 +105,6 @@ func (s GameState) Step(act Action) GameState {
 		dx = -1
 	case ActionMoveRight:
 		dx = 1
-	case ActionNone:
-		return s
 	}
 
 	newX := s.Player.Pos.X + dx
@@ -140,6 +169,9 @@ func (s GameState) Step(act Action) GameState {
 		s.Entities = newEntities
 	} else {
 		s.Player.Pos = targetPos
+		if s.Map.Tiles[newY][newX] == TileStairsDown {
+			s.Log = append(s.Log, "You see a staircase leading down here. (Press > or Enter to descend)")
+		}
 	}
 
 	// Monster turns
@@ -480,6 +512,21 @@ func GenerateMap(width, height int, rng *rand.Rand) (GameMap, []Rect) {
 		rooms = append(rooms, fallbackRoom)
 	}
 
+	// Place down stairs in room furthest from spawn room (rooms[0])
+	maxDist := -1
+	stairsRoomIdx := 0
+	spawnPos := rooms[0].Center()
+	for i, r := range rooms {
+		c := r.Center()
+		dist := abs(c.X-spawnPos.X) + abs(c.Y-spawnPos.Y)
+		if dist > maxDist {
+			maxDist = dist
+			stairsRoomIdx = i
+		}
+	}
+	stairsPos := rooms[stairsRoomIdx].Center()
+	m.Tiles[stairsPos.Y][stairsPos.X] = TileStairsDown
+
 	return m, rooms
 }
 
@@ -537,8 +584,11 @@ func NewOrc(id int, pos Position) Entity {
 	}
 }
 
-// NewGameWithSeed initializes game state using a deterministic seed for map generation.
-func NewGameWithSeed(width, height int, seed int64) GameState {
+// NewGameWithSeedAndDepth initializes game state with a deterministic seed and floor depth.
+func NewGameWithSeedAndDepth(width, height int, seed int64, depth int) GameState {
+	if depth < 1 {
+		depth = 1
+	}
 	rng := rand.New(rand.NewSource(seed))
 	gameMap, rooms := GenerateMap(width, height, rng)
 	spawnPos := rooms[0].Center()
@@ -553,7 +603,7 @@ func NewGameWithSeed(width, height int, seed int64) GameState {
 			ry := r.Y + rng.Intn(r.H)
 			pos := Position{X: rx, Y: ry}
 
-			if pos == spawnPos {
+			if pos == spawnPos || gameMap.Tiles[pos.Y][pos.X] == TileStairsDown {
 				continue
 			}
 			occupied := false
@@ -582,8 +632,9 @@ func NewGameWithSeed(width, height int, seed int64) GameState {
 	gameMap.ComputeFOV(spawnPos, FOVRadius)
 
 	return GameState{
-		Seed: seed,
-		Map:  gameMap,
+		Seed:  seed,
+		Depth: depth,
+		Map:   gameMap,
 		Player: Entity{
 			ID:        0,
 			Name:      "Player",
@@ -599,7 +650,12 @@ func NewGameWithSeed(width, height int, seed int64) GameState {
 	}
 }
 
+// NewGameWithSeed initializes game state using a deterministic seed for map generation.
+func NewGameWithSeed(width, height int, seed int64) GameState {
+	return NewGameWithSeedAndDepth(width, height, seed, 1)
+}
+
 // NewGame initializes a game state with a random seed.
 func NewGame(width, height int) GameState {
-	return NewGameWithSeed(width, height, time.Now().UnixNano())
+	return NewGameWithSeedAndDepth(width, height, time.Now().UnixNano(), 1)
 }

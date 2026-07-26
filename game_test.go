@@ -492,3 +492,88 @@ func TestNewGameWithSeedInitializesFOV(t *testing.T) {
 		t.Error("player spawn tile should be explored")
 	}
 }
+
+func TestGenerateMapPlacesStairsDown(t *testing.T) {
+	state := NewGameWithSeed(60, 30, 12345)
+	foundStairs := false
+	for y := 0; y < state.Map.Height; y++ {
+		for x := 0; x < state.Map.Width; x++ {
+			if state.Map.Tiles[y][x] == TileStairsDown {
+				foundStairs = true
+				break
+			}
+		}
+		if foundStairs {
+			break
+		}
+	}
+	if !foundStairs {
+		t.Error("expected generated map to contain TileStairsDown")
+	}
+}
+
+func TestDescendingStairs(t *testing.T) {
+	state := NewGameWithSeed(20, 10, 12345)
+	if state.Depth != 1 {
+		t.Fatalf("initial depth = %d, want 1", state.Depth)
+	}
+
+	// Move player onto stairs tile
+	var stairsPos Position
+	found := false
+	for y := 0; y < state.Map.Height; y++ {
+		for x := 0; x < state.Map.Width; x++ {
+			if state.Map.Tiles[y][x] == TileStairsDown {
+				stairsPos = Position{X: x, Y: y}
+				found = true
+				break
+			}
+		}
+		if found {
+			break
+		}
+	}
+
+	if !found {
+		t.Fatal("no stairs found in test map")
+	}
+
+	// Teleport player directly onto stairs tile for test
+	state.Player.Pos = stairsPos
+	state.Player.Health = 85 // non-default HP to test persistence
+
+	// Descend
+	nextState := state.Step(ActionDescend)
+	if nextState.Depth != 2 {
+		t.Errorf("after ActionDescend depth = %d, want 2", nextState.Depth)
+	}
+	if nextState.Player.Health != 85 {
+		t.Errorf("player HP after descend = %d, want 85", nextState.Player.Health)
+	}
+
+	lastLog := nextState.Log[len(nextState.Log)-1]
+	if lastLog != "You descend to dungeon level 2." {
+		t.Errorf("last log = %q, want 'You descend to dungeon level 2.'", lastLog)
+	}
+
+	// Verify FOV is re-calculated for new spawn position
+	pp := nextState.Player.Pos
+	if !nextState.Map.Visible[pp.Y][pp.X] {
+		t.Error("player spawn position on level 2 should be visible in FOV")
+	}
+}
+
+func TestActionDescendWithoutStairs(t *testing.T) {
+	state := NewGameWithSeed(20, 10, 12345)
+	// Make sure player is standing on floor, not stairs
+	state.Map.Tiles[state.Player.Pos.Y][state.Player.Pos.X] = TileFloor
+
+	nextState := state.Step(ActionDescend)
+	if nextState.Depth != 1 {
+		t.Errorf("depth after ActionDescend without stairs = %d, want 1", nextState.Depth)
+	}
+	lastLog := nextState.Log[len(nextState.Log)-1]
+	if lastLog != "There are no stairs here." {
+		t.Errorf("log message = %q, want 'There are no stairs here.'", lastLog)
+	}
+}
