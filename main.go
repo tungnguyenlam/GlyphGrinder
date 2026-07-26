@@ -2,19 +2,45 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
+var tickInterval = 16 * time.Millisecond
+
+const (
+	camSpeed     = 0.35
+	maxAnimTicks = 4
+)
+
+type animTickMsg time.Time
+
+func tickCmd() tea.Cmd {
+	if tickInterval == 0 {
+		return func() tea.Msg {
+			return animTickMsg(time.Now())
+		}
+	}
+	return tea.Tick(tickInterval, func(t time.Time) tea.Msg {
+		return animTickMsg(t)
+	})
+}
+
 type model struct {
-	state   GameState
-	width   int      // terminal columns (from tea.WindowSizeMsg)
-	height  int      // terminal rows  (from tea.WindowSizeMsg)
-	palette Palette  // color palette for profile-aware rendering
-	glyphs  GlyphSet // glyph set for rendering
+	state          GameState
+	width          int      // terminal columns (from tea.WindowSizeMsg)
+	height         int      // terminal rows  (from tea.WindowSizeMsg)
+	palette        Palette  // color palette for profile-aware rendering
+	glyphs         GlyphSet // glyph set for rendering
+	camX           float64  // visual camera center X coordinate
+	camY           float64  // visual camera center Y coordinate
+	camInitialized bool     // whether camera position has been initialized
+	animTicks      int      // remaining animation ticks for current move step
 }
 
 // Default map dimensions for the larger dungeon.
@@ -24,22 +50,30 @@ const (
 )
 
 func initialModel() model {
+	st := NewGame(defaultMapWidth, defaultMapHeight)
 	return model{
-		state:   NewGame(defaultMapWidth, defaultMapHeight),
-		width:   80,
-		height:  24,
-		palette: DefaultPalette(),
-		glyphs:  DetectGlyphSet(),
+		state:          st,
+		width:          80,
+		height:         24,
+		palette:        DefaultPalette(),
+		glyphs:         DetectGlyphSet(),
+		camX:           float64(st.Player.Pos.X),
+		camY:           float64(st.Player.Pos.Y),
+		camInitialized: true,
 	}
 }
 
 func initialModelWithSeed(seed int64) model {
+	st := NewGameWithSeed(defaultMapWidth, defaultMapHeight, seed)
 	return model{
-		state:   NewGameWithSeed(defaultMapWidth, defaultMapHeight, seed),
-		width:   80,
-		height:  24,
-		palette: DefaultPalette(),
-		glyphs:  DetectGlyphSet(),
+		state:          st,
+		width:          80,
+		height:         24,
+		palette:        DefaultPalette(),
+		glyphs:         DetectGlyphSet(),
+		camX:           float64(st.Player.Pos.X),
+		camY:           float64(st.Player.Pos.Y),
+		camInitialized: true,
 	}
 }
 
@@ -57,6 +91,22 @@ func (m model) getGlyphs() GlyphSet {
 	return m.glyphs
 }
 
+func (m model) getCamPos() (float64, float64) {
+	if !m.camInitialized {
+		return float64(m.state.Player.Pos.X), float64(m.state.Player.Pos.Y)
+	}
+	return m.camX, m.camY
+}
+
+func (m model) isAnimating() bool {
+	if !m.camInitialized {
+		return false
+	}
+	targetX := float64(m.state.Player.Pos.X)
+	targetY := float64(m.state.Player.Pos.Y)
+	return m.animTicks > 0 || m.camX != targetX || m.camY != targetY
+}
+
 func (m model) Init() tea.Cmd {
 	return nil
 }
@@ -67,6 +117,38 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		return m, nil
+	case animTickMsg:
+		if !m.camInitialized {
+			m.camX = float64(m.state.Player.Pos.X)
+			m.camY = float64(m.state.Player.Pos.Y)
+			m.camInitialized = true
+		}
+		targetX := float64(m.state.Player.Pos.X)
+		targetY := float64(m.state.Player.Pos.Y)
+
+		dx := targetX - m.camX
+		dy := targetY - m.camY
+
+		if math.Abs(dx) < 0.05 {
+			m.camX = targetX
+		} else {
+			m.camX += dx * camSpeed
+		}
+
+		if math.Abs(dy) < 0.05 {
+			m.camY = targetY
+		} else {
+			m.camY += dy * camSpeed
+		}
+
+		if m.animTicks > 0 {
+			m.animTicks--
+		}
+
+		if m.isAnimating() {
+			return m, tickCmd()
+		}
+		return m, nil
 	case tea.KeyMsg:
 		k := msg.String()
 		if k == "ctrl+c" || k == "q" {
@@ -75,6 +157,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.state.Player.Health <= 0 {
 			if k == "r" {
 				m.state = NewGame(defaultMapWidth, defaultMapHeight)
+				m.camX = float64(m.state.Player.Pos.X)
+				m.camY = float64(m.state.Player.Pos.Y)
+				m.camInitialized = true
+				m.animTicks = 0
 			}
 			return m, nil
 		}
@@ -91,21 +177,34 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			act = ActionMoveRight
 		}
 		if act != ActionNone {
+			if !m.camInitialized {
+				m.camX = float64(m.state.Player.Pos.X)
+				m.camY = float64(m.state.Player.Pos.Y)
+				m.camInitialized = true
+			}
 			m.state = m.state.Step(act)
+			m.animTicks = maxAnimTicks
+			return m, tickCmd()
 		}
 	}
 	return m, nil
 }
 
-// viewport computes the map sub-rectangle to render, centered on the player
-// and clamped to map bounds. viewW and viewH are the number of map columns
-// and rows that fit in the terminal (after reserving space for HUD and log).
+// viewport computes the map sub-rectangle to render, centered on playerPos.
 func viewport(playerPos Position, mapW, mapH, viewW, viewH int) (x0, y0, x1, y1 int) {
+	return viewportCenter(float64(playerPos.X), float64(playerPos.Y), mapW, mapH, viewW, viewH)
+}
+
+// viewportCenter computes the map sub-rectangle centered on continuous coordinates (centerX, centerY).
+func viewportCenter(centerX, centerY float64, mapW, mapH, viewW, viewH int) (x0, y0, x1, y1 int) {
+	cx := int(math.Round(centerX))
+	cy := int(math.Round(centerY))
+
 	if viewW >= mapW {
 		x0 = 0
 		x1 = mapW
 	} else {
-		x0 = playerPos.X - viewW/2
+		x0 = cx - viewW/2
 		if x0 < 0 {
 			x0 = 0
 		}
@@ -120,7 +219,7 @@ func viewport(playerPos Position, mapW, mapH, viewW, viewH int) (x0, y0, x1, y1 
 		y0 = 0
 		y1 = mapH
 	} else {
-		y0 = playerPos.Y - viewH/2
+		y0 = cy - viewH/2
 		if y0 < 0 {
 			y0 = 0
 		}
@@ -173,7 +272,8 @@ func (m model) View() string {
 	if viewH <= 0 {
 		viewH = m.state.Map.Height
 	}
-	x0, y0, x1, y1 := viewport(m.state.Player.Pos, m.state.Map.Width, m.state.Map.Height, viewW, viewH)
+	camX, camY := m.getCamPos()
+	x0, y0, x1, y1 := viewportCenter(camX, camY, m.state.Map.Width, m.state.Map.Height, viewW, viewH)
 
 	gly := m.getGlyphs()
 

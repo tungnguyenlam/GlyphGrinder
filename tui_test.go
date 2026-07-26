@@ -3,9 +3,15 @@ package main
 import (
 	"strings"
 	"testing"
+	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"glyphgrinder/internal/tuitest"
 )
+
+func init() {
+	tickInterval = 0
+}
 
 // viewOrigin returns the top-left map coordinate of the rendered viewport
 // for the given model. Tests use this to translate screen→map coordinates.
@@ -18,7 +24,8 @@ func viewOrigin(m model) (x0, y0 int) {
 	if vh <= 0 {
 		vh = m.state.Map.Height
 	}
-	x0, y0, _, _ = viewport(m.state.Player.Pos, m.state.Map.Width, m.state.Map.Height, vw, vh)
+	camX, camY := m.getCamPos()
+	x0, y0, _, _ = viewportCenter(camX, camY, m.state.Map.Width, m.state.Map.Height, vw, vh)
 	return x0, y0
 }
 
@@ -796,5 +803,100 @@ func TestCameraFollowsPlayer(t *testing.T) {
 	gotPos := playerAt(t, lines, ox1, oy1)
 	if gotPos != (Position{X: 35, Y: 15}) {
 		t.Errorf("playerAt returned %+v, want (35, 15)", gotPos)
+	}
+}
+
+func makeAnimationTestModel() model {
+	return model{
+		state: GameState{
+			Map: GameMap{
+				Width:  10,
+				Height: 10,
+				Tiles: [][]TileType{
+					{TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall},
+				},
+			},
+			Player: Entity{
+				ID:        0,
+				Name:      "Player",
+				IsPlayer:  true,
+				Pos:       Position{X: 2, Y: 2},
+				Rune:      "@",
+				Color:     "#00FF00",
+				Health:    100,
+				MaxHealth: 100,
+			},
+		},
+	}
+}
+
+func TestTickAnimationStateAndEasing(t *testing.T) {
+	m := makeAnimationTestModel()
+	if m.isAnimating() {
+		t.Error("initial model should not be animating")
+	}
+
+	startPos := m.state.Player.Pos
+
+	tickInterval = 16 * time.Millisecond
+	defer func() { tickInterval = 0 }()
+
+	nextMdl, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	m = nextMdl.(model)
+
+	if cmd == nil {
+		t.Fatal("Update(moveKey) should return a tick command when animating")
+	}
+
+	if !m.isAnimating() {
+		t.Error("model should be animating after movement action")
+	}
+
+	wantPos := Position{X: startPos.X + 1, Y: startPos.Y}
+	if m.state.Player.Pos != wantPos {
+		t.Errorf("player position = %+v, want %+v", m.state.Player.Pos, wantPos)
+	}
+
+	frames := 0
+	for m.isAnimating() {
+		frames++
+		if frames > 100 {
+			t.Fatal("animation failed to converge within 100 ticks")
+		}
+		nextM, _ := m.Update(animTickMsg(time.Now()))
+		m = nextM.(model)
+	}
+
+	camX, camY := m.getCamPos()
+	if camX != float64(wantPos.X) || camY != float64(wantPos.Y) {
+		t.Errorf("final camera pos = (%f, %f), want (%d, %d)", camX, camY, wantPos.X, wantPos.Y)
+	}
+}
+
+func TestInputResponsivenessDuringTicks(t *testing.T) {
+	tickInterval = 16 * time.Millisecond
+	defer func() { tickInterval = 0 }()
+
+	m := makeAnimationTestModel()
+	startPos := m.state.Player.Pos
+
+	nextM, _ := m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	m = nextM.(model)
+
+	nextM, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m = nextM.(model)
+
+	wantPos := Position{X: startPos.X + 1, Y: startPos.Y + 1}
+	if m.state.Player.Pos != wantPos {
+		t.Errorf("player position after rapid inputs = %+v, want %+v", m.state.Player.Pos, wantPos)
 	}
 }

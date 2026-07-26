@@ -4,6 +4,18 @@ Completed milestones, newest first. This is the project's memory of what has
 already been built and tried — check here before "discovering" that something
 is missing.
 
+## 2026-07-27 — M2: It looks like the pitch
+
+Transformed GlyphGrinder into a visually distinct, responsive terminal roguelike.
+
+- M2.1: Field of view (FOV) shadowcasting & map memory (lit tiles bright, explored dimmed, unexplored hidden).
+- M2.2: Viewport camera centered on player and terminal window resize handling (`tea.WindowSizeMsg`).
+- M2.3: Rich color palette system with Lip Gloss profile-aware rendering (TrueColor, ANSI256, ANSI fallbacks).
+- M2.4: Nerd Font glyph set detection with ASCII fallback.
+- M2.5: Tick-driven movement animation with continuous camera easing interpolation (~60 FPS ticks in main, instant 0ms ticks in unit tests).
+
+Verified: `./scripts/verify.sh` — VERIFY OK.
+
 ## 2026-07-27 — M1: Playable core loop
 
 Transformed the initial static 20x10 square room into a playable roguelike loop.
