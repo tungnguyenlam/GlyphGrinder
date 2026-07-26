@@ -86,6 +86,9 @@ func (s GameState) Step(act Action) GameState {
 		return s
 	}
 
+	s.Entities = append([]Entity(nil), s.Entities...)
+	s.Log = append([]string(nil), s.Log...)
+
 	targetPos := Position{X: newX, Y: newY}
 	targetIdx := -1
 	for i, e := range s.Entities {
@@ -108,8 +111,7 @@ func (s GameState) Step(act Action) GameState {
 			monsterName = "Monster"
 		}
 
-		newLog := append([]string(nil), s.Log...)
-		newLog = append(newLog, fmt.Sprintf("%s hits %s for %d damage.", playerName, monsterName, s.Player.Damage))
+		s.Log = append(s.Log, fmt.Sprintf("%s hits %s for %d damage.", playerName, monsterName, s.Player.Damage))
 
 		newEntities := make([]Entity, 0, len(s.Entities))
 		for i, e := range s.Entities {
@@ -123,17 +125,118 @@ func (s GameState) Step(act Action) GameState {
 		}
 
 		if target.Health <= 0 {
-			newLog = append(newLog, fmt.Sprintf("%s dies.", monsterName))
+			s.Log = append(s.Log, fmt.Sprintf("%s dies.", monsterName))
 		}
 
 		s.Entities = newEntities
-		s.Log = newLog
-		return s
+	} else {
+		s.Player.Pos = targetPos
 	}
 
-	s.Player.Pos.X = newX
-	s.Player.Pos.Y = newY
+	// Monster turns
+	playerName := s.Player.Name
+	if playerName == "" {
+		playerName = "Player"
+	}
+
+	for i := 0; i < len(s.Entities); i++ {
+		m := s.Entities[i]
+		mName := m.Name
+		if mName == "" {
+			mName = "Monster"
+		}
+
+		pDiffX := s.Player.Pos.X - m.Pos.X
+		pDiffY := s.Player.Pos.Y - m.Pos.Y
+		absX := abs(pDiffX)
+		absY := abs(pDiffY)
+
+		if absX+absY == 1 {
+			prevHealth := s.Player.Health
+			s.Player.Health -= m.Damage
+			s.Log = append(s.Log, fmt.Sprintf("%s hits %s for %d damage.", mName, playerName, m.Damage))
+			if prevHealth > 0 && s.Player.Health <= 0 {
+				s.Log = append(s.Log, fmt.Sprintf("%s dies.", playerName))
+			}
+		} else {
+			type stepDir struct{ dx, dy int }
+			var primary, secondary stepDir
+
+			if absX >= absY {
+				stepX := 0
+				if pDiffX > 0 {
+					stepX = 1
+				} else if pDiffX < 0 {
+					stepX = -1
+				}
+				stepY := 0
+				if pDiffY > 0 {
+					stepY = 1
+				} else if pDiffY < 0 {
+					stepY = -1
+				}
+				primary = stepDir{dx: stepX, dy: 0}
+				secondary = stepDir{dx: 0, dy: stepY}
+			} else {
+				stepX := 0
+				if pDiffX > 0 {
+					stepX = 1
+				} else if pDiffX < 0 {
+					stepX = -1
+				}
+				stepY := 0
+				if pDiffY > 0 {
+					stepY = 1
+				} else if pDiffY < 0 {
+					stepY = -1
+				}
+				primary = stepDir{dx: 0, dy: stepY}
+				secondary = stepDir{dx: stepX, dy: 0}
+			}
+
+			canOccupy := func(pos Position) bool {
+				if pos.X < 0 || pos.X >= s.Map.Width || pos.Y < 0 || pos.Y >= s.Map.Height {
+					return false
+				}
+				if s.Map.Tiles[pos.Y][pos.X] != TileFloor {
+					return false
+				}
+				if pos == s.Player.Pos {
+					return false
+				}
+				for j, other := range s.Entities {
+					if j != i && other.Pos == pos {
+						return false
+					}
+				}
+				return true
+			}
+
+			candPrimary := Position{X: m.Pos.X + primary.dx, Y: m.Pos.Y + primary.dy}
+			if primary.dx != 0 || primary.dy != 0 {
+				if canOccupy(candPrimary) {
+					s.Entities[i].Pos = candPrimary
+					continue
+				}
+			}
+
+			if secondary.dx != 0 || secondary.dy != 0 {
+				candSecondary := Position{X: m.Pos.X + secondary.dx, Y: m.Pos.Y + secondary.dy}
+				if canOccupy(candSecondary) {
+					s.Entities[i].Pos = candSecondary
+				}
+			}
+		}
+	}
+
 	return s
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
 }
 
 // Rect represents a rectangular region on the grid.

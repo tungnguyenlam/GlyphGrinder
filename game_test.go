@@ -149,12 +149,20 @@ func TestBumpToAttackDamage(t *testing.T) {
 		t.Errorf("orc health = %d, want %d", got, want)
 	}
 
-	// Log should record hit
-	if len(newState.Log) != 1 {
-		t.Fatalf("expected 1 log entry, got %d", len(newState.Log))
+	// Orc counter-attacks on its turn
+	if got, want := newState.Player.Health, 94; got != want {
+		t.Errorf("player health = %d, want %d", got, want)
+	}
+
+	// Log should record player hit and Orc counter-hit
+	if len(newState.Log) != 2 {
+		t.Fatalf("expected 2 log entries, got %d", len(newState.Log))
 	}
 	if got, want := newState.Log[0], "Player hits Orc for 10 damage."; got != want {
-		t.Errorf("log = %q, want %q", got, want)
+		t.Errorf("log[0] = %q, want %q", got, want)
+	}
+	if got, want := newState.Log[1], "Orc hits Player for 6 damage."; got != want {
+		t.Errorf("log[1] = %q, want %q", got, want)
 	}
 }
 
@@ -206,5 +214,155 @@ func TestBumpToAttackKillsMonster(t *testing.T) {
 	}
 	if got, want := newState.Log[1], "Goblin dies."; got != want {
 		t.Errorf("log[1] = %q, want %q", got, want)
+	}
+}
+
+func TestMonsterMovementTowardsPlayer(t *testing.T) {
+	state := GameState{
+		Map: GameMap{
+			Width:  5,
+			Height: 5,
+			Tiles: [][]TileType{
+				{TileWall, TileWall, TileWall, TileWall, TileWall},
+				{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+				{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+				{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+				{TileWall, TileWall, TileWall, TileWall, TileWall},
+			},
+		},
+		Player: Entity{
+			ID:        0,
+			Name:      "Player",
+			IsPlayer:  true,
+			Pos:       Position{X: 1, Y: 1},
+			Damage:    10,
+			Health:    100,
+			MaxHealth: 100,
+		},
+		Entities: []Entity{
+			NewGoblin(1, Position{X: 1, Y: 3}),
+		},
+	}
+
+	// Player moves right to (2, 1)
+	newState := state.Step(ActionMoveRight)
+
+	if newState.Player.Pos != (Position{X: 2, Y: 1}) {
+		t.Errorf("player position = %+v, want (2, 1)", newState.Player.Pos)
+	}
+
+	// Goblin at (1, 3) targeting Player at (2, 1): diffX=1, diffY=-2.
+	// Primary axis is Y (absY 2 > absX 1), stepY = -1.
+	// Goblin should step to (1, 2).
+	if len(newState.Entities) != 1 {
+		t.Fatalf("expected 1 entity, got %d", len(newState.Entities))
+	}
+	if got, want := newState.Entities[0].Pos, (Position{X: 1, Y: 2}); got != want {
+		t.Errorf("goblin pos = %+v, want %+v", got, want)
+	}
+}
+
+func TestMonsterAttackPlayerAndDamageLog(t *testing.T) {
+	state := GameState{
+		Map: GameMap{
+			Width:  5,
+			Height: 5,
+			Tiles: [][]TileType{
+				{TileWall, TileWall, TileWall, TileWall, TileWall},
+				{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+				{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+				{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+				{TileWall, TileWall, TileWall, TileWall, TileWall},
+			},
+		},
+		Player: Entity{
+			ID:        0,
+			Name:      "Player",
+			IsPlayer:  true,
+			Pos:       Position{X: 2, Y: 2},
+			Damage:    10,
+			Health:    100,
+			MaxHealth: 100,
+		},
+		Entities: []Entity{
+			NewOrc(1, Position{X: 2, Y: 3}), // Orc has 20 Health, 6 Damage
+		},
+	}
+
+	// Player bump attacks Orc at (2, 3)
+	newState := state.Step(ActionMoveDown)
+
+	// Player stays at (2, 2)
+	if newState.Player.Pos != (Position{X: 2, Y: 2}) {
+		t.Errorf("player pos = %+v, want (2, 2)", newState.Player.Pos)
+	}
+
+	// Player dealt 10 damage to Orc (Orc HP 20 -> 10)
+	if len(newState.Entities) != 1 || newState.Entities[0].Health != 10 {
+		t.Errorf("orc health = %d, want 10", newState.Entities[0].Health)
+	}
+
+	// Orc at (2, 3) is adjacent to Player at (2, 2), attacks Player for 6 damage
+	if got, want := newState.Player.Health, 94; got != want {
+		t.Errorf("player health = %d, want %d", got, want)
+	}
+
+	// Log should contain player hit and monster hit
+	if len(newState.Log) != 2 {
+		t.Fatalf("expected 2 log entries, got %d", len(newState.Log))
+	}
+	if got, want := newState.Log[0], "Player hits Orc for 10 damage."; got != want {
+		t.Errorf("log[0] = %q, want %q", got, want)
+	}
+	if got, want := newState.Log[1], "Orc hits Player for 6 damage."; got != want {
+		t.Errorf("log[1] = %q, want %q", got, want)
+	}
+}
+
+func TestMonsterKillsPlayerLog(t *testing.T) {
+	state := GameState{
+		Map: GameMap{
+			Width:  5,
+			Height: 5,
+			Tiles: [][]TileType{
+				{TileWall, TileWall, TileWall, TileWall, TileWall},
+				{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+				{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+				{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+				{TileWall, TileWall, TileWall, TileWall, TileWall},
+			},
+		},
+		Player: Entity{
+			ID:        0,
+			Name:      "Player",
+			IsPlayer:  true,
+			Pos:       Position{X: 2, Y: 2},
+			Damage:    10,
+			Health:    5, // Low health
+			MaxHealth: 100,
+		},
+		Entities: []Entity{
+			NewOrc(1, Position{X: 2, Y: 3}), // Orc has 6 Damage
+		},
+	}
+
+	// Player bump attacks Orc
+	newState := state.Step(ActionMoveDown)
+
+	if got := newState.Player.Health; got > 0 {
+		t.Fatalf("expected player health <= 0, got %d", got)
+	}
+
+	if len(newState.Log) != 3 {
+		t.Fatalf("expected 3 log entries, got %d: %v", len(newState.Log), newState.Log)
+	}
+	if got, want := newState.Log[0], "Player hits Orc for 10 damage."; got != want {
+		t.Errorf("log[0] = %q, want %q", got, want)
+	}
+	if got, want := newState.Log[1], "Orc hits Player for 6 damage."; got != want {
+		t.Errorf("log[1] = %q, want %q", got, want)
+	}
+	if got, want := newState.Log[2], "Player dies."; got != want {
+		t.Errorf("log[2] = %q, want %q", got, want)
 	}
 }

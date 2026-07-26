@@ -262,3 +262,52 @@ func TestBumpToAttackViaTUI(t *testing.T) {
 	// Verify monster killed in state (retrieved from driver model)
 	// Note: tuitest Driver updates model internal state on key press
 }
+
+func TestMonsterTurnsViaTUI(t *testing.T) {
+	m := model{
+		state: GameState{
+			Map: GameMap{
+				Width:  5,
+				Height: 5,
+				Tiles: [][]TileType{
+					{TileWall, TileWall, TileWall, TileWall, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileWall, TileWall, TileWall, TileWall},
+				},
+			},
+			Player: Entity{
+				ID:        0,
+				Name:      "Player",
+				IsPlayer:  true,
+				Pos:       Position{X: 1, Y: 1},
+				Rune:      "@",
+				Color:     "#00FF00",
+				Damage:    10,
+				Health:    100,
+				MaxHealth: 100,
+			},
+			Entities: []Entity{
+				NewOrc(1, Position{X: 1, Y: 3}),
+			},
+		},
+	}
+
+	d := tuitest.New(t, m)
+
+	// Step right to (2, 1). Orc at (1, 3) should step up to (1, 2).
+	d.Key("right")
+
+	lines := d.Lines()
+	pos := playerAt(t, lines)
+	if pos != (Position{X: 2, Y: 1}) {
+		t.Errorf("player position = %+v, want (2, 1)", pos)
+	}
+
+	// Verify Orc glyph 'o' is rendered at (1, 2)
+	plainRow := stripANSI(lines[2]) // Y = 2
+	if got := string([]rune(plainRow)[1]); got != "o" {
+		t.Errorf("expected Orc 'o' at (1, 2), got %q in line: %q", got, plainRow)
+	}
+}

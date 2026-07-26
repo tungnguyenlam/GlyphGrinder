@@ -18,18 +18,17 @@ deliberately deferred to M2 — park ideas in `parking-lot.md`.
 
 ## Exact next action
 
-**Implement monster turns in `GameState.Step`.**
+**Render HUD & message log in `View`, and handle game-over state.**
 
-- After player's turn action resolves (movement or bump attack):
-  - Each living monster in `GameState.Entities` takes a turn:
-    - If monster is adjacent (distance 1 orthogonally) to player, it attacks:
-      - Reduces `s.Player.Health` by `monster.Damage`.
-      - Appends log entry (e.g. `"Goblin hits Player for 3 damage."`).
-      - If player `Health` <= 0, appends kill log entry (e.g. `"Player dies."`).
-    - If monster is not adjacent, it attempts to step 1 cell closer to the player on the primary axis (X or Y offset) if that tile is `TileFloor` and not occupied by another entity or player.
-- Add unit tests in `game_test.go` and TUI tests in `tui_test.go` verifying monster movement, monster attack on player, player health reduction, and log entries.
+- In `main.go`, update `View()`:
+  - Render a status bar displaying player HP (e.g. `HP: 94/100`).
+  - Render the last 3–5 entries of `m.state.Log` below the map.
+  - If `m.state.Player.Health <= 0`, render a GAME OVER header/banner indicating game over and restart prompt ("Press r to restart").
+- In `main.go`, update `Update()`:
+  - If player is dead (`Player.Health <= 0`), listen for `"r"` key to restart the game by re-initializing the state (`m.state = NewGame(20, 10)`).
+- Add unit tests in `game_test.go` and TUI tests in `tui_test.go` asserting HUD/log rendering, game-over screen rendering, and restart key functionality.
 
-Why next: monster turns (M1.6) completes the turn resolution loop after bump-to-attack (M1.5, completed), leading into rendering HUD/log & game over handling (M1.7).
+Why next: M1.7 is the final sub-task of M1 (Playable core loop). Finishing M1.7 satisfies all M1 acceptance criteria.
 
 ## Milestone plan
 
@@ -45,8 +44,8 @@ Why next: monster turns (M1.6) completes the turn resolution loop after bump-to-
 - [x] **M1.5** Bump-to-attack: moving into an occupied tile deals
       `Entity.Damage`, reduces `Health`, removes the entity at zero, and
       appends a line to `GameState.Log`. — *completed 2026-07-27*.
-- [ ] **M1.6** Monster turns: each monster steps toward the player after the
-      player's turn resolves.
+- [x] **M1.6** Monster turns: each monster steps toward the player after the
+      player's turn resolves. — *completed 2026-07-27*.
 - [ ] **M1.7** Render the log and a health bar alongside the map; handle player
       death with a game-over state and restart on one keypress.
 
@@ -72,5 +71,5 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-07-27  —  VERIFY OK
 ```
 
-gofmt clean, `go vet` clean, builds, headless smoke frame renders, 14 test
+gofmt clean, `go vet` clean, builds, headless smoke frame renders, 18 test
 functions pass, `go.mod` tidy.
