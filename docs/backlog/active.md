@@ -7,36 +7,32 @@ Update it continuously — as soon as a sub-task lands or the plan changes.
 
 ## Current milestone
 
-**M4 — Ships to other people.** Production-ready packaging, documentation, benchmarks, CI, and graceful degradation across terminal environments.
+**Post-M4 Polish & Maintenance.** All core milestones (M1 Playable Core Loop, M2 Visual Pitch & FOV, M3 Deep Progression & Items, M4 Shipping & CI) are complete.
 
-Serves `GOAL.md` directly: "And it just runs. `go install` or a single binary, no config file, no font wrangling beyond 'install a Nerd Font', graceful degradation to plainer glyphs and colors when the terminal can't do better."
+Serves `GOAL.md` directly: GlyphGrinder is a complete, beautiful, fast, and fully verified Go terminal roguelike.
 
 ## Exact next action
 
-**M4.4 — GitHub Actions CI workflow running `./scripts/verify.sh`.**
+**Maintenance Mode / Post-Launch Polish.**
 
-- Create `.github/workflows/ci.yml`:
-  - Set up workflow triggering on `push` and `pull_request`.
-  - Configure Go environment on `ubuntu-latest`.
-  - Run `./scripts/verify.sh` and `go test -bench=.`.
+- Run `./scripts/verify.sh` to confirm green build and test status.
+- Consult `docs/backlog/parking-lot.md` for potential post-launch features (e.g. extended item types, spell scrolls, tile animations) when starting new feature work.
 
-Why next: M4.4 completes M4 by enforcing continuous integration and automated verification on every commit.
+Why next: All planned milestones M1 through M4 have been completed and verified against `GOAL.md`.
 
 ## Milestone plan
 
-- [x] **M4.1** `go install` verification & README documentation rewrite.
-- [x] **M4.2** Terminal capability & environment degradation checks (NO_COLOR, GLYPHGRINDER_ASCII, tiny window sizes).
-- [x] **M4.3** Performance benchmarks (`BenchmarkView`, `BenchmarkStep`) holding frame budgets under 1ms.
-- [ ] **M4.4** GitHub Actions CI workflow running `./scripts/verify.sh`.
+- [x] **M1** Playable core loop (dungeon generation, movement, combat, HUD, death/restart).
+- [x] **M2** Visual pitch (Nerd Font & ASCII fallbacks, TrueColor palette, FOV shadowcasting, camera easing).
+- [x] **M3** A run worth finishing (stairs & depth, items & inventory, Trolls & Archers with ranged AI, Amulet of Yendor win condition).
+- [x] **M4** Ships to other people (`go install`, README rewrite, degradation checks, benchmarks, GitHub Actions CI).
 
-## Acceptance criteria for M4
+## Acceptance criteria
 
-- Binary builds and installs via `go install`.
-- `README.md` provides clear controls, installation guide, and design summary.
-- Terminal degradation modes (ASCII fallback, monochrome, small windows) tested and verified.
-- Benchmarks verify sub-millisecond view render time.
-- CI configuration in `.github/workflows/ci.yml` passes `./scripts/verify.sh`.
-- `./scripts/verify.sh` passes.
+- All milestones M1–M4 completed and logged in `docs/backlog/done.md`.
+- `README.md` is complete and accurate.
+- Performance benchmarks confirm sub-millisecond execution (< 0.09ms per View render).
+- `./scripts/verify.sh` passes clean.
 
 ## Blockers
 
@@ -48,6 +44,6 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-07-27  —  VERIFY OK
 ```
 
-gofmt clean, `go vet` clean, builds, headless smoke frame renders, 65 test functions pass + 3 performance benchmarks pass (< 0.09ms per View render), `go.mod` tidy.
+gofmt clean, `go vet` clean, builds, headless smoke frame renders, 65 test functions pass + 3 performance benchmarks pass, `go.mod` tidy.
 
 

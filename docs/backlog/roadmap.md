@@ -15,12 +15,6 @@ Nerd Font glyphs, truecolor palette, FOV shadowcasting, movement animation, view
 
 Multiple dungeon floors, items & inventory (potions & weapons), varied monster types (Trolls & Archers) with ranged AI, and Amulet of Yendor win condition.
 
-## M4 — Ships to other people *(in progress — see [active.md](active.md))*
+## M4 — Ships to other people *(completed 2026-07-27 — see [done.md](done.md))*
 
-- `go install` verified from a clean machine; README rewritten as install +
-  controls + screenshot.
-- Startup degradation checks: no Nerd Font, no truecolor, tiny terminal, resize
-  mid-run.
-- Benchmark the render path and hold a frame budget (GOAL.md: smooth, on
-  battery, no fan).
-- CI running `./scripts/verify.sh` on push.
+`go install` verification, README rewrite, degradation checks, benchmark suite, and GitHub Actions CI.

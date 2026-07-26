@@ -4,6 +4,17 @@ Completed milestones, newest first. This is the project's memory of what has
 already been built and tried — check here before "discovering" that something
 is missing.
 
+## 2026-07-27 — M4: Ships to other people
+
+Production-ready packaging, documentation, benchmarks, CI, and graceful degradation across terminal environments.
+
+- M4.1: Verified `go install ./...` compilation; rewritten `README.md` with complete feature list, controls table, quick start guide, ASCII visual mockup, and architecture breakdown.
+- M4.2: Terminal environment degradation tests (environment overrides `GLYPHGRINDER_ASCII`, `NO_UNICODE`, `TERM=dumb`), ASCII glyph fallbacks, Lip Gloss color profile fallbacks, and extreme viewport dimension handling down to 1x1.
+- M4.3: Added performance benchmark suite in `bench_test.go` (`BenchmarkView`, `BenchmarkStep`, `BenchmarkComputeFOV`), confirming sub-millisecond execution times (< 0.09ms per View render).
+- M4.4: Added GitHub Actions CI workflow in `.github/workflows/ci.yml` executing `./scripts/verify.sh` and benchmarks on push/PR to main.
+
+Verified: `./scripts/verify.sh` — VERIFY OK (65 test functions pass + 3 performance benchmarks pass).
+
 ## 2026-07-27 — M3: A run worth finishing
 
 Build depth and gameplay progression: multiple dungeon levels with stairs, item pickup/inventory (potions & weapons), varied monster types/AI, and a victory condition.
