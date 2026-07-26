@@ -14,24 +14,22 @@ Serves `GOAL.md` directly: "It is a real roguelike underneath the polish, not a 
 
 ## Exact next action
 
-**M3.2 — Items & Inventory (Potions & Weapons).**
+**M3.3 — Enhanced monster types & AI (Troll `T`, Archer `A`).**
 
 - In `game.go`:
-  - Introduce `Item` struct (`ID`, `Name`, `Pos`, `ItemType`: `ItemPotion` / `ItemWeapon`, `HealAmount`, `DamageBonus`).
-  - Add `Items []Item` to `GameState` and `Inventory []Item` to `Entity` (player inventory).
-  - Spawn items (health potions `!`, iron daggers `/`) in rooms during map generation (`GenerateMap`).
-  - Add `ActionPickup` (`g` / `,`) to pick up items underfoot, and `ActionUseItem` (`h` / `1..9`) to consume health potions.
-- In `main.go`:
-  - Add item glyphs (`Potion`, `Weapon`) to `GlyphSet` and colors to `Palette`.
-  - Update `View()` to render visible floor items and display inventory status / log events.
-- Add unit/TUI tests in `game_test.go` and `tui_test.go` verifying item spawning, pickup to inventory, potion HP restoration, and weapon damage bonus.
+  - Add `NewTroll(id int, pos Position)` (HP 40, Damage 10) and `NewArcher(id int, pos Position)` (HP 15, Damage 4, ranged attack range 5).
+  - Scale monster pool by floor depth in `NewGameWithSeedAndDepth` (Depth 1: Goblin/Orc; Depth 2+: Trolls; Depth 3+: Archers).
+  - Update monster AI in `runMonsterTurns`: Archers fire ranged attacks if player is within range 5 and line of sight; Trolls move/attack in melee.
+- In `glyphs.go` & `colors.go`:
+  - Add `Troll` (`T`, `󰇄`) and `Archer` (`A`, `󰓤`) to `GlyphSet` and colors to `Palette`.
+- Add unit and TUI tests in `game_test.go` and `tui_test.go` verifying depth monster scaling, Troll high-damage combat, and Archer ranged attacks.
 
-Why next: M3.2 adds items that change how you play, fulfilling `GOAL.md` core roguelike gameplay requirements.
+Why next: M3.3 adds enemy variety and tactical choices, elevating combat depth before M3.4 win condition.
 
 ## Milestone plan
 
 - [x] **M3.1** Multiple dungeon levels & stairs (`>`) with depth HUD tracking.
-- [ ] **M3.2** Items & Inventory (health potions `!`, weapons `/`, pickup `g`/`,`, drink `h`).
+- [x] **M3.2** Items & Inventory (health potions `!`, weapons `/`, pickup `g`/`,`, drink `h`).
 - [ ] **M3.3** Enhanced monster types & AI (Troll `T`, Archer `A`).
 - [ ] **M3.4** Win condition & victory screen (Amulet of Yendor on Depth 5).
 
@@ -54,6 +52,6 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-07-27  —  VERIFY OK
 ```
 
-gofmt clean, `go vet` clean, builds, headless smoke frame renders, 46 test functions pass (5 new stairs & multi-floor depth tests), `go.mod` tidy.
+gofmt clean, `go vet` clean, builds, headless smoke frame renders, 55 test functions pass (9 new item spawning, pickup, potion HP restoration, weapon damage bonus, inventory persistence, and TUI item tests), `go.mod` tidy.
 
 

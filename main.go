@@ -177,6 +177,28 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			act = ActionMoveRight
 		case ">", "enter":
 			act = ActionDescend
+		case "g", ",":
+			act = ActionPickup
+		case "h":
+			act = ActionUseItem
+		case "1":
+			act = ActionUseItem1
+		case "2":
+			act = ActionUseItem2
+		case "3":
+			act = ActionUseItem3
+		case "4":
+			act = ActionUseItem4
+		case "5":
+			act = ActionUseItem5
+		case "6":
+			act = ActionUseItem6
+		case "7":
+			act = ActionUseItem7
+		case "8":
+			act = ActionUseItem8
+		case "9":
+			act = ActionUseItem9
 		}
 		if act != ActionNone {
 			if !m.camInitialized {
@@ -267,7 +289,15 @@ func (m model) View() string {
 	if hp == 0 {
 		hpStyle = lipgloss.NewStyle().Foreground(pal.HUDWarning).Bold(true)
 	}
-	hudText := hpStyle.Render(fmt.Sprintf("HP: %d/%d | Depth: %d", hp, m.state.Player.MaxHealth, depth))
+	hudStr := fmt.Sprintf("HP: %d/%d | Depth: %d", hp, m.state.Player.MaxHealth, depth)
+	if len(m.state.Player.Inventory) > 0 {
+		var invNames []string
+		for _, item := range m.state.Player.Inventory {
+			invNames = append(invNames, item.Name)
+		}
+		hudStr += fmt.Sprintf(" | Inv: [%s]", strings.Join(invNames, ", "))
+	}
+	hudText := hpStyle.Render(hudStr)
 
 	if m.state.Player.Health <= 0 {
 		gameOverStyle := lipgloss.NewStyle().Foreground(pal.HUDWarning).Bold(true)
@@ -314,6 +344,13 @@ func (m model) View() string {
 		entityMap[e.Pos] = style.Render(glyph)
 	}
 
+	itemMap := make(map[Position]string, len(m.state.Items))
+	for _, it := range m.state.Items {
+		style := lipgloss.NewStyle().Foreground(ResolveItemColor(it, pal)).Bold(true)
+		glyph := ResolveItemGlyph(it, gly)
+		itemMap[it.Pos] = style.Render(glyph)
+	}
+
 	hasFOV := m.state.Map.Visible != nil && m.state.Map.Explored != nil
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
@@ -330,6 +367,8 @@ func (m model) View() string {
 					sb.WriteString(player)
 				} else if renderedEntity, found := entityMap[pos]; found {
 					sb.WriteString(renderedEntity)
+				} else if renderedItem, found := itemMap[pos]; found {
+					sb.WriteString(renderedItem)
 				} else {
 					switch m.state.Map.Tiles[y][x] {
 					case TileWall:
@@ -341,7 +380,7 @@ func (m model) View() string {
 					}
 				}
 			} else {
-				// Explored but not visible — dimmed, no monsters.
+				// Explored but not visible — dimmed, no monsters or items.
 				switch m.state.Map.Tiles[y][x] {
 				case TileWall:
 					sb.WriteString(dimWall)

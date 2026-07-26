@@ -21,6 +21,24 @@ const (
 	TileStairsDown
 )
 
+// ItemType defines the classification of an item.
+type ItemType uint8
+
+const (
+	ItemPotion ItemType = iota
+	ItemWeapon
+)
+
+// Item represents an object on the map or in an entity's inventory.
+type Item struct {
+	ID          int
+	Name        string
+	Pos         Position
+	ItemType    ItemType
+	HealAmount  int
+	DamageBonus int
+}
+
 // GameMap holds the grid.
 type GameMap struct {
 	Width    int
@@ -41,6 +59,7 @@ type Entity struct {
 	Health    int
 	MaxHealth int
 	Damage    int
+	Inventory []Item
 }
 
 // Action represents an intent or action performed by the player on a turn.
@@ -53,6 +72,17 @@ const (
 	ActionMoveLeft
 	ActionMoveRight
 	ActionDescend
+	ActionPickup
+	ActionUseItem
+	ActionUseItem1
+	ActionUseItem2
+	ActionUseItem3
+	ActionUseItem4
+	ActionUseItem5
+	ActionUseItem6
+	ActionUseItem7
+	ActionUseItem8
+	ActionUseItem9
 )
 
 // GameState is the flat root state of the game engine.
@@ -62,6 +92,7 @@ type GameState struct {
 	Map      GameMap
 	Player   Entity
 	Entities []Entity
+	Items    []Item
 	Log      []string
 }
 
@@ -85,6 +116,9 @@ func (s GameState) Step(act Action) GameState {
 			if s.Player.Name != "" {
 				nextState.Player.Name = s.Player.Name
 			}
+			if len(s.Player.Inventory) > 0 {
+				nextState.Player.Inventory = append([]Item(nil), s.Player.Inventory...)
+			}
 			nextState.Log = append([]string(nil), s.Log...)
 			nextState.Log = append(nextState.Log, fmt.Sprintf("You descend to dungeon level %d.", nextDepth))
 			return nextState
@@ -93,6 +127,116 @@ func (s GameState) Step(act Action) GameState {
 			s.Log = append(s.Log, "There are no stairs here.")
 			return s
 		}
+	}
+
+	if act == ActionPickup {
+		s.Log = append([]string(nil), s.Log...)
+		s.Entities = append([]Entity(nil), s.Entities...)
+		s.Items = append([]Item(nil), s.Items...)
+		s.Player.Inventory = append([]Item(nil), s.Player.Inventory...)
+
+		itemIdx := -1
+		for i, it := range s.Items {
+			if it.Pos == s.Player.Pos {
+				itemIdx = i
+				break
+			}
+		}
+
+		if itemIdx == -1 {
+			s.Log = append(s.Log, "There is nothing here to pick up.")
+			return s
+		}
+
+		// Deep-copy Explored so value semantics are preserved.
+		oldExplored := s.Map.Explored
+		s.Map.Explored = makeBoolGrid(s.Map.Width, s.Map.Height)
+		for y := range oldExplored {
+			copy(s.Map.Explored[y], oldExplored[y])
+		}
+
+		picked := s.Items[itemIdx]
+		newItems := make([]Item, 0, len(s.Items)-1)
+		for i, it := range s.Items {
+			if i != itemIdx {
+				newItems = append(newItems, it)
+			}
+		}
+		s.Items = newItems
+
+		picked.Pos = Position{X: -1, Y: -1}
+		s.Player.Inventory = append(s.Player.Inventory, picked)
+		if picked.ItemType == ItemWeapon {
+			s.Player.Damage += picked.DamageBonus
+		}
+		s.Log = append(s.Log, fmt.Sprintf("You pick up the %s.", picked.Name))
+
+		s.runMonsterTurns()
+		s.Map.ComputeFOV(s.Player.Pos, FOVRadius)
+		return s
+	}
+
+	if act == ActionUseItem || (act >= ActionUseItem1 && act <= ActionUseItem9) {
+		s.Log = append([]string(nil), s.Log...)
+		s.Entities = append([]Entity(nil), s.Entities...)
+		s.Items = append([]Item(nil), s.Items...)
+		s.Player.Inventory = append([]Item(nil), s.Player.Inventory...)
+
+		if len(s.Player.Inventory) == 0 {
+			s.Log = append(s.Log, "You have no items to use.")
+			return s
+		}
+
+		targetIdx := -1
+		if act == ActionUseItem {
+			for i, it := range s.Player.Inventory {
+				if it.ItemType == ItemPotion {
+					targetIdx = i
+					break
+				}
+			}
+			if targetIdx == -1 {
+				targetIdx = 0
+			}
+		} else {
+			targetIdx = int(act - ActionUseItem1)
+		}
+
+		if targetIdx < 0 || targetIdx >= len(s.Player.Inventory) {
+			s.Log = append(s.Log, "You have no item in that slot.")
+			return s
+		}
+
+		// Deep-copy Explored grid
+		oldExplored := s.Map.Explored
+		s.Map.Explored = makeBoolGrid(s.Map.Width, s.Map.Height)
+		for y := range oldExplored {
+			copy(s.Map.Explored[y], oldExplored[y])
+		}
+
+		item := s.Player.Inventory[targetIdx]
+		if item.ItemType == ItemPotion {
+			heal := item.HealAmount
+			if s.Player.Health+heal > s.Player.MaxHealth {
+				heal = s.Player.MaxHealth - s.Player.Health
+			}
+			s.Player.Health += heal
+
+			newInv := make([]Item, 0, len(s.Player.Inventory)-1)
+			for i, it := range s.Player.Inventory {
+				if i != targetIdx {
+					newInv = append(newInv, it)
+				}
+			}
+			s.Player.Inventory = newInv
+			s.Log = append(s.Log, fmt.Sprintf("You drink the %s and recover %d HP.", item.Name, heal))
+		} else if item.ItemType == ItemWeapon {
+			s.Log = append(s.Log, fmt.Sprintf("You are wielding the %s (+%d damage).", item.Name, item.DamageBonus))
+		}
+
+		s.runMonsterTurns()
+		s.Map.ComputeFOV(s.Player.Pos, FOVRadius)
+		return s
 	}
 
 	var dx, dy int
@@ -119,6 +263,10 @@ func (s GameState) Step(act Action) GameState {
 
 	s.Entities = append([]Entity(nil), s.Entities...)
 	s.Log = append([]string(nil), s.Log...)
+	s.Items = append([]Item(nil), s.Items...)
+	if len(s.Player.Inventory) > 0 {
+		s.Player.Inventory = append([]Item(nil), s.Player.Inventory...)
+	}
 
 	// Deep-copy Explored so value semantics are preserved.
 	oldExplored := s.Map.Explored
@@ -171,10 +319,25 @@ func (s GameState) Step(act Action) GameState {
 		s.Player.Pos = targetPos
 		if s.Map.Tiles[newY][newX] == TileStairsDown {
 			s.Log = append(s.Log, "You see a staircase leading down here. (Press > or Enter to descend)")
+		} else {
+			for _, it := range s.Items {
+				if it.Pos == targetPos {
+					s.Log = append(s.Log, fmt.Sprintf("You see a %s here. (Press g or , to pick up)", it.Name))
+					break
+				}
+			}
 		}
 	}
 
-	// Monster turns
+	s.runMonsterTurns()
+
+	// Recalculate FOV from the player's new position.
+	s.Map.ComputeFOV(s.Player.Pos, FOVRadius)
+
+	return s
+}
+
+func (s *GameState) runMonsterTurns() {
 	playerName := s.Player.Name
 	if playerName == "" {
 		playerName = "Player"
@@ -269,11 +432,6 @@ func (s GameState) Step(act Action) GameState {
 			}
 		}
 	}
-
-	// Recalculate FOV from the player's new position.
-	s.Map.ComputeFOV(s.Player.Pos, FOVRadius)
-
-	return s
 }
 
 func abs(n int) int {
@@ -584,6 +742,28 @@ func NewOrc(id int, pos Position) Entity {
 	}
 }
 
+// NewHealthPotion creates a health potion item.
+func NewHealthPotion(id int, pos Position) Item {
+	return Item{
+		ID:         id,
+		Name:       "Health Potion",
+		Pos:        pos,
+		ItemType:   ItemPotion,
+		HealAmount: 25,
+	}
+}
+
+// NewIronDagger creates an iron dagger weapon item.
+func NewIronDagger(id int, pos Position) Item {
+	return Item{
+		ID:          id,
+		Name:        "Iron Dagger",
+		Pos:         pos,
+		ItemType:    ItemWeapon,
+		DamageBonus: 3,
+	}
+}
+
 // NewGameWithSeedAndDepth initializes game state with a deterministic seed and floor depth.
 func NewGameWithSeedAndDepth(width, height int, seed int64, depth int) GameState {
 	if depth < 1 {
@@ -628,6 +808,42 @@ func NewGameWithSeedAndDepth(width, height int, seed int64, depth int) GameState
 		}
 	}
 
+	nextItemID := 1
+	var items []Item
+	for _, r := range rooms {
+		if rng.Intn(10) < 5 {
+			rx := r.X + rng.Intn(r.W)
+			ry := r.Y + rng.Intn(r.H)
+			pos := Position{X: rx, Y: ry}
+
+			if pos != spawnPos && gameMap.Tiles[pos.Y][pos.X] != TileStairsDown {
+				occupied := false
+				for _, e := range entities {
+					if e.Pos == pos {
+						occupied = true
+						break
+					}
+				}
+				for _, it := range items {
+					if it.Pos == pos {
+						occupied = true
+						break
+					}
+				}
+				if !occupied {
+					var item Item
+					if rng.Intn(10) < 7 {
+						item = NewHealthPotion(nextItemID, pos)
+					} else {
+						item = NewIronDagger(nextItemID, pos)
+					}
+					nextItemID++
+					items = append(items, item)
+				}
+			}
+		}
+	}
+
 	gameMap.Explored = makeBoolGrid(width, height)
 	gameMap.ComputeFOV(spawnPos, FOVRadius)
 
@@ -647,6 +863,7 @@ func NewGameWithSeedAndDepth(width, height int, seed int64, depth int) GameState
 			Damage:    10,
 		},
 		Entities: entities,
+		Items:    items,
 	}
 }
 

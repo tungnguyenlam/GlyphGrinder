@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestNewGameBuildsWalledRoom(t *testing.T) {
 	g := NewGame(20, 10)
@@ -575,5 +578,170 @@ func TestActionDescendWithoutStairs(t *testing.T) {
 	lastLog := nextState.Log[len(nextState.Log)-1]
 	if lastLog != "There are no stairs here." {
 		t.Errorf("log message = %q, want 'There are no stairs here.'", lastLog)
+	}
+}
+
+func TestItemSpawning(t *testing.T) {
+	state := NewGameWithSeed(60, 30, 12345)
+
+	if len(state.Items) == 0 {
+		t.Fatal("expected map items to be spawned in NewGameWithSeed")
+	}
+
+	for i, item := range state.Items {
+		if item.Name == "" {
+			t.Errorf("item %d has empty name", i)
+		}
+		if item.ItemType == ItemPotion && item.HealAmount <= 0 {
+			t.Errorf("potion item %d has invalid HealAmount: %d", i, item.HealAmount)
+		}
+		if item.ItemType == ItemWeapon && item.DamageBonus <= 0 {
+			t.Errorf("weapon item %d has invalid DamageBonus: %d", i, item.DamageBonus)
+		}
+		if state.Map.Tiles[item.Pos.Y][item.Pos.X] != TileFloor {
+			t.Errorf("item %d at %+v is not on a floor tile", i, item.Pos)
+		}
+	}
+}
+
+func TestItemPickupAndInventory(t *testing.T) {
+	state := NewGameWithSeed(20, 10, 12345)
+	pot := NewHealthPotion(100, Position{X: 2, Y: 2})
+	state.Items = []Item{pot}
+	state.Player.Pos = Position{X: 2, Y: 2}
+	state.Player.Inventory = nil
+
+	nextState := state.Step(ActionPickup)
+
+	if len(nextState.Items) != 0 {
+		t.Errorf("expected 0 items on ground after pickup, got %d", len(nextState.Items))
+	}
+	if len(nextState.Player.Inventory) != 1 {
+		t.Fatalf("expected 1 item in inventory, got %d", len(nextState.Player.Inventory))
+	}
+	if got, want := nextState.Player.Inventory[0].Name, "Health Potion"; got != want {
+		t.Errorf("inventory item name = %q, want %q", got, want)
+	}
+	lastLog := nextState.Log[len(nextState.Log)-1]
+	if lastLog != "You pick up the Health Potion." {
+		t.Errorf("log message = %q, want 'You pick up the Health Potion.'", lastLog)
+	}
+}
+
+func TestActionPickupNothingHere(t *testing.T) {
+	state := NewGameWithSeed(20, 10, 12345)
+	state.Items = nil
+	state.Player.Pos = Position{X: 2, Y: 2}
+
+	nextState := state.Step(ActionPickup)
+	lastLog := nextState.Log[len(nextState.Log)-1]
+	if lastLog != "There is nothing here to pick up." {
+		t.Errorf("log message = %q, want 'There is nothing here to pick up.'", lastLog)
+	}
+}
+
+func TestPotionRestoresHP(t *testing.T) {
+	state := NewGameWithSeed(20, 10, 12345)
+	state.Player.Health = 50
+	state.Player.MaxHealth = 100
+	state.Player.Inventory = []Item{NewHealthPotion(1, Position{X: -1, Y: -1})}
+
+	nextState := state.Step(ActionUseItem)
+
+	if got, want := nextState.Player.Health, 75; got != want {
+		t.Errorf("player HP = %d, want %d", got, want)
+	}
+	if len(nextState.Player.Inventory) != 0 {
+		t.Errorf("expected empty inventory after consuming potion, got %d items", len(nextState.Player.Inventory))
+	}
+	lastLog := nextState.Log[len(nextState.Log)-1]
+	if !strings.Contains(lastLog, "recover 25 HP") {
+		t.Errorf("log message = %q, want recovery mention", lastLog)
+	}
+}
+
+func TestPotionRestoresHPCappedAtMax(t *testing.T) {
+	state := NewGameWithSeed(20, 10, 12345)
+	state.Player.Health = 90
+	state.Player.MaxHealth = 100
+	state.Player.Inventory = []Item{NewHealthPotion(1, Position{X: -1, Y: -1})}
+
+	nextState := state.Step(ActionUseItem)
+
+	if got, want := nextState.Player.Health, 100; got != want {
+		t.Errorf("player HP = %d, want 100 (capped at MaxHealth)", got)
+	}
+}
+
+func TestWeaponBonusDamageInCombat(t *testing.T) {
+	state := GameState{
+		Map: GameMap{
+			Width:  5,
+			Height: 5,
+			Tiles: [][]TileType{
+				{TileWall, TileWall, TileWall, TileWall, TileWall},
+				{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+				{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+				{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+				{TileWall, TileWall, TileWall, TileWall, TileWall},
+			},
+		},
+		Player: Entity{
+			ID:        0,
+			Name:      "Player",
+			IsPlayer:  true,
+			Pos:       Position{X: 2, Y: 2},
+			Damage:    10,
+			Health:    100,
+			MaxHealth: 100,
+		},
+		Items: []Item{
+			NewIronDagger(1, Position{X: 2, Y: 2}),
+		},
+		Entities: []Entity{
+			NewOrc(2, Position{X: 2, Y: 1}), // Orc HP = 20
+		},
+	}
+
+	// Pick up weapon
+	state1 := state.Step(ActionPickup)
+
+	if got, want := state1.Player.Damage, 13; got != want {
+		t.Fatalf("player damage after pickup weapon = %d, want 13", got)
+	}
+
+	// Bump attack Orc
+	state2 := state1.Step(ActionMoveUp)
+
+	// Orc took 13 damage (20 -> 7)
+	if len(state2.Entities) != 1 || state2.Entities[0].Health != 7 {
+		t.Errorf("orc HP after attack = %d, want 7", state2.Entities[0].Health)
+	}
+}
+
+func TestItemPersistenceAcrossStairs(t *testing.T) {
+	state := NewGameWithSeed(20, 10, 12345)
+
+	var stairsPos Position
+	for y := 0; y < state.Map.Height; y++ {
+		for x := 0; x < state.Map.Width; x++ {
+			if state.Map.Tiles[y][x] == TileStairsDown {
+				stairsPos = Position{X: x, Y: y}
+				break
+			}
+		}
+	}
+
+	state.Player.Pos = stairsPos
+	state.Player.Inventory = []Item{NewHealthPotion(1, Position{X: -1, Y: -1}), NewIronDagger(2, Position{X: -1, Y: -1})}
+	state.Player.Damage = 13
+
+	nextState := state.Step(ActionDescend)
+
+	if len(nextState.Player.Inventory) != 2 {
+		t.Errorf("inventory len on floor 2 = %d, want 2", len(nextState.Player.Inventory))
+	}
+	if got, want := nextState.Player.Damage, 13; got != want {
+		t.Errorf("player damage on floor 2 = %d, want 13", got)
 	}
 }

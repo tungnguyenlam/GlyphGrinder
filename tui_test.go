@@ -948,3 +948,106 @@ func TestDescendLevelViaTUI(t *testing.T) {
 		t.Errorf("expected 'Depth: 2' in HUD line after descend, got %q", plainHUD)
 	}
 }
+
+func TestViewRendersFloorItemsAndInventory(t *testing.T) {
+	m := model{
+		state: GameState{
+			Map: GameMap{
+				Width:  5,
+				Height: 5,
+				Tiles: [][]TileType{
+					{TileWall, TileWall, TileWall, TileWall, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileWall, TileWall, TileWall, TileWall},
+				},
+			},
+			Player: Entity{
+				ID:        0,
+				Name:      "Player",
+				IsPlayer:  true,
+				Pos:       Position{X: 1, Y: 1},
+				Rune:      "@",
+				Color:     "#00FF00",
+				Health:    100,
+				MaxHealth: 100,
+			},
+			Items: []Item{
+				NewHealthPotion(1, Position{X: 2, Y: 1}),
+			},
+		},
+	}
+
+	d := tuitest.New(t, m)
+	lines := d.Lines()
+	plainHUD := stripANSI(lines[0])
+	if strings.Contains(plainHUD, "Inv:") {
+		t.Errorf("expected empty inventory in HUD initially, got %q", plainHUD)
+	}
+
+	// Move right onto potion tile (2, 1)
+	d.Key("right")
+	linesOnItem := d.Lines()
+	fullText := stripANSI(strings.Join(linesOnItem, "\n"))
+	if !strings.Contains(fullText, "You see a Health Potion here.") {
+		t.Errorf("expected item prompt in log, got:\n%s", fullText)
+	}
+
+	// Press 'g' to pick up potion
+	d.Key("g")
+	linesAfterPickup := d.Lines()
+	plainHUDAfter := stripANSI(linesAfterPickup[0])
+	if !strings.Contains(plainHUDAfter, "Inv: [Health Potion]") {
+		t.Errorf("expected 'Inv: [Health Potion]' in HUD line, got %q", plainHUDAfter)
+	}
+}
+
+func TestPotionUseViaTUI(t *testing.T) {
+	m := model{
+		state: GameState{
+			Map: GameMap{
+				Width:  5,
+				Height: 5,
+				Tiles: [][]TileType{
+					{TileWall, TileWall, TileWall, TileWall, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileWall, TileWall, TileWall, TileWall},
+				},
+			},
+			Player: Entity{
+				ID:        0,
+				Name:      "Player",
+				IsPlayer:  true,
+				Pos:       Position{X: 2, Y: 2},
+				Rune:      "@",
+				Color:     "#00FF00",
+				Health:    60,
+				MaxHealth: 100,
+				Inventory: []Item{NewHealthPotion(1, Position{X: -1, Y: -1})},
+			},
+		},
+	}
+
+	d := tuitest.New(t, m)
+	linesBefore := d.Lines()
+	plainHUDBefore := stripANSI(linesBefore[0])
+	if !strings.Contains(plainHUDBefore, "HP: 60/100") {
+		t.Errorf("expected HP: 60/100 before drinking potion, got %q", plainHUDBefore)
+	}
+
+	// Press 'h' to drink potion
+	d.Key("h")
+	linesAfter := d.Lines()
+	plainHUDAfter := stripANSI(linesAfter[0])
+	if !strings.Contains(plainHUDAfter, "HP: 85/100") {
+		t.Errorf("expected HP: 85/100 after drinking potion, got %q", plainHUDAfter)
+	}
+
+	fullText := stripANSI(strings.Join(linesAfter, "\n"))
+	if !strings.Contains(fullText, "You drink the Health Potion and recover 25 HP.") {
+		t.Errorf("expected potion log message, got:\n%s", fullText)
+	}
+}

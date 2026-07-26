@@ -11,6 +11,8 @@ type GlyphSet struct {
 	Floor      string
 	Wall       string
 	StairsDown string
+	Potion     string
+	Weapon     string
 }
 
 // ASCIIGlyphs returns the standard ASCII fallback glyph set.
@@ -22,6 +24,8 @@ func ASCIIGlyphs() GlyphSet {
 		Floor:      ".",
 		Wall:       "#",
 		StairsDown: ">",
+		Potion:     "!",
+		Weapon:     "/",
 	}
 }
 
@@ -34,6 +38,8 @@ func NerdFontGlyphs() GlyphSet {
 		Floor:      "·", // U+00B7 (middle dot)
 		Wall:       "▓", // U+2593 (dark shade block)
 		StairsDown: "󰌑", // U+F0311 (stairs down)
+		Potion:     "󰏗", // U+F03D7 (potion)
+		Weapon:     "󰓥", // U+F04E5 (sword)
 	}
 }
 
@@ -51,6 +57,18 @@ func ResolveEntityGlyph(e Entity, g GlyphSet) string {
 		if e.Rune != "" {
 			return e.Rune
 		}
+		return "?"
+	}
+}
+
+// ResolveItemGlyph maps an item to its GlyphSet token.
+func ResolveItemGlyph(it Item, g GlyphSet) string {
+	switch it.ItemType {
+	case ItemPotion:
+		return g.Potion
+	case ItemWeapon:
+		return g.Weapon
+	default:
 		return "?"
 	}
 }

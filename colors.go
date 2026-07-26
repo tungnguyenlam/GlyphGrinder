@@ -17,6 +17,8 @@ type Palette struct {
 	FloorDim   lipgloss.CompleteColor
 	WallDim    lipgloss.CompleteColor
 	Stairs     lipgloss.CompleteColor
+	Potion     lipgloss.CompleteColor
+	Weapon     lipgloss.CompleteColor
 	HUDNormal  lipgloss.CompleteColor
 	HUDWarning lipgloss.CompleteColor
 	HUDLog     lipgloss.CompleteColor
@@ -67,6 +69,16 @@ func DefaultPalette() Palette {
 			ANSI256:   "220",
 			ANSI:      "3",
 		},
+		Potion: lipgloss.CompleteColor{
+			TrueColor: "#FF55FF",
+			ANSI256:   "207",
+			ANSI:      "5",
+		},
+		Weapon: lipgloss.CompleteColor{
+			TrueColor: "#00E5FF",
+			ANSI256:   "45",
+			ANSI:      "6",
+		},
 		HUDNormal: lipgloss.CompleteColor{
 			TrueColor: "#00FF87",
 			ANSI256:   "46",
@@ -97,5 +109,17 @@ func ResolveEntityColor(e Entity, p Palette) lipgloss.TerminalColor {
 		return p.Orc
 	default:
 		return lipgloss.Color(e.Color)
+	}
+}
+
+// ResolveItemColor maps an item to its palette token.
+func ResolveItemColor(it Item, p Palette) lipgloss.TerminalColor {
+	switch it.ItemType {
+	case ItemPotion:
+		return p.Potion
+	case ItemWeapon:
+		return p.Weapon
+	default:
+		return p.HUDNormal
 	}
 }
