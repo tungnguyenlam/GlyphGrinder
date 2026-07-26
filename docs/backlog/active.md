@@ -18,15 +18,14 @@ deliberately deferred to M2 — park ideas in `parking-lot.md`.
 
 ## Exact next action
 
-**Implement dungeon map generation (rooms + corridors) in `game.go` with deterministic seed support.**
+**Populate `GameState.Entities` with monsters at map generation time and render them in `View`.**
 
-- Define generator function/struct for creating `GameMap` with rooms connected by corridors.
-- Support deterministic RNG seeding stored in model/state (ADR-0003).
-- Update `initialModel` in `main.go` to generate dungeon maps.
-- Ensure spawn position places player in a valid floor tile inside a room.
-- Add tests in `tui_test.go` verifying map generation and deterministic seed behavior.
+- Define monster creation helpers (e.g. Goblin `'g'`, Orc `'o'`) with stats and colors.
+- Spawn monsters in generated rooms during `GenerateMap`/`NewGameWithSeed` (excluding player starting position).
+- Update `model.View()` in `main.go` to render non-player entities from `GameState.Entities`.
+- Add tests in `tui_test.go` and `game_test.go` verifying monster population and rendering.
 
-Why next: dungeon map generation (M1.3) replaces the static 20x10 room with real levels needed for monster placement and combat (M1.4 - M1.6).
+Why next: monster population (M1.4) is required before implementing bump-to-attack combat (M1.5) and monster turns (M1.6).
 
 ## Milestone plan
 
@@ -34,9 +33,9 @@ Why next: dungeon map generation (M1.3) replaces the static 20x10 room with real
 - [x] **M1.2** Move turn resolution out of the key switch: `Update` handles
       input, a `Step(action Action)` method on `GameState` advances the world
       one turn. — *completed 2026-07-27*.
-- [ ] **M1.3** Map generation — rooms plus corridors into `GameMap`, seeded
+- [x] **M1.3** Map generation — rooms plus corridors into `GameMap`, seeded
       from an explicit RNG stored in the model so tests are deterministic
-      (ADR-0003). Replace the hard-coded 20x10 room in `initialModel`.
+      (ADR-0003). Replace the hard-coded 20x10 room in `initialModel`. — *completed 2026-07-27*.
 - [ ] **M1.4** Populate `GameState.Entities` with monsters at generation time
       and render them in `View` (currently `Entities` is never read or
       written).
@@ -70,5 +69,5 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-07-27  —  VERIFY OK
 ```
 
-gofmt clean, `go vet` clean, builds, headless smoke frame renders, 4 test
-functions (11 cases) pass, `go.mod` tidy.
+gofmt clean, `go vet` clean, builds, headless smoke frame renders, 8 test
+functions pass, `go.mod` tidy.

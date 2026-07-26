@@ -43,7 +43,8 @@ func stripANSI(s string) string {
 }
 
 func TestViewRendersFullGrid(t *testing.T) {
-	d := tuitest.New(t, initialModel())
+	m := initialModelWithSeed(12345)
+	d := tuitest.New(t, m)
 
 	lines := d.Lines()
 	if got, want := len(lines), 10; got != want {
@@ -54,28 +55,32 @@ func TestViewRendersFullGrid(t *testing.T) {
 			t.Errorf("row %d has %d cells, want %d", y, got, want)
 		}
 	}
-	if got, want := playerAt(t, lines), (Position{X: 10, Y: 5}); got != want {
-		t.Errorf("player rendered at %+v, want %+v", got, want)
+	wantPos := m.state.Player.Pos
+	if got := playerAt(t, lines); got != wantPos {
+		t.Errorf("player rendered at %+v, want %+v", got, wantPos)
 	}
 }
 
 func TestMovementKeys(t *testing.T) {
+	baseModel := initialModelWithSeed(12345)
+	startPos := baseModel.state.Player.Pos
+
 	cases := []struct {
 		name string
 		keys []string
 		want Position
 	}{
-		{"arrow up", []string{"up"}, Position{X: 10, Y: 4}},
-		{"arrow down", []string{"down"}, Position{X: 10, Y: 6}},
-		{"arrow left", []string{"left"}, Position{X: 9, Y: 5}},
-		{"arrow right", []string{"right"}, Position{X: 11, Y: 5}},
-		{"wasd", []string{"w", "a"}, Position{X: 9, Y: 4}},
-		{"round trip", []string{"w", "s", "a", "d"}, Position{X: 10, Y: 5}},
+		{"arrow up", []string{"up"}, Position{X: startPos.X, Y: startPos.Y - 1}},
+		{"arrow down", []string{"down"}, Position{X: startPos.X, Y: startPos.Y + 1}},
+		{"arrow left", []string{"left"}, Position{X: startPos.X - 1, Y: startPos.Y}},
+		{"arrow right", []string{"right"}, Position{X: startPos.X + 1, Y: startPos.Y}},
+		{"wasd", []string{"w", "a"}, Position{X: startPos.X - 1, Y: startPos.Y - 1}},
+		{"round trip", []string{"w", "s", "a", "d"}, startPos},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			d := tuitest.New(t, initialModel())
+			d := tuitest.New(t, initialModelWithSeed(12345))
 			d.Keys(tc.keys...)
 			if got := playerAt(t, d.Lines()); got != tc.want {
 				t.Errorf("after %v player at %+v, want %+v", tc.keys, got, tc.want)
@@ -85,21 +90,25 @@ func TestMovementKeys(t *testing.T) {
 }
 
 func TestPlayerCannotWalkThroughWalls(t *testing.T) {
-	d := tuitest.New(t, initialModel())
+	m := initialModelWithSeed(12345)
+	d := tuitest.New(t, m)
 
-	// Ten presses is more than enough to reach any border of the 20x10 room.
+	// Pressing up many times will eventually hit a wall.
 	for i := 0; i < 20; i++ {
 		d.Key("up")
 	}
-	if got := playerAt(t, d.Lines()).Y; got != 1 {
-		t.Errorf("player stopped at y=%d, want 1 (just inside the top wall)", got)
+	posUp := playerAt(t, d.Lines())
+	if posUp.Y <= 0 || m.state.Map.Tiles[posUp.Y-1][posUp.X] != TileWall {
+		t.Errorf("expected tile above player at %+v to be TileWall", posUp)
 	}
 
+	// Pressing left many times will hit a wall.
 	for i := 0; i < 20; i++ {
 		d.Key("left")
 	}
-	if got := playerAt(t, d.Lines()).X; got != 1 {
-		t.Errorf("player stopped at x=%d, want 1 (just inside the left wall)", got)
+	posLeft := playerAt(t, d.Lines())
+	if posLeft.X <= 0 || m.state.Map.Tiles[posLeft.Y][posLeft.X-1] != TileWall {
+		t.Errorf("expected tile to the left of player at %+v to be TileWall", posLeft)
 	}
 }
 
@@ -119,7 +128,7 @@ func TestQuitKeys(t *testing.T) {
 }
 
 func TestGameStateStep(t *testing.T) {
-	state := NewGame(20, 10)
+	state := NewGameWithSeed(20, 10, 12345)
 	startPos := state.Player.Pos
 
 	// Move Up
@@ -133,5 +142,54 @@ func TestGameStateStep(t *testing.T) {
 	state = state.Step(ActionNone)
 	if state.Player.Pos != stateBefore.Player.Pos {
 		t.Errorf("ActionNone changed pos from %+v to %+v", stateBefore.Player.Pos, state.Player.Pos)
+	}
+}
+
+func TestMapGenerationDeterminism(t *testing.T) {
+	seed := int64(987654321)
+	s1 := NewGameWithSeed(20, 10, seed)
+	s2 := NewGameWithSeed(20, 10, seed)
+
+	if s1.Player.Pos != s2.Player.Pos {
+		t.Fatalf("players spawned at different positions for same seed: %+v vs %+v", s1.Player.Pos, s2.Player.Pos)
+	}
+
+	for y := 0; y < s1.Map.Height; y++ {
+		for x := 0; x < s1.Map.Width; x++ {
+			if s1.Map.Tiles[y][x] != s2.Map.Tiles[y][x] {
+				t.Fatalf("map tile mismatch at (%d,%d)", x, y)
+			}
+		}
+	}
+}
+
+func TestPlayerSpawnInValidFloorTile(t *testing.T) {
+	state := NewGame(20, 10)
+	pos := state.Player.Pos
+	if tile := state.Map.Tiles[pos.Y][pos.X]; tile != TileFloor {
+		t.Errorf("player spawned on tile %v, want TileFloor", tile)
+	}
+}
+
+func TestMapBorderIsWalled(t *testing.T) {
+	state := NewGame(20, 10)
+	w, h := state.Map.Width, state.Map.Height
+
+	for x := 0; x < w; x++ {
+		if tile := state.Map.Tiles[0][x]; tile != TileWall {
+			t.Errorf("top border tile at x=%d is %v, want TileWall", x, tile)
+		}
+		if tile := state.Map.Tiles[h-1][x]; tile != TileWall {
+			t.Errorf("bottom border tile at x=%d is %v, want TileWall", x, tile)
+		}
+	}
+
+	for y := 0; y < h; y++ {
+		if tile := state.Map.Tiles[y][0]; tile != TileWall {
+			t.Errorf("left border tile at y=%d is %v, want TileWall", y, tile)
+		}
+		if tile := state.Map.Tiles[y][w-1]; tile != TileWall {
+			t.Errorf("right border tile at y=%d is %v, want TileWall", y, tile)
+		}
 	}
 }

@@ -24,8 +24,10 @@ func TestNewGameBuildsWalledRoom(t *testing.T) {
 			t.Errorf("row %d: expected wall on left and right border", y)
 		}
 	}
-	if g.Map.Tiles[5][10] != TileFloor {
-		t.Error("interior tile should be floor")
+
+	// Player position in generated dungeon must be floor
+	if g.Map.Tiles[g.Player.Pos.Y][g.Player.Pos.X] != TileFloor {
+		t.Errorf("player spawn tile at %+v should be floor", g.Player.Pos)
 	}
 }
 
@@ -36,11 +38,8 @@ func TestNewGamePlacesPlayerOnFloor(t *testing.T) {
 	if !p.IsPlayer {
 		t.Error("player entity should have IsPlayer set")
 	}
-	if got, want := p.Pos, (Position{X: 10, Y: 5}); got != want {
-		t.Errorf("player pos = %+v, want %+v", got, want)
-	}
 	if g.Map.Tiles[p.Pos.Y][p.Pos.X] != TileFloor {
-		t.Error("player must start on a floor tile")
+		t.Errorf("player position %+v must be a floor tile", p.Pos)
 	}
 	if p.Health != p.MaxHealth {
 		t.Errorf("player starts at %d/%d health, want full", p.Health, p.MaxHealth)

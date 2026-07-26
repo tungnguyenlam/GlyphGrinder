@@ -18,6 +18,10 @@ func initialModel() model {
 	return model{state: NewGame(20, 10)}
 }
 
+func initialModelWithSeed(seed int64) model {
+	return model{state: NewGameWithSeed(20, 10, seed)}
+}
+
 func (m model) Init() tea.Cmd {
 	return nil
 }
