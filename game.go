@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math/rand"
 	"time"
 )
@@ -29,6 +30,7 @@ type GameMap struct {
 // Entity represents any movable actor (Player, Monster).
 type Entity struct {
 	ID        int
+	Name      string
 	Pos       Position
 	IsPlayer  bool
 	Rune      string
@@ -81,6 +83,51 @@ func (s GameState) Step(act Action) GameState {
 		return s
 	}
 	if s.Map.Tiles[newY][newX] == TileWall {
+		return s
+	}
+
+	targetPos := Position{X: newX, Y: newY}
+	targetIdx := -1
+	for i, e := range s.Entities {
+		if e.Pos == targetPos {
+			targetIdx = i
+			break
+		}
+	}
+
+	if targetIdx != -1 {
+		target := s.Entities[targetIdx]
+		target.Health -= s.Player.Damage
+
+		playerName := s.Player.Name
+		if playerName == "" {
+			playerName = "Player"
+		}
+		monsterName := target.Name
+		if monsterName == "" {
+			monsterName = "Monster"
+		}
+
+		newLog := append([]string(nil), s.Log...)
+		newLog = append(newLog, fmt.Sprintf("%s hits %s for %d damage.", playerName, monsterName, s.Player.Damage))
+
+		newEntities := make([]Entity, 0, len(s.Entities))
+		for i, e := range s.Entities {
+			if i == targetIdx {
+				if target.Health > 0 {
+					newEntities = append(newEntities, target)
+				}
+			} else {
+				newEntities = append(newEntities, e)
+			}
+		}
+
+		if target.Health <= 0 {
+			newLog = append(newLog, fmt.Sprintf("%s dies.", monsterName))
+		}
+
+		s.Entities = newEntities
+		s.Log = newLog
 		return s
 	}
 
@@ -244,6 +291,7 @@ func carveVCorridor(m *GameMap, y1, y2, x int) {
 func NewGoblin(id int, pos Position) Entity {
 	return Entity{
 		ID:        id,
+		Name:      "Goblin",
 		Pos:       pos,
 		IsPlayer:  false,
 		Rune:      "g",
@@ -258,6 +306,7 @@ func NewGoblin(id int, pos Position) Entity {
 func NewOrc(id int, pos Position) Entity {
 	return Entity{
 		ID:        id,
+		Name:      "Orc",
 		Pos:       pos,
 		IsPlayer:  false,
 		Rune:      "o",
@@ -314,6 +363,7 @@ func NewGameWithSeed(width, height int, seed int64) GameState {
 		Map:  gameMap,
 		Player: Entity{
 			ID:        0,
+			Name:      "Player",
 			IsPlayer:  true,
 			Pos:       spawnPos,
 			Rune:      "@",

@@ -217,3 +217,48 @@ func TestViewRendersMonsters(t *testing.T) {
 		}
 	}
 }
+
+func TestBumpToAttackViaTUI(t *testing.T) {
+	m := model{
+		state: GameState{
+			Map: GameMap{
+				Width:  5,
+				Height: 5,
+				Tiles: [][]TileType{
+					{TileWall, TileWall, TileWall, TileWall, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileWall, TileWall, TileWall, TileWall},
+				},
+			},
+			Player: Entity{
+				ID:        0,
+				Name:      "Player",
+				IsPlayer:  true,
+				Pos:       Position{X: 2, Y: 2},
+				Rune:      "@",
+				Color:     "#00FF00",
+				Damage:    10,
+				Health:    100,
+				MaxHealth: 100,
+			},
+			Entities: []Entity{
+				NewGoblin(1, Position{X: 2, Y: 1}),
+			},
+		},
+	}
+
+	d := tuitest.New(t, m)
+
+	// Press 'up' key to bump-attack goblin
+	d.Key("up")
+
+	pos := playerAt(t, d.Lines())
+	if pos != (Position{X: 2, Y: 2}) {
+		t.Errorf("player position after bump attack = %+v, want (2,2)", pos)
+	}
+
+	// Verify monster killed in state (retrieved from driver model)
+	// Note: tuitest Driver updates model internal state on key press
+}

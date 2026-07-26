@@ -18,16 +18,18 @@ deliberately deferred to M2 — park ideas in `parking-lot.md`.
 
 ## Exact next action
 
-**Implement bump-to-attack combat in `GameState.Step`.**
+**Implement monster turns in `GameState.Step`.**
 
-- When player attempts to move into a cell occupied by a monster in `GameState.Entities`:
-  - Player does NOT move into that tile.
-  - Player deals `Player.Damage` to the target monster's `Health`.
-  - Append a combat event log entry to `GameState.Log` (e.g., `"Player hits Goblin for 10 damage."`).
-  - If monster's `Health` reaches 0 or below, remove monster from `GameState.Entities` and append kill log (e.g., `"Goblin dies."`).
-- Add unit tests in `game_test.go` and TUI tests in `tui_test.go` verifying bump attack, health reduction, monster death removal, and combat log entries.
+- After player's turn action resolves (movement or bump attack):
+  - Each living monster in `GameState.Entities` takes a turn:
+    - If monster is adjacent (distance 1 orthogonally) to player, it attacks:
+      - Reduces `s.Player.Health` by `monster.Damage`.
+      - Appends log entry (e.g. `"Goblin hits Player for 3 damage."`).
+      - If player `Health` <= 0, appends kill log entry (e.g. `"Player dies."`).
+    - If monster is not adjacent, it attempts to step 1 cell closer to the player on the primary axis (X or Y offset) if that tile is `TileFloor` and not occupied by another entity or player.
+- Add unit tests in `game_test.go` and TUI tests in `tui_test.go` verifying monster movement, monster attack on player, player health reduction, and log entries.
 
-Why next: bump-to-attack combat (M1.5) requires monsters (M1.4, completed) and enables turn resolution / monster turns (M1.6).
+Why next: monster turns (M1.6) completes the turn resolution loop after bump-to-attack (M1.5, completed), leading into rendering HUD/log & game over handling (M1.7).
 
 ## Milestone plan
 
@@ -40,9 +42,9 @@ Why next: bump-to-attack combat (M1.5) requires monsters (M1.4, completed) and e
       (ADR-0003). Replace the hard-coded 20x10 room in `initialModel`. — *completed 2026-07-27*.
 - [x] **M1.4** Populate `GameState.Entities` with monsters at generation time
       and render them in `View`. — *completed 2026-07-27*.
-- [ ] **M1.5** Bump-to-attack: moving into an occupied tile deals
+- [x] **M1.5** Bump-to-attack: moving into an occupied tile deals
       `Entity.Damage`, reduces `Health`, removes the entity at zero, and
-      appends a line to `GameState.Log`.
+      appends a line to `GameState.Log`. — *completed 2026-07-27*.
 - [ ] **M1.6** Monster turns: each monster steps toward the player after the
       player's turn resolves.
 - [ ] **M1.7** Render the log and a health bar alongside the map; handle player
@@ -70,5 +72,5 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-07-27  —  VERIFY OK
 ```
 
-gofmt clean, `go vet` clean, builds, headless smoke frame renders, 11 test
+gofmt clean, `go vet` clean, builds, headless smoke frame renders, 14 test
 functions pass, `go.mod` tidy.

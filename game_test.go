@@ -106,3 +106,105 @@ func TestNewGamePopulatesEntities(t *testing.T) {
 		seenPos[e.Pos] = true
 	}
 }
+
+func TestBumpToAttackDamage(t *testing.T) {
+	state := GameState{
+		Map: GameMap{
+			Width:  5,
+			Height: 5,
+			Tiles: [][]TileType{
+				{TileWall, TileWall, TileWall, TileWall, TileWall},
+				{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+				{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+				{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+				{TileWall, TileWall, TileWall, TileWall, TileWall},
+			},
+		},
+		Player: Entity{
+			ID:        0,
+			Name:      "Player",
+			IsPlayer:  true,
+			Pos:       Position{X: 2, Y: 2},
+			Damage:    10,
+			Health:    100,
+			MaxHealth: 100,
+		},
+		Entities: []Entity{
+			NewOrc(1, Position{X: 2, Y: 1}), // Orc has 20 Health
+		},
+	}
+
+	newState := state.Step(ActionMoveUp)
+
+	// Player should not move
+	if newState.Player.Pos != (Position{X: 2, Y: 2}) {
+		t.Errorf("player moved to %+v, expected to stay at (2,2)", newState.Player.Pos)
+	}
+
+	// Orc should still exist but with 10 health
+	if len(newState.Entities) != 1 {
+		t.Fatalf("expected 1 entity remaining, got %d", len(newState.Entities))
+	}
+	if got, want := newState.Entities[0].Health, 10; got != want {
+		t.Errorf("orc health = %d, want %d", got, want)
+	}
+
+	// Log should record hit
+	if len(newState.Log) != 1 {
+		t.Fatalf("expected 1 log entry, got %d", len(newState.Log))
+	}
+	if got, want := newState.Log[0], "Player hits Orc for 10 damage."; got != want {
+		t.Errorf("log = %q, want %q", got, want)
+	}
+}
+
+func TestBumpToAttackKillsMonster(t *testing.T) {
+	state := GameState{
+		Map: GameMap{
+			Width:  5,
+			Height: 5,
+			Tiles: [][]TileType{
+				{TileWall, TileWall, TileWall, TileWall, TileWall},
+				{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+				{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+				{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+				{TileWall, TileWall, TileWall, TileWall, TileWall},
+			},
+		},
+		Player: Entity{
+			ID:        0,
+			Name:      "Player",
+			IsPlayer:  true,
+			Pos:       Position{X: 2, Y: 2},
+			Damage:    10,
+			Health:    100,
+			MaxHealth: 100,
+		},
+		Entities: []Entity{
+			NewGoblin(1, Position{X: 2, Y: 1}), // Goblin has 10 Health
+		},
+	}
+
+	newState := state.Step(ActionMoveUp)
+
+	// Player should not move
+	if newState.Player.Pos != (Position{X: 2, Y: 2}) {
+		t.Errorf("player moved to %+v, expected to stay at (2,2)", newState.Player.Pos)
+	}
+
+	// Goblin should be removed
+	if len(newState.Entities) != 0 {
+		t.Errorf("expected 0 entities remaining, got %d", len(newState.Entities))
+	}
+
+	// Log should record hit and kill
+	if len(newState.Log) != 2 {
+		t.Fatalf("expected 2 log entries, got %d", len(newState.Log))
+	}
+	if got, want := newState.Log[0], "Player hits Goblin for 10 damage."; got != want {
+		t.Errorf("log[0] = %q, want %q", got, want)
+	}
+	if got, want := newState.Log[1], "Goblin dies."; got != want {
+		t.Errorf("log[1] = %q, want %q", got, want)
+	}
+}
