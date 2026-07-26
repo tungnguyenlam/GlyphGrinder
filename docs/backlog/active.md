@@ -13,17 +13,18 @@ Serves `GOAL.md` directly: "And it just runs. `go install` or a single binary, n
 
 ## Exact next action
 
-**M4.1 — `go install` verification & README rewrite.**
+**M4.2 — Terminal capability & environment degradation checks.**
 
-- Verify `go install ./...` produces a working binary.
-- Rewrite `README.md` to showcase GlyphGrinder features, controls, Nerd Font requirements, installation instructions, and architecture breakdown.
-- Add unit/TUI test in `tui_test.go` or `main_test.go` verifying help/version or model initializers cleanly.
+- In `colors.go`, `glyphs.go`, `colors_test.go`, `glyphs_test.go`:
+  - Test environment variable overrides (`NO_COLOR`, `GLYPHGRINDER_ASCII`, `TERM=dumb`, `GLYPHGRINDER_NERD_FONTS`).
+  - Add tests in `colors_test.go` and `glyphs_test.go` ensuring complete coverage for ASCII glyph fallbacks and palette rendering under basic terminals.
+  - Add TUI tests in `tui_test.go` testing extreme viewport sizes (e.g. 10x5, 5x5, 0x0) ensuring no panics and clean clipping.
 
-Why next: M4.1 makes the project instantly discoverable, installable, and documented for external users.
+Why next: M4.2 ensures GlyphGrinder degrades gracefully on any terminal environment without crashing.
 
 ## Milestone plan
 
-- [ ] **M4.1** `go install` verification & README documentation rewrite.
+- [x] **M4.1** `go install` verification & README documentation rewrite.
 - [ ] **M4.2** Terminal capability & environment degradation checks (NO_COLOR, GLYPHGRINDER_ASCII, tiny window sizes).
 - [ ] **M4.3** Performance benchmarks (`BenchmarkView`, `BenchmarkStep`) holding frame budgets under 1ms.
 - [ ] **M4.4** GitHub Actions CI workflow running `./scripts/verify.sh`.
@@ -47,6 +48,6 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-07-27  —  VERIFY OK
 ```
 
-gofmt clean, `go vet` clean, builds, headless smoke frame renders, 62 test functions pass (including 3 new Amulet spawn, victory trigger, and victory TUI tests), `go.mod` tidy.
+gofmt clean, `go vet` clean, builds, headless smoke frame renders, 62 test functions pass, `go.mod` tidy.
 
 
