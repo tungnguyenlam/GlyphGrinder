@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-07-26
+**Last updated:** 2026-07-27
 
 ## Current milestone
 
@@ -18,21 +18,22 @@ deliberately deferred to M2 — park ideas in `parking-lot.md`.
 
 ## Exact next action
 
-**Move turn resolution out of the key switch in `main.go`: create `Action` type and `Step(action Action) GameState` method on `GameState` in `game.go`.**
+**Implement dungeon map generation (rooms + corridors) in `game.go` with deterministic seed support.**
 
-- Define `Action` type in `game.go` (e.g. `ActionNone`, `ActionMoveUp`, `ActionMoveDown`, `ActionMoveLeft`, `ActionMoveRight`).
-- Move movement logic (bounds check and wall check) from `model.tryMove` into `GameState.Step(action Action) GameState`.
-- `model.Update` maps input keys to `Action` and calls `m.state = m.state.Step(act)`.
-- All existing tests in `tui_test.go` must pass unchanged.
+- Define generator function/struct for creating `GameMap` with rooms connected by corridors.
+- Support deterministic RNG seeding stored in model/state (ADR-0003).
+- Update `initialModel` in `main.go` to generate dungeon maps.
+- Ensure spawn position places player in a valid floor tile inside a room.
+- Add tests in `tui_test.go` verifying map generation and deterministic seed behavior.
 
-Why next: monster turns and combat (M1.5, M1.6) require world state updates to happen in a unified turn resolution phase (`GameState.Step`) after player input is mapped to an action.
+Why next: dungeon map generation (M1.3) replaces the static 20x10 room with real levels needed for monster placement and combat (M1.4 - M1.6).
 
 ## Milestone plan
 
 - [x] **M1.1** Factor movement into `tryMove(dx, dy)` — *completed 2026-07-27*.
-- [ ] **M1.2** Move turn resolution out of the key switch: `Update` handles
+- [x] **M1.2** Move turn resolution out of the key switch: `Update` handles
       input, a `Step(action Action)` method on `GameState` advances the world
-      one turn. Needed before monsters can act.
+      one turn. — *completed 2026-07-27*.
 - [ ] **M1.3** Map generation — rooms plus corridors into `GameMap`, seeded
       from an explicit RNG stored in the model so tests are deterministic
       (ADR-0003). Replace the hard-coded 20x10 room in `initialModel`.

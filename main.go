@@ -25,36 +25,24 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		var act Action
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 		case "up", "w":
-			m = m.tryMove(0, -1)
+			act = ActionMoveUp
 		case "down", "s":
-			m = m.tryMove(0, 1)
+			act = ActionMoveDown
 		case "left", "a":
-			m = m.tryMove(-1, 0)
+			act = ActionMoveLeft
 		case "right", "d":
-			m = m.tryMove(1, 0)
+			act = ActionMoveRight
+		}
+		if act != ActionNone {
+			m.state = m.state.Step(act)
 		}
 	}
 	return m, nil
-}
-
-func (m model) tryMove(dx, dy int) model {
-	newX := m.state.Player.Pos.X + dx
-	newY := m.state.Player.Pos.Y + dy
-
-	if newX < 0 || newX >= m.state.Map.Width || newY < 0 || newY >= m.state.Map.Height {
-		return m
-	}
-	if m.state.Map.Tiles[newY][newX] == TileWall {
-		return m
-	}
-
-	m.state.Player.Pos.X = newX
-	m.state.Player.Pos.Y = newY
-	return m
 }
 
 func (m model) View() string {

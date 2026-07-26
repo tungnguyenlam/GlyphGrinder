@@ -33,12 +33,54 @@ type Entity struct {
 	Damage    int
 }
 
+// Action represents an intent or action performed by the player on a turn.
+type Action uint8
+
+const (
+	ActionNone Action = iota
+	ActionMoveUp
+	ActionMoveDown
+	ActionMoveLeft
+	ActionMoveRight
+)
+
 // GameState is the flat root state of the game engine.
 type GameState struct {
 	Map      GameMap
 	Player   Entity
 	Entities []Entity
 	Log      []string
+}
+
+// Step processes a single game turn based on the provided player action.
+func (s GameState) Step(act Action) GameState {
+	var dx, dy int
+	switch act {
+	case ActionMoveUp:
+		dy = -1
+	case ActionMoveDown:
+		dy = 1
+	case ActionMoveLeft:
+		dx = -1
+	case ActionMoveRight:
+		dx = 1
+	case ActionNone:
+		return s
+	}
+
+	newX := s.Player.Pos.X + dx
+	newY := s.Player.Pos.Y + dy
+
+	if newX < 0 || newX >= s.Map.Width || newY < 0 || newY >= s.Map.Height {
+		return s
+	}
+	if s.Map.Tiles[newY][newX] == TileWall {
+		return s
+	}
+
+	s.Player.Pos.X = newX
+	s.Player.Pos.Y = newY
+	return s
 }
 
 // NewGame initializes a blank game state.

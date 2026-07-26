@@ -117,3 +117,21 @@ func TestQuitKeys(t *testing.T) {
 		})
 	}
 }
+
+func TestGameStateStep(t *testing.T) {
+	state := NewGame(20, 10)
+	startPos := state.Player.Pos
+
+	// Move Up
+	state = state.Step(ActionMoveUp)
+	if got, want := state.Player.Pos, (Position{X: startPos.X, Y: startPos.Y - 1}); got != want {
+		t.Errorf("after MoveUp got pos %+v, want %+v", got, want)
+	}
+
+	// ActionNone does not move player
+	stateBefore := state
+	state = state.Step(ActionNone)
+	if state.Player.Pos != stateBefore.Player.Pos {
+		t.Errorf("ActionNone changed pos from %+v to %+v", stateBefore.Player.Pos, state.Player.Pos)
+	}
+}
