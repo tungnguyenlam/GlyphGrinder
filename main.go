@@ -207,7 +207,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		if m.screen == screenTitle {
-			if k == " " || k == "enter" || k == "w" || k == "a" || k == "s" || k == "d" || k == "up" || k == "down" || k == "left" || k == "right" {
+			switch k {
+			case "1":
+				m.state = NewGameWithSeedDepthAndClass(defaultMapWidth, defaultMapHeight, m.state.Seed, 1, ClassWarrior)
+				m.screen = screenPlaying
+			case "2":
+				m.state = NewGameWithSeedDepthAndClass(defaultMapWidth, defaultMapHeight, m.state.Seed, 1, ClassRogue)
+				m.screen = screenPlaying
+			case "3":
+				m.state = NewGameWithSeedDepthAndClass(defaultMapWidth, defaultMapHeight, m.state.Seed, 1, ClassMage)
+				m.screen = screenPlaying
+			case " ", "enter", "w", "a", "s", "d", "up", "down", "left", "right":
 				m.screen = screenPlaying
 			}
 			return m, nil
@@ -394,8 +404,12 @@ func renderTitleScreen(pal Palette, gly GlyphSet, seed int64) string {
 	sb.WriteString(titleStyle.Render("         |___/|_|                                              "))
 	sb.WriteString("\n\n")
 
-	sb.WriteString(subStyle.Render("      --- A TERMINAL ROGUELIKE OF PROCEDURAL PERIL ---"))
+	sb.WriteString(subStyle.Render("      --- SELECT CLASS ARCHETYPE TO BEGIN DESCENT ---"))
 	sb.WriteString("\n\n")
+
+	sb.WriteString(keyStyle.Render("  [1]") + descStyle.Render(" Warrior — 120 HP, High Melee Damage, Starts with Iron Dagger\n"))
+	sb.WriteString(keyStyle.Render("  [2]") + descStyle.Render(" Rogue   —  90 HP, High Burst Damage, Starts with Teleport Scroll\n"))
+	sb.WriteString(keyStyle.Render("  [3]") + descStyle.Render(" Mage    —  80 HP, Starts with Fireball Scroll & Regen Potion\n\n"))
 
 	sb.WriteString(fmt.Sprintf("                 Dungeon Seed: %d\n\n", seed))
 
@@ -404,7 +418,7 @@ func renderTitleScreen(pal Palette, gly GlyphSet, seed int64) string {
 	sb.WriteString(keyStyle.Render("  [H / 1-9]") + descStyle.Render(" Use Item       ") + keyStyle.Render("[T]") + descStyle.Render(" Target Ranged / Scroll\n"))
 	sb.WriteString(keyStyle.Render("  [> / Enter]") + descStyle.Render(" Descend Stairs ") + keyStyle.Render("[Q]") + descStyle.Render(" Quit Game\n\n"))
 
-	sb.WriteString(promptStyle.Render("       === PRESS [SPACE] OR [ENTER] TO BEGIN DESCENT ==="))
+	sb.WriteString(promptStyle.Render("   === PRESS [1], [2], [3] OR [SPACE] TO BEGIN DESCENT ==="))
 	sb.WriteString("\n")
 	return sb.String()
 }
@@ -685,6 +699,14 @@ func (m model) View() string {
 }
 
 func main() {
+	for _, arg := range os.Args[1:] {
+		if arg == "-dump-frame" || arg == "--dump-frame" {
+			m := initialModel()
+			fmt.Print(m.View())
+			os.Exit(0)
+		}
+	}
+
 	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error: %v", err)

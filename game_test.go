@@ -1159,3 +1159,20 @@ func TestTurnCountKillsAndDamageDealtTracking(t *testing.T) {
 		t.Errorf("Kills = %d, want 1", stAttack.Kills)
 	}
 }
+
+func TestClassArchetypesInitialization(t *testing.T) {
+	stWarrior := NewGameWithSeedDepthAndClass(60, 30, 12345, 1, ClassWarrior)
+	if stWarrior.Player.Health != 120 || len(stWarrior.Player.Inventory) != 1 || stWarrior.Player.Name != "Warrior" {
+		t.Errorf("warrior state mismatch: %+v", stWarrior.Player)
+	}
+
+	stRogue := NewGameWithSeedDepthAndClass(60, 30, 12345, 1, ClassRogue)
+	if stRogue.Player.Health != 90 || len(stRogue.Player.Inventory) != 2 || stRogue.Player.Name != "Rogue" {
+		t.Errorf("rogue state mismatch: %+v", stRogue.Player)
+	}
+
+	stMage := NewGameWithSeedDepthAndClass(60, 30, 12345, 1, ClassMage)
+	if stMage.Player.Health != 80 || len(stMage.Player.Inventory) != 2 || stMage.Player.Name != "Mage" {
+		t.Errorf("mage state mismatch: %+v", stMage.Player)
+	}
+}

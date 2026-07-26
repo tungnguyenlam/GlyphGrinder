@@ -1,7 +1,7 @@
 # The game binary cannot run headlessly
 
-**Status:** Active
-**Scope:** `main.go` (`main`), `scripts/verify.sh`, any attempt to "just run it and see"
+**Status:** Resolved (2026-07-27) via `-dump-frame` flag
+**Scope:** `main.go` (`main`), `scripts/verify.sh`, headless inspection
 **Related:** [`internal/tuitest/AGENTS.md`](../../../internal/tuitest/AGENTS.md), [ADR-0003](../../decisions/ADR-0003-view-is-pure.md)
 
 ## Why It Matters

@@ -72,6 +72,15 @@ const (
 	StatusConfused
 )
 
+// ClassType defines the player class archetype.
+type ClassType uint8
+
+const (
+	ClassWarrior ClassType = iota
+	ClassRogue
+	ClassMage
+)
+
 // ActiveStatus represents an ongoing buff or debuff on an entity.
 type ActiveStatus struct {
 	Type     StatusType
@@ -83,6 +92,7 @@ type ActiveStatus struct {
 type Entity struct {
 	ID        int
 	Name      string
+	Class     ClassType
 	Pos       Position
 	IsPlayer  bool
 	Rune      string
@@ -132,6 +142,7 @@ type GameState struct {
 	Entities    []Entity
 	Items       []Item
 	Log         []string
+	ActionLog   []Action
 	IsVictory   bool
 }
 
@@ -142,6 +153,7 @@ func (s GameState) Step(act Action) GameState {
 	}
 
 	s.TurnCount++
+	s.ActionLog = append(s.ActionLog, act)
 
 	if act == ActionDescend {
 		if s.Map.Tiles[s.Player.Pos.Y][s.Player.Pos.X] == TileStairsDown {
@@ -154,9 +166,11 @@ func (s GameState) Step(act Action) GameState {
 			nextState.TurnCount = s.TurnCount
 			nextState.Kills = s.Kills
 			nextState.DamageDealt = s.DamageDealt
+			nextState.ActionLog = append([]Action(nil), s.ActionLog...)
 			nextState.Player.Health = s.Player.Health
 			nextState.Player.MaxHealth = s.Player.MaxHealth
 			nextState.Player.Damage = s.Player.Damage
+			nextState.Player.Class = s.Player.Class
 			if s.Player.Name != "" {
 				nextState.Player.Name = s.Player.Name
 			}
@@ -1305,4 +1319,44 @@ func NewGameWithSeed(width, height int, seed int64) GameState {
 // NewGame initializes a game state with a random seed.
 func NewGame(width, height int) GameState {
 	return NewGameWithSeedAndDepth(width, height, time.Now().UnixNano(), 1)
+}
+
+// NewGameWithSeedDepthAndClass initializes a game state with a specific class archetype.
+func NewGameWithSeedDepthAndClass(width, height int, seed int64, depth int, class ClassType) GameState {
+	st := NewGameWithSeedAndDepth(width, height, seed, depth)
+	st.Player.Class = class
+
+	switch class {
+	case ClassWarrior:
+		st.Player.Name = "Warrior"
+		st.Player.Health = 120
+		st.Player.MaxHealth = 120
+		st.Player.Damage = 12
+		dagger := NewIronDagger(999, Position{X: -1, Y: -1})
+		st.Player.Inventory = append(st.Player.Inventory, dagger)
+		st.Player.Damage += dagger.DamageBonus
+	case ClassRogue:
+		st.Player.Name = "Rogue"
+		st.Player.Health = 90
+		st.Player.MaxHealth = 90
+		st.Player.Damage = 15
+		scroll := NewTeleportScroll(998, Position{X: -1, Y: -1})
+		regen := NewRegenPotion(997, Position{X: -1, Y: -1})
+		st.Player.Inventory = append(st.Player.Inventory, scroll, regen)
+	case ClassMage:
+		st.Player.Name = "Mage"
+		st.Player.Health = 80
+		st.Player.MaxHealth = 80
+		st.Player.Damage = 8
+		scroll := NewFireballScroll(996, Position{X: -1, Y: -1})
+		regen := NewRegenPotion(995, Position{X: -1, Y: -1})
+		st.Player.Inventory = append(st.Player.Inventory, scroll, regen)
+	}
+
+	return st
+}
+
+// NewGameWithClass initializes a game state with a random seed and chosen class.
+func NewGameWithClass(width, height int, class ClassType) GameState {
+	return NewGameWithSeedDepthAndClass(width, height, time.Now().UnixNano(), 1, class)
 }

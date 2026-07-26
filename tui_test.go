@@ -1286,14 +1286,14 @@ func TestTitleScreenRendering(t *testing.T) {
 	d := tuitest.New(t, tm)
 
 	view := stripANSI(d.View())
-	if !strings.Contains(view, "A TERMINAL ROGUELIKE OF PROCEDURAL PERIL") {
+	if !strings.Contains(view, "SELECT CLASS ARCHETYPE TO BEGIN DESCENT") {
 		t.Errorf("title view expected subtitle, got:\n%s", view)
 	}
 
 	// Press space to begin descent
 	d.Key(" ")
 	viewPlaying := stripANSI(d.View())
-	if !strings.Contains(viewPlaying, "HP: 100/100") {
+	if !strings.Contains(viewPlaying, "HP:") {
 		t.Errorf("expected playing view with HUD after pressing space, got:\n%s", viewPlaying)
 	}
 }

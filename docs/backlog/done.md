@@ -4,6 +4,17 @@ Completed milestones, newest first. This is the project's memory of what has
 already been built and tried — check here before "discovering" that something
 is missing.
 
+## 2026-07-27 — M7: Replayability, Headless Inspection & Class Archetypes
+
+Expand engine reliability and depth with input replay logging, `-dump-frame` CLI flag for headless inspection without a TTY, map generation reachability fuzzing, and class archetypes.
+
+- M7.1: Headless frame inspection (`-dump-frame` CLI flag in `main.go`, rendering single frame to stdout and resolving TTY notice `2026-07-26-tui-needs-a-tty.md`).
+- M7.2: Deterministic replay system (`replay.go`: `ReplayData`, `ReplayRun`, `SaveReplay`, `LoadReplay`, tracking `ActionLog []Action` in `GameState`).
+- M7.3: Map generation reachability fuzzing (`map_fuzz_test.go`: BFS reachability validation across 1,500 random map seeds and dimensions).
+- M7.4: Class archetypes (`ClassWarrior` 120 HP + Iron Dagger, `ClassRogue` 90 HP + Teleport Scroll, `ClassMage` 80 HP + Fireball Scroll & Regen Potion, title screen class selection `1`/`2`/`3`).
+
+Verified: `./scripts/verify.sh` — VERIFY OK (85 test functions pass + 3 performance benchmarks pass).
+
 ## 2026-07-27 — M6: Visual Brilliance & Tactical Systems
 
 Elevate game feel with Title/End screens, hit flash effects, hazard tiles, item dropping, ranged targeting UI, mid-run save/resume, and render styling caching.

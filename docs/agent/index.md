@@ -40,7 +40,7 @@ Small, dated, durable context with an expiry condition.
 
 | Notice | Summary |
 | --- | --- |
-| [2026-07-26-tui-needs-a-tty](notices/2026-07-26-tui-needs-a-tty.md) | The binary cannot run headlessly; use `internal/tuitest` to verify UI behavior. |
+| [2026-07-26-tui-needs-a-tty](notices/2026-07-26-tui-needs-a-tty.md) | Resolved via `-dump-frame` flag. Binary can now dump frames headlessly. |
 | [2026-07-26-styled-output-breaks-len](notices/2026-07-26-styled-output-breaks-len.md) | Lip Gloss escapes mean `len(line)` ≠ column count; strip ANSI before asserting. |
 | [2026-07-26-go-mod-must-stay-tidy](notices/2026-07-26-go-mod-must-stay-tidy.md) | Direct deps were mislabelled `// indirect`; `verify.sh` now enforces tidiness. |
 
