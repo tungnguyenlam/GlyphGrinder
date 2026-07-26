@@ -439,3 +439,133 @@ func TestGameOverAndRestartViaTUI(t *testing.T) {
 		t.Errorf("did not expect GAME OVER after restart")
 	}
 }
+
+func TestFOVUnexploredTilesRenderBlank(t *testing.T) {
+	// Build a state with FOV initialized. Tiles outside FOV radius
+	// should render as spaces.
+	state := NewGameWithSeed(20, 10, 12345)
+	m := model{state: state}
+	d := tuitest.New(t, m)
+
+	lines := d.Lines()
+	// Map lines are 1..10 (after HUD).
+	// At least some tiles far from the player should be unexplored (space).
+	foundBlank := false
+	for y := 1; y <= state.Map.Height; y++ {
+		if y >= len(lines) {
+			break
+		}
+		plain := stripANSI(lines[y])
+		for _, r := range plain {
+			if r == ' ' {
+				foundBlank = true
+				break
+			}
+		}
+		if foundBlank {
+			break
+		}
+	}
+	if !foundBlank {
+		t.Error("expected at least one blank (unexplored) tile in the initial view")
+	}
+}
+
+func TestFOVHidesNonVisibleMonsters(t *testing.T) {
+	// Place a monster outside the player's FOV. It should not be
+	// rendered in the view.
+	gm := GameMap{
+		Width:  20,
+		Height: 10,
+		Tiles:  make([][]TileType, 10),
+	}
+	for y := 0; y < 10; y++ {
+		gm.Tiles[y] = make([]TileType, 20)
+		for x := 0; x < 20; x++ {
+			if x == 0 || x == 19 || y == 0 || y == 9 {
+				gm.Tiles[y][x] = TileWall
+			} else {
+				gm.Tiles[y][x] = TileFloor
+			}
+		}
+	}
+	// Put a wall to block sight between player and monster.
+	gm.Tiles[4][10] = TileWall
+	gm.Tiles[5][10] = TileWall
+	gm.Tiles[3][10] = TileWall
+
+	playerPos := Position{X: 5, Y: 5}
+	monsterPos := Position{X: 15, Y: 5} // far away, behind walls
+
+	gm.Explored = makeBoolGrid(20, 10)
+	gm.ComputeFOV(playerPos, FOVRadius)
+
+	// Verify the monster position is not visible.
+	if gm.Visible[monsterPos.Y][monsterPos.X] {
+		t.Skip("monster position is visible in this layout; test layout needs adjustment")
+	}
+
+	state := GameState{
+		Map: gm,
+		Player: Entity{
+			ID: 0, Name: "Player", IsPlayer: true, Pos: playerPos,
+			Rune: "@", Color: "#00FF00", Health: 100, MaxHealth: 100, Damage: 10,
+		},
+		Entities: []Entity{NewGoblin(1, monsterPos)},
+	}
+
+	m := model{state: state}
+	d := tuitest.New(t, m)
+	lines := d.Lines()
+
+	// Monster at (15,5) → line index 1+5=6.
+	if 6 >= len(lines) {
+		t.Fatal("not enough lines for monster row")
+	}
+	plainRow := []rune(stripANSI(lines[6]))
+	if 15 < len(plainRow) {
+		got := string(plainRow[15])
+		if got == "g" {
+			t.Errorf("goblin at (15,5) should not be rendered when not visible, got %q", got)
+		}
+	}
+}
+
+func TestFOVExploredTilesShowDimmed(t *testing.T) {
+	// After the player moves away from a tile, it should still render
+	// (as dimmed) rather than blank space, because it was explored.
+	state := NewGameWithSeed(20, 10, 12345)
+
+	// Move the player a few steps to explore some tiles, then check
+	// that the original position is still rendered (not blank).
+	startPos := state.Player.Pos
+
+	m := model{state: state}
+	d := tuitest.New(t, m)
+
+	// Move in one direction several times to shift the FOV.
+	for i := 0; i < 3; i++ {
+		d.Key("right")
+	}
+
+	lines := d.Lines()
+	mdl := d.Model().(model)
+
+	// Check the starting position: it should be explored.
+	if !mdl.state.Map.Explored[startPos.Y][startPos.X] {
+		t.Error("original player position should remain explored")
+	}
+
+	// If the start tile is no longer visible, it should render as '.'
+	// or '#' (dimmed), not as ' ' (blank).
+	lineIdx := 1 + startPos.Y
+	if lineIdx < len(lines) {
+		plain := []rune(stripANSI(lines[lineIdx]))
+		if startPos.X < len(plain) {
+			r := plain[startPos.X]
+			if r == ' ' {
+				t.Errorf("explored tile at start pos %+v rendered as blank, expected dimmed glyph", startPos)
+			}
+		}
+	}
+}

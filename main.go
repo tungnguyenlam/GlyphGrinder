@@ -90,6 +90,11 @@ func (m model) View() string {
 	floor := floorStyle.Render(".")
 	wallStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
 	wall := wallStyle.Render("#")
+	// Dimmed styles for explored-but-not-visible tiles (map memory).
+	dimFloorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#222222"))
+	dimFloor := dimFloorStyle.Render(".")
+	dimWallStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#333333"))
+	dimWall := dimWallStyle.Render("#")
 
 	entityMap := make(map[Position]string, len(m.state.Entities))
 	for _, e := range m.state.Entities {
@@ -97,18 +102,35 @@ func (m model) View() string {
 		entityMap[e.Pos] = style.Render(e.Rune)
 	}
 
+	hasFOV := m.state.Map.Visible != nil && m.state.Map.Explored != nil
 	for y := 0; y < m.state.Map.Height; y++ {
 		for x := 0; x < m.state.Map.Width; x++ {
 			pos := Position{X: x, Y: y}
-			if pos == m.state.Player.Pos {
-				sb.WriteString(player)
-			} else if renderedEntity, found := entityMap[pos]; found {
-				sb.WriteString(renderedEntity)
-			} else {
-				if m.state.Map.Tiles[y][x] == TileWall {
-					sb.WriteString(wall)
+			visible := !hasFOV || m.state.Map.Visible[y][x]
+			explored := !hasFOV || m.state.Map.Explored[y][x]
+
+			if !explored {
+				// Tile has never been seen — render as blank.
+				sb.WriteString(" ")
+			} else if visible {
+				// Currently in line-of-sight — full brightness.
+				if pos == m.state.Player.Pos {
+					sb.WriteString(player)
+				} else if renderedEntity, found := entityMap[pos]; found {
+					sb.WriteString(renderedEntity)
 				} else {
-					sb.WriteString(floor)
+					if m.state.Map.Tiles[y][x] == TileWall {
+						sb.WriteString(wall)
+					} else {
+						sb.WriteString(floor)
+					}
+				}
+			} else {
+				// Explored but not visible — dimmed, no monsters.
+				if m.state.Map.Tiles[y][x] == TileWall {
+					sb.WriteString(dimWall)
+				} else {
+					sb.WriteString(dimFloor)
 				}
 			}
 		}

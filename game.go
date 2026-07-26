@@ -22,9 +22,11 @@ const (
 
 // GameMap holds the grid.
 type GameMap struct {
-	Width  int
-	Height int
-	Tiles  [][]TileType
+	Width    int
+	Height   int
+	Tiles    [][]TileType
+	Visible  [][]bool // tiles currently in line-of-sight from the player
+	Explored [][]bool // tiles that have been seen at least once
 }
 
 // Entity represents any movable actor (Player, Monster).
@@ -88,6 +90,13 @@ func (s GameState) Step(act Action) GameState {
 
 	s.Entities = append([]Entity(nil), s.Entities...)
 	s.Log = append([]string(nil), s.Log...)
+
+	// Deep-copy Explored so value semantics are preserved.
+	oldExplored := s.Map.Explored
+	s.Map.Explored = makeBoolGrid(s.Map.Width, s.Map.Height)
+	for y := range oldExplored {
+		copy(s.Map.Explored[y], oldExplored[y])
+	}
 
 	targetPos := Position{X: newX, Y: newY}
 	targetIdx := -1
@@ -229,6 +238,9 @@ func (s GameState) Step(act Action) GameState {
 		}
 	}
 
+	// Recalculate FOV from the player's new position.
+	s.Map.ComputeFOV(s.Player.Pos, FOVRadius)
+
 	return s
 }
 
@@ -237,6 +249,106 @@ func abs(n int) int {
 		return -n
 	}
 	return n
+}
+
+// FOVRadius is the default line-of-sight radius around the player.
+const FOVRadius = 6
+
+// makeBoolGrid allocates a height×width bool grid initialised to false.
+func makeBoolGrid(width, height int) [][]bool {
+	grid := make([][]bool, height)
+	for y := range grid {
+		grid[y] = make([]bool, width)
+	}
+	return grid
+}
+
+// ComputeFOV fills m.Visible using recursive shadowcasting from origin out to
+// radius. It also marks every newly visible tile as Explored.
+func (m *GameMap) ComputeFOV(origin Position, radius int) {
+	m.Visible = makeBoolGrid(m.Width, m.Height)
+	if m.Explored == nil {
+		m.Explored = makeBoolGrid(m.Width, m.Height)
+	}
+
+	// The origin is always visible.
+	m.Visible[origin.Y][origin.X] = true
+	m.Explored[origin.Y][origin.X] = true
+
+	// Multiplier tables for the eight octants.
+	// Each row is {xx, xy, yx, yy} so that:
+	//   mapX = origin.X + col*xx + row*xy
+	//   mapY = origin.Y + col*yx + row*yy
+	octants := [8][4]int{
+		{1, 0, 0, 1},
+		{0, 1, 1, 0},
+		{0, -1, 1, 0},
+		{-1, 0, 0, 1},
+		{-1, 0, 0, -1},
+		{0, -1, -1, 0},
+		{0, 1, -1, 0},
+		{1, 0, 0, -1},
+	}
+
+	for _, mult := range octants {
+		m.castLight(origin, radius, 1, 1.0, 0.0, mult)
+	}
+}
+
+// castLight is the recursive shadowcasting worker for one octant defined by
+// the multiplier set. startSlope and endSlope bound the visible arc (slopes
+// are in the range [0,1]).
+func (m *GameMap) castLight(origin Position, radius, row int, startSlope, endSlope float64, mult [4]int) {
+	if startSlope < endSlope {
+		return
+	}
+
+	nextStartSlope := startSlope
+	for j := row; j <= radius; j++ {
+		blocked := false
+		for col := j; col >= 0; col-- {
+			// Map (col, j) through the octant multipliers.
+			mapX := origin.X + col*mult[0] + j*mult[1]
+			mapY := origin.Y + col*mult[2] + j*mult[3]
+
+			if mapX < 0 || mapX >= m.Width || mapY < 0 || mapY >= m.Height {
+				continue
+			}
+
+			// Slopes for this cell's left and right edges.
+			leftSlope := (float64(col) + 0.5) / (float64(j) - 0.5)
+			rightSlope := (float64(col) - 0.5) / (float64(j) + 0.5)
+
+			if startSlope < rightSlope {
+				continue
+			}
+			if endSlope > leftSlope {
+				break
+			}
+
+			// Mark visible if within circular radius.
+			if col*col+j*j <= radius*radius {
+				m.Visible[mapY][mapX] = true
+				m.Explored[mapY][mapX] = true
+			}
+
+			if blocked {
+				if m.Tiles[mapY][mapX] == TileWall {
+					nextStartSlope = rightSlope
+				} else {
+					blocked = false
+					startSlope = nextStartSlope
+				}
+			} else if m.Tiles[mapY][mapX] == TileWall {
+				blocked = true
+				m.castLight(origin, radius, j+1, startSlope, leftSlope, mult)
+				nextStartSlope = rightSlope
+			}
+		}
+		if blocked {
+			break
+		}
+	}
 }
 
 // Rect represents a rectangular region on the grid.
@@ -460,6 +572,9 @@ func NewGameWithSeed(width, height int, seed int64) GameState {
 			entities = append(entities, monster)
 		}
 	}
+
+	gameMap.Explored = makeBoolGrid(width, height)
+	gameMap.ComputeFOV(spawnPos, FOVRadius)
 
 	return GameState{
 		Seed: seed,

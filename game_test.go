@@ -366,3 +366,129 @@ func TestMonsterKillsPlayerLog(t *testing.T) {
 		t.Errorf("log[2] = %q, want %q", got, want)
 	}
 }
+
+func TestComputeFOVOpenRoom(t *testing.T) {
+	// In a small 5×5 room with no interior walls, every tile should be
+	// visible from the center.
+	gm := GameMap{
+		Width:  5,
+		Height: 5,
+		Tiles: [][]TileType{
+			{TileWall, TileWall, TileWall, TileWall, TileWall},
+			{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+			{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+			{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+			{TileWall, TileWall, TileWall, TileWall, TileWall},
+		},
+	}
+	gm.Explored = makeBoolGrid(5, 5)
+	gm.ComputeFOV(Position{X: 2, Y: 2}, FOVRadius)
+
+	for y := 0; y < 5; y++ {
+		for x := 0; x < 5; x++ {
+			if !gm.Visible[y][x] {
+				t.Errorf("tile (%d,%d) not visible from center of open room", x, y)
+			}
+			if !gm.Explored[y][x] {
+				t.Errorf("tile (%d,%d) not explored after ComputeFOV", x, y)
+			}
+		}
+	}
+}
+
+func TestComputeFOVWallBlocksSight(t *testing.T) {
+	// A wall at (2,2) should block sight to (2,3) from origin (2,1).
+	//
+	//  #####
+	//  #.@.#   origin at (2,1)
+	//  #.#.#   wall at (2,2)
+	//  #...#   (2,3) should be hidden
+	//  #####
+	gm := GameMap{
+		Width:  5,
+		Height: 5,
+		Tiles: [][]TileType{
+			{TileWall, TileWall, TileWall, TileWall, TileWall},
+			{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+			{TileWall, TileFloor, TileWall, TileFloor, TileWall},
+			{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+			{TileWall, TileWall, TileWall, TileWall, TileWall},
+		},
+	}
+	gm.Explored = makeBoolGrid(5, 5)
+	gm.ComputeFOV(Position{X: 2, Y: 1}, FOVRadius)
+
+	// The wall itself should be visible (you can see a wall).
+	if !gm.Visible[2][2] {
+		t.Error("wall at (2,2) should be visible")
+	}
+	// The tile directly behind the wall should not be visible.
+	if gm.Visible[3][2] {
+		t.Error("tile at (2,3) behind wall should not be visible")
+	}
+	// Adjacent floor tiles that aren't blocked should be visible.
+	if !gm.Visible[1][1] {
+		t.Error("floor at (1,1) should be visible")
+	}
+}
+
+func TestFOVExploredPersistsAcrossSteps(t *testing.T) {
+	// After a player moves, previously explored tiles stay explored
+	// even when they leave the FOV.
+	state := NewGameWithSeed(20, 10, 42)
+
+	// Gather the initial explored set.
+	initialExplored := make(map[Position]bool)
+	for y := 0; y < state.Map.Height; y++ {
+		for x := 0; x < state.Map.Width; x++ {
+			if state.Map.Explored[y][x] {
+				initialExplored[Position{X: x, Y: y}] = true
+			}
+		}
+	}
+	if len(initialExplored) == 0 {
+		t.Fatal("no tiles explored in initial state")
+	}
+
+	// Step the player (move right, assuming floor).
+	state2 := state.Step(ActionMoveRight)
+
+	// Every tile that was explored before must still be explored.
+	for pos := range initialExplored {
+		if !state2.Map.Explored[pos.Y][pos.X] {
+			t.Errorf("tile %+v was explored before step but not after", pos)
+		}
+	}
+}
+
+func TestFOVPlayerOriginAlwaysVisible(t *testing.T) {
+	state := NewGameWithSeed(20, 10, 99)
+	if !state.Map.Visible[state.Player.Pos.Y][state.Player.Pos.X] {
+		t.Error("player origin should always be visible")
+	}
+
+	state2 := state.Step(ActionMoveDown)
+	if !state2.Map.Visible[state2.Player.Pos.Y][state2.Player.Pos.X] {
+		t.Error("player origin should be visible after step")
+	}
+}
+
+func TestNewGameWithSeedInitializesFOV(t *testing.T) {
+	state := NewGameWithSeed(20, 10, 777)
+
+	if state.Map.Visible == nil {
+		t.Fatal("Visible grid should be initialized by NewGameWithSeed")
+	}
+	if state.Map.Explored == nil {
+		t.Fatal("Explored grid should be initialized by NewGameWithSeed")
+	}
+
+	// Player tile must be visible.
+	pp := state.Player.Pos
+	if !state.Map.Visible[pp.Y][pp.X] {
+		t.Error("player spawn tile should be visible")
+	}
+	if !state.Map.Explored[pp.Y][pp.X] {
+		t.Error("player spawn tile should be explored")
+	}
+}
