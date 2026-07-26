@@ -1051,3 +1051,50 @@ func TestPotionUseViaTUI(t *testing.T) {
 		t.Errorf("expected potion log message, got:\n%s", fullText)
 	}
 }
+
+func TestArcherRangedAttackViaTUI(t *testing.T) {
+	gm := GameMap{
+		Width:  10,
+		Height: 5,
+		Tiles: [][]TileType{
+			{TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall},
+			{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+			{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+			{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+			{TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall},
+		},
+	}
+	playerPos := Position{X: 1, Y: 2}
+	archerPos := Position{X: 4, Y: 2}
+	gm.Explored = makeBoolGrid(10, 5)
+	gm.ComputeFOV(playerPos, FOVRadius)
+
+	m := model{
+		state: GameState{
+			Map: gm,
+			Player: Entity{
+				ID: 0, Name: "Player", IsPlayer: true, Pos: playerPos,
+				Rune: "@", Color: "#00FF00", Health: 100, MaxHealth: 100, Damage: 10,
+			},
+			Entities: []Entity{
+				NewArcher(1, archerPos),
+			},
+		},
+	}
+
+	d := tuitest.New(t, m)
+
+	// Step down to (1, 3). Archer at (4, 2) shoots player from range.
+	d.Key("down")
+
+	lines := d.Lines()
+	fullText := stripANSI(strings.Join(lines, "\n"))
+	if !strings.Contains(fullText, "Archer shoots Player for 4 damage.") {
+		t.Errorf("expected archer shoot message in TUI log, got:\n%s", fullText)
+	}
+
+	plainHUD := stripANSI(lines[0])
+	if !strings.Contains(plainHUD, "HP: 96/100") {
+		t.Errorf("expected HP: 96/100 after archer ranged hit, got %q", plainHUD)
+	}
+}

@@ -12,6 +12,8 @@ type Palette struct {
 	Player     lipgloss.CompleteColor
 	Goblin     lipgloss.CompleteColor
 	Orc        lipgloss.CompleteColor
+	Troll      lipgloss.CompleteColor
+	Archer     lipgloss.CompleteColor
 	FloorLit   lipgloss.CompleteColor
 	WallLit    lipgloss.CompleteColor
 	FloorDim   lipgloss.CompleteColor
@@ -43,6 +45,16 @@ func DefaultPalette() Palette {
 			TrueColor: "#FF3B30",
 			ANSI256:   "196",
 			ANSI:      "1",
+		},
+		Troll: lipgloss.CompleteColor{
+			TrueColor: "#D32F2F",
+			ANSI256:   "160",
+			ANSI:      "1",
+		},
+		Archer: lipgloss.CompleteColor{
+			TrueColor: "#FF9800",
+			ANSI256:   "208",
+			ANSI:      "3",
 		},
 		FloorLit: lipgloss.CompleteColor{
 			TrueColor: "#4A3E2D",
@@ -107,6 +119,10 @@ func ResolveEntityColor(e Entity, p Palette) lipgloss.TerminalColor {
 		return p.Goblin
 	case "Orc":
 		return p.Orc
+	case "Troll":
+		return p.Troll
+	case "Archer":
+		return p.Archer
 	default:
 		return lipgloss.Color(e.Color)
 	}

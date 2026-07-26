@@ -745,3 +745,91 @@ func TestItemPersistenceAcrossStairs(t *testing.T) {
 		t.Errorf("player damage on floor 2 = %d, want 13", got)
 	}
 }
+
+func TestTrollAndArcherHelpers(t *testing.T) {
+	tr := NewTroll(1, Position{X: 2, Y: 3})
+	if tr.Name != "Troll" || tr.Health != 40 || tr.Damage != 10 || tr.Rune != "T" {
+		t.Errorf("unexpected troll stats: %+v", tr)
+	}
+
+	arc := NewArcher(2, Position{X: 4, Y: 5})
+	if arc.Name != "Archer" || arc.Health != 15 || arc.Damage != 4 || !arc.IsRanged || arc.Range != 5 || arc.Rune != "A" {
+		t.Errorf("unexpected archer stats: %+v", arc)
+	}
+}
+
+func TestArcherRangedAttack(t *testing.T) {
+	gm := GameMap{
+		Width:  10,
+		Height: 5,
+		Tiles: [][]TileType{
+			{TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall},
+			{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+			{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+			{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+			{TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall},
+		},
+	}
+
+	playerPos := Position{X: 1, Y: 2}
+	archerPos := Position{X: 4, Y: 2} // distance 3 (within range 5)
+
+	gm.Explored = makeBoolGrid(10, 5)
+	gm.ComputeFOV(playerPos, FOVRadius)
+
+	state := GameState{
+		Map: gm,
+		Player: Entity{
+			ID: 0, Name: "Player", IsPlayer: true, Pos: playerPos,
+			Health: 100, MaxHealth: 100, Damage: 10,
+		},
+		Entities: []Entity{
+			NewArcher(1, archerPos),
+		},
+	}
+
+	// Player stays in place or moves down
+	nextState := state.Step(ActionMoveDown)
+
+	// Archer should stay at (4,2) and shoot player for 4 damage
+	if got, want := nextState.Player.Health, 96; got != want {
+		t.Errorf("player HP = %d, want 96 after archer shoot", got)
+	}
+
+	if len(nextState.Entities) != 1 || nextState.Entities[0].Pos != archerPos {
+		t.Errorf("archer position changed, expected to hold position at %+v, got %+v", archerPos, nextState.Entities[0].Pos)
+	}
+
+	lastLog := nextState.Log[len(nextState.Log)-1]
+	if !strings.Contains(lastLog, "Archer shoots Player for 4 damage.") {
+		t.Errorf("log message = %q, want Archer shoot log", lastLog)
+	}
+}
+
+func TestMonsterScalingByDepth(t *testing.T) {
+	// Generate multiple games at depth 3 and verify Trolls / Archers can spawn
+	foundTroll := false
+	foundArcher := false
+
+	for seed := int64(1); seed <= 20; seed++ {
+		st := NewGameWithSeedAndDepth(60, 30, seed, 3)
+		for _, e := range st.Entities {
+			if e.Name == "Troll" {
+				foundTroll = true
+			}
+			if e.Name == "Archer" {
+				foundArcher = true
+			}
+		}
+		if foundTroll && foundArcher {
+			break
+		}
+	}
+
+	if !foundTroll {
+		t.Error("expected at least one Troll to spawn in depth 3 test runs")
+	}
+	if !foundArcher {
+		t.Error("expected at least one Archer to spawn in depth 3 test runs")
+	}
+}

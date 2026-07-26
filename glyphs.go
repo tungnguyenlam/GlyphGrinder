@@ -8,6 +8,8 @@ type GlyphSet struct {
 	Player     string
 	Goblin     string
 	Orc        string
+	Troll      string
+	Archer     string
 	Floor      string
 	Wall       string
 	StairsDown string
@@ -21,6 +23,8 @@ func ASCIIGlyphs() GlyphSet {
 		Player:     "@",
 		Goblin:     "g",
 		Orc:        "o",
+		Troll:      "T",
+		Archer:     "A",
 		Floor:      ".",
 		Wall:       "#",
 		StairsDown: ">",
@@ -35,6 +39,8 @@ func NerdFontGlyphs() GlyphSet {
 		Player:     "󰋋", // U+F02CB (nf-md-account / knight)
 		Goblin:     "󰆧", // U+F01A7 (nf-md-ghost)
 		Orc:        "󰌆", // U+F0306 (nf-md-skull)
+		Troll:      "󰇄", // U+F01C4 (troll / monster)
+		Archer:     "󰓤", // U+F04E4 (archer / bow)
 		Floor:      "·", // U+00B7 (middle dot)
 		Wall:       "▓", // U+2593 (dark shade block)
 		StairsDown: "󰌑", // U+F0311 (stairs down)
@@ -53,6 +59,10 @@ func ResolveEntityGlyph(e Entity, g GlyphSet) string {
 		return g.Goblin
 	case "Orc":
 		return g.Orc
+	case "Troll":
+		return g.Troll
+	case "Archer":
+		return g.Archer
 	default:
 		if e.Rune != "" {
 			return e.Rune

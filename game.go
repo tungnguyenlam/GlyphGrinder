@@ -59,6 +59,8 @@ type Entity struct {
 	Health    int
 	MaxHealth int
 	Damage    int
+	IsRanged  bool
+	Range     int
 	Inventory []Item
 }
 
@@ -354,11 +356,22 @@ func (s *GameState) runMonsterTurns() {
 		pDiffY := s.Player.Pos.Y - m.Pos.Y
 		absX := abs(pDiffX)
 		absY := abs(pDiffY)
+		distMax := absX
+		if absY > distMax {
+			distMax = absY
+		}
 
 		if absX+absY == 1 {
 			prevHealth := s.Player.Health
 			s.Player.Health -= m.Damage
 			s.Log = append(s.Log, fmt.Sprintf("%s hits %s for %d damage.", mName, playerName, m.Damage))
+			if prevHealth > 0 && s.Player.Health <= 0 {
+				s.Log = append(s.Log, fmt.Sprintf("%s dies.", playerName))
+			}
+		} else if m.IsRanged && distMax <= m.Range && s.Map.Visible != nil && s.Map.Visible[m.Pos.Y][m.Pos.X] {
+			prevHealth := s.Player.Health
+			s.Player.Health -= m.Damage
+			s.Log = append(s.Log, fmt.Sprintf("%s shoots %s for %d damage.", mName, playerName, m.Damage))
 			if prevHealth > 0 && s.Player.Health <= 0 {
 				s.Log = append(s.Log, fmt.Sprintf("%s dies.", playerName))
 			}
@@ -742,6 +755,38 @@ func NewOrc(id int, pos Position) Entity {
 	}
 }
 
+// NewTroll creates a troll monster entity.
+func NewTroll(id int, pos Position) Entity {
+	return Entity{
+		ID:        id,
+		Name:      "Troll",
+		Pos:       pos,
+		IsPlayer:  false,
+		Rune:      "T",
+		Color:     "#D32F2F",
+		Health:    40,
+		MaxHealth: 40,
+		Damage:    10,
+	}
+}
+
+// NewArcher creates an archer monster entity.
+func NewArcher(id int, pos Position) Entity {
+	return Entity{
+		ID:        id,
+		Name:      "Archer",
+		Pos:       pos,
+		IsPlayer:  false,
+		Rune:      "A",
+		Color:     "#FF9800",
+		Health:    15,
+		MaxHealth: 15,
+		Damage:    4,
+		IsRanged:  true,
+		Range:     5,
+	}
+}
+
 // NewHealthPotion creates a health potion item.
 func NewHealthPotion(id int, pos Position) Item {
 	return Item{
@@ -798,10 +843,31 @@ func NewGameWithSeedAndDepth(width, height int, seed int64, depth int) GameState
 			}
 
 			var monster Entity
-			if rng.Intn(10) < 7 {
-				monster = NewGoblin(nextID, pos)
-			} else {
-				monster = NewOrc(nextID, pos)
+			roll := rng.Intn(100)
+			if depth == 1 {
+				if roll < 70 {
+					monster = NewGoblin(nextID, pos)
+				} else {
+					monster = NewOrc(nextID, pos)
+				}
+			} else if depth == 2 {
+				if roll < 40 {
+					monster = NewGoblin(nextID, pos)
+				} else if roll < 80 {
+					monster = NewOrc(nextID, pos)
+				} else {
+					monster = NewTroll(nextID, pos)
+				}
+			} else { // depth >= 3
+				if roll < 25 {
+					monster = NewGoblin(nextID, pos)
+				} else if roll < 60 {
+					monster = NewOrc(nextID, pos)
+				} else if roll < 80 {
+					monster = NewTroll(nextID, pos)
+				} else {
+					monster = NewArcher(nextID, pos)
+				}
 			}
 			nextID++
 			entities = append(entities, monster)
