@@ -1215,3 +1215,37 @@ func TestScrollUsageViaTUI(t *testing.T) {
 		t.Errorf("expected Fireball scroll log message in TUI view, got:\n%s", fullText)
 	}
 }
+
+func TestDoorOpeningViaTUI(t *testing.T) {
+	m := model{
+		state: GameState{
+			Map: GameMap{
+				Width:  5,
+				Height: 5,
+				Tiles: [][]TileType{
+					{TileWall, TileWall, TileWall, TileWall, TileWall},
+					{TileWall, TileFloor, TileDoorClosed, TileFloor, TileWall},
+					{TileWall, TileWall, TileWall, TileWall, TileWall},
+					{TileWall, TileWall, TileWall, TileWall, TileWall},
+					{TileWall, TileWall, TileWall, TileWall, TileWall},
+				},
+			},
+			Player: Entity{
+				ID: 0, Name: "Player", IsPlayer: true, Pos: Position{X: 1, Y: 1},
+				Rune: "@", Color: "#00FF00", Health: 100, MaxHealth: 100,
+			},
+		},
+	}
+
+	d := tuitest.New(t, m)
+
+	// Press 'right' to open closed door at (2, 1)
+	d.Key("right")
+
+	lines := d.Lines()
+	fullText := stripANSI(strings.Join(lines, "\n"))
+
+	if !strings.Contains(fullText, "You open the door.") {
+		t.Errorf("expected 'You open the door.' log message in TUI view, got:\n%s", fullText)
+	}
+}

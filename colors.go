@@ -23,6 +23,7 @@ type Palette struct {
 	Weapon     lipgloss.CompleteColor
 	Amulet     lipgloss.CompleteColor
 	Scroll     lipgloss.CompleteColor
+	Door       lipgloss.CompleteColor
 	HUDNormal  lipgloss.CompleteColor
 	HUDWarning lipgloss.CompleteColor
 	HUDLog     lipgloss.CompleteColor
@@ -102,6 +103,11 @@ func DefaultPalette() Palette {
 			TrueColor: "#E040FB",
 			ANSI256:   "171",
 			ANSI:      "5",
+		},
+		Door: lipgloss.CompleteColor{
+			TrueColor: "#D7CCC8",
+			ANSI256:   "250",
+			ANSI:      "7",
 		},
 		HUDNormal: lipgloss.CompleteColor{
 			TrueColor: "#00FF87",

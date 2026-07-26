@@ -969,3 +969,54 @@ func TestTeleportScroll(t *testing.T) {
 		t.Errorf("expected Teleportation log message, got %q", fullLog)
 	}
 }
+
+func TestDoorOpeningAndFOV(t *testing.T) {
+	gm := GameMap{
+		Width:  5,
+		Height: 5,
+		Tiles: [][]TileType{
+			{TileWall, TileWall, TileWall, TileWall, TileWall},
+			{TileWall, TileFloor, TileDoorClosed, TileFloor, TileWall},
+			{TileWall, TileWall, TileWall, TileWall, TileWall},
+			{TileWall, TileWall, TileWall, TileWall, TileWall},
+			{TileWall, TileWall, TileWall, TileWall, TileWall},
+		},
+	}
+	gm.Explored = makeBoolGrid(5, 5)
+	playerPos := Position{X: 1, Y: 1}
+	gm.ComputeFOV(playerPos, FOVRadius)
+
+	// Tile (3,1) behind closed door (2,1) is not visible initially
+	if gm.Visible[1][3] {
+		t.Error("tile behind closed door should not be visible initially")
+	}
+
+	st := GameState{
+		Map: gm,
+		Player: Entity{
+			ID: 0, Name: "Player", IsPlayer: true, Pos: playerPos,
+			Health: 100, MaxHealth: 100,
+		},
+	}
+
+	// Bump into closed door at (2,1)
+	stOpened := st.Step(ActionMoveRight)
+
+	if stOpened.Map.Tiles[1][2] != TileDoorOpen {
+		t.Errorf("door at (2,1) = %v, want TileDoorOpen", stOpened.Map.Tiles[1][2])
+	}
+	if stOpened.Player.Pos != playerPos {
+		t.Errorf("player position = %+v, want %+v (door opening takes 1 turn without moving)", stOpened.Player.Pos, playerPos)
+	}
+
+	// FOV now reveals tile (3,1) through opened door
+	if !stOpened.Map.Visible[1][3] {
+		t.Error("tile behind opened door should be visible after opening door")
+	}
+
+	// Next step moves through opened door onto (2,1)
+	stMoved := stOpened.Step(ActionMoveRight)
+	if stMoved.Player.Pos != (Position{X: 2, Y: 1}) {
+		t.Errorf("player position after moving through open door = %+v, want (2,1)", stMoved.Player.Pos)
+	}
+}

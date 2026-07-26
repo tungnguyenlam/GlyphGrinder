@@ -17,6 +17,8 @@ type GlyphSet struct {
 	Weapon     string
 	Amulet     string
 	Scroll     string
+	DoorClosed string
+	DoorOpen   string
 }
 
 // ASCIIGlyphs returns the standard ASCII fallback glyph set.
@@ -34,6 +36,8 @@ func ASCIIGlyphs() GlyphSet {
 		Weapon:     "/",
 		Amulet:     "*",
 		Scroll:     "?",
+		DoorClosed: "+",
+		DoorOpen:   "/",
 	}
 }
 
@@ -52,6 +56,8 @@ func NerdFontGlyphs() GlyphSet {
 		Weapon:     "󰓥", // U+F04E5 (sword)
 		Amulet:     "󰇮", // U+F01EE (amulet / gem)
 		Scroll:     "󰈙", // U+F0219 (scroll / document)
+		DoorClosed: "󰌝", // U+F031D (closed door)
+		DoorOpen:   "󰌟", // U+F031F (open door)
 	}
 }
 

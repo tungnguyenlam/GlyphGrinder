@@ -19,6 +19,8 @@ const (
 	TileFloor TileType = iota
 	TileWall
 	TileStairsDown
+	TileDoorClosed
+	TileDoorOpen
 )
 
 // ScrollType defines the magic spell effect of a scroll.
@@ -341,6 +343,25 @@ func (s GameState) Step(act Action) GameState {
 	if s.Map.Tiles[newY][newX] == TileWall {
 		return s
 	}
+	if s.Map.Tiles[newY][newX] == TileDoorClosed {
+		s.Entities = append([]Entity(nil), s.Entities...)
+		s.Log = append([]string(nil), s.Log...)
+		s.Items = append([]Item(nil), s.Items...)
+		s.Player.Inventory = append([]Item(nil), s.Player.Inventory...)
+
+		// Deep-copy Explored grid
+		oldExplored := s.Map.Explored
+		s.Map.Explored = makeBoolGrid(s.Map.Width, s.Map.Height)
+		for y := range oldExplored {
+			copy(s.Map.Explored[y], oldExplored[y])
+		}
+
+		s.Map.Tiles[newY][newX] = TileDoorOpen
+		s.Log = append(s.Log, "You open the door.")
+		s.runMonsterTurns()
+		s.Map.ComputeFOV(s.Player.Pos, FOVRadius)
+		return s
+	}
 
 	s.Entities = append([]Entity(nil), s.Entities...)
 	s.Log = append([]string(nil), s.Log...)
@@ -615,13 +636,13 @@ func (m *GameMap) castLight(origin Position, radius, row int, startSlope, endSlo
 			}
 
 			if blocked {
-				if m.Tiles[mapY][mapX] == TileWall {
+				if m.isOpaque(mapX, mapY) {
 					nextStartSlope = rightSlope
 				} else {
 					blocked = false
 					startSlope = nextStartSlope
 				}
-			} else if m.Tiles[mapY][mapX] == TileWall {
+			} else if m.isOpaque(mapX, mapY) {
 				blocked = true
 				m.castLight(origin, radius, j+1, startSlope, leftSlope, mult)
 				nextStartSlope = rightSlope
@@ -631,6 +652,13 @@ func (m *GameMap) castLight(origin Position, radius, row int, startSlope, endSlo
 			break
 		}
 	}
+}
+
+func (m GameMap) isOpaque(x, y int) bool {
+	if x < 0 || x >= m.Width || y < 0 || y >= m.Height {
+		return true
+	}
+	return m.Tiles[y][x] == TileWall || m.Tiles[y][x] == TileDoorClosed
 }
 
 // Rect represents a rectangular region on the grid.
@@ -783,6 +811,38 @@ func GenerateMap(width, height int, rng *rand.Rand) (GameMap, []Rect) {
 		}
 	}
 	m.Tiles[stairsPos.Y][stairsPos.X] = TileStairsDown
+
+	// Place closed doors at room entrance boundaries
+	for _, r := range rooms {
+		// Top border
+		for x := r.X; x < r.X+r.W; x++ {
+			y := r.Y - 1
+			if y > 0 && y < height-1 && m.Tiles[y][x] == TileFloor && m.Tiles[y-1][x] == TileFloor && m.Tiles[y+1][x] == TileFloor {
+				m.Tiles[y][x] = TileDoorClosed
+			}
+		}
+		// Bottom border
+		for x := r.X; x < r.X+r.W; x++ {
+			y := r.Y + r.H
+			if y > 0 && y < height-1 && m.Tiles[y][x] == TileFloor && m.Tiles[y-1][x] == TileFloor && m.Tiles[y+1][x] == TileFloor {
+				m.Tiles[y][x] = TileDoorClosed
+			}
+		}
+		// Left border
+		for y := r.Y; y < r.Y+r.H; y++ {
+			x := r.X - 1
+			if x > 0 && x < width-1 && m.Tiles[y][x] == TileFloor && m.Tiles[y][x-1] == TileFloor && m.Tiles[y][x+1] == TileFloor {
+				m.Tiles[y][x] = TileDoorClosed
+			}
+		}
+		// Right border
+		for y := r.Y; y < r.Y+r.H; y++ {
+			x := r.X + r.W
+			if x > 0 && x < width-1 && m.Tiles[y][x] == TileFloor && m.Tiles[y][x-1] == TileFloor && m.Tiles[y][x+1] == TileFloor {
+				m.Tiles[y][x] = TileDoorClosed
+			}
+		}
+	}
 
 	return m, rooms
 }

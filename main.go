@@ -340,6 +340,14 @@ func (m model) View() string {
 	dimStairsStyle := lipgloss.NewStyle().Foreground(pal.WallDim)
 	dimStairs := dimStairsStyle.Render(gly.StairsDown)
 
+	doorStyle := lipgloss.NewStyle().Foreground(pal.Door)
+	doorClosed := doorStyle.Render(gly.DoorClosed)
+	doorOpen := doorStyle.Render(gly.DoorOpen)
+
+	dimDoorStyle := lipgloss.NewStyle().Foreground(pal.WallDim)
+	dimDoorClosed := dimDoorStyle.Render(gly.DoorClosed)
+	dimDoorOpen := dimDoorStyle.Render(gly.DoorOpen)
+
 	entityMap := make(map[Position]string, len(m.state.Entities))
 	for _, e := range m.state.Entities {
 		style := lipgloss.NewStyle().Foreground(ResolveEntityColor(e, pal)).Bold(true)
@@ -378,6 +386,10 @@ func (m model) View() string {
 						sb.WriteString(wall)
 					case TileStairsDown:
 						sb.WriteString(stairs)
+					case TileDoorClosed:
+						sb.WriteString(doorClosed)
+					case TileDoorOpen:
+						sb.WriteString(doorOpen)
 					default:
 						sb.WriteString(floor)
 					}
@@ -389,6 +401,10 @@ func (m model) View() string {
 					sb.WriteString(dimWall)
 				case TileStairsDown:
 					sb.WriteString(dimStairs)
+				case TileDoorClosed:
+					sb.WriteString(dimDoorClosed)
+				case TileDoorOpen:
+					sb.WriteString(dimDoorOpen)
 				default:
 					sb.WriteString(dimFloor)
 				}

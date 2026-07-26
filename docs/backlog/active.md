@@ -13,23 +13,23 @@ Serves `GOAL.md` directly: "It is a real roguelike underneath the polish... item
 
 ## Exact next action
 
-**M5.2 — Interactive Doors (Closed Doors `+` & Open Doors `/`).**
+**M5.3 — Status Effects (Poison, Regeneration, Confusion).**
 
 - In `game.go`:
-  - Add `TileDoorClosed` and `TileDoorOpen` to `TileType`.
-  - Place `TileDoorClosed` at room entrances during corridor carving in `GenerateMap`.
-  - In `Step(Action)`: Bumping `TileDoorClosed` transforms it to `TileDoorOpen`, logs `"You open the door."`, consumes 1 turn, and reveals room via FOV.
-  - Update `ComputeFOV` shadowcasting: `TileDoorClosed` blocks vision; `TileDoorOpen` allows vision.
-- In `glyphs.go` & `colors.go`:
-  - Add `DoorClosed` (`+`, `󰌝`) and `DoorOpen` (`/`, `󰌟`) to `GlyphSet` and wood color (`#D7CCC8`) to `Palette`.
-- Add unit and TUI tests in `game_test.go` and `tui_test.go` verifying door opening, turn consumption, and FOV line of sight.
+  - Add `StatusEffectType` enum (`StatusPoison`, `StatusRegen`, `StatusConfused`) and `ActiveStatus` struct (`Type`, `Duration`, `Power`).
+  - Add `Statuses []ActiveStatus` to `Entity`.
+  - Process status duration ticks in `Step`:
+    - `StatusPoison`: deals 1 HP damage per turn for N turns.
+    - `StatusRegen`: restores 1 HP per turn up to `MaxHealth`.
+    - `StatusConfused`: randomizes player movement direction for N turns.
+- Add unit and TUI tests in `game_test.go` and `tui_test.go` verifying status effect damage, healing, movement confusion, and expiration.
 
-Why next: M5.2 adds classic roguelike room boundary mechanics and tactical FOV reveals when opening doors.
+Why next: M5.3 provides rich combat status conditions and tactical debuffs/buffs during dungeon runs.
 
 ## Milestone plan
 
 - [x] **M5.1** Magic Scrolls (Fireball AoE damage & Teleportation scrolls).
-- [ ] **M5.2** Interactive Doors (Carved closed doors `+` / open doors `/` between rooms).
+- [x] **M5.2** Interactive Doors (Carved closed doors `+` / open doors `/` between rooms).
 - [ ] **M5.3** Status Effects (Poison, Regeneration, Confusion with turn duration).
 - [ ] **M5.4** Seed Replayability & Input Verification (Deterministic seed options and golden frame tests).
 
@@ -51,6 +51,6 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-07-27  —  VERIFY OK
 ```
 
-gofmt clean, `go vet` clean, builds, headless smoke frame renders, 68 test functions pass (including 3 new Fireball AoE, Teleport, and TUI scroll tests) + 3 performance benchmarks pass, `go.mod` tidy.
+gofmt clean, `go vet` clean, builds, headless smoke frame renders, 70 test functions pass (including 2 new door opening and FOV tests) + 3 performance benchmarks pass, `go.mod` tidy.
 
 
