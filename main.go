@@ -10,16 +10,31 @@ import (
 )
 
 type model struct {
-	state GameState
+	state  GameState
+	width  int // terminal columns (from tea.WindowSizeMsg)
+	height int // terminal rows  (from tea.WindowSizeMsg)
 }
 
+// Default map dimensions for the larger dungeon.
+const (
+	defaultMapWidth  = 60
+	defaultMapHeight = 30
+)
+
 func initialModel() model {
-	// Initialize a 20x10 terminal grid as the map
-	return model{state: NewGame(20, 10)}
+	return model{
+		state:  NewGame(defaultMapWidth, defaultMapHeight),
+		width:  80,
+		height: 24,
+	}
 }
 
 func initialModelWithSeed(seed int64) model {
-	return model{state: NewGameWithSeed(20, 10, seed)}
+	return model{
+		state:  NewGameWithSeed(defaultMapWidth, defaultMapHeight, seed),
+		width:  80,
+		height: 24,
+	}
 }
 
 func (m model) Init() tea.Cmd {
@@ -28,6 +43,10 @@ func (m model) Init() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
 	case tea.KeyMsg:
 		k := msg.String()
 		if k == "ctrl+c" || k == "q" {
@@ -35,7 +54,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.state.Player.Health <= 0 {
 			if k == "r" {
-				m.state = NewGame(20, 10)
+				m.state = NewGame(defaultMapWidth, defaultMapHeight)
 			}
 			return m, nil
 		}
@@ -57,6 +76,47 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
+
+// viewport computes the map sub-rectangle to render, centered on the player
+// and clamped to map bounds. viewW and viewH are the number of map columns
+// and rows that fit in the terminal (after reserving space for HUD and log).
+func viewport(playerPos Position, mapW, mapH, viewW, viewH int) (x0, y0, x1, y1 int) {
+	if viewW >= mapW {
+		x0 = 0
+		x1 = mapW
+	} else {
+		x0 = playerPos.X - viewW/2
+		if x0 < 0 {
+			x0 = 0
+		}
+		x1 = x0 + viewW
+		if x1 > mapW {
+			x1 = mapW
+			x0 = x1 - viewW
+		}
+	}
+
+	if viewH >= mapH {
+		y0 = 0
+		y1 = mapH
+	} else {
+		y0 = playerPos.Y - viewH/2
+		if y0 < 0 {
+			y0 = 0
+		}
+		y1 = y0 + viewH
+		if y1 > mapH {
+			y1 = mapH
+			y0 = y1 - viewH
+		}
+	}
+
+	return x0, y0, x1, y1
+}
+
+// reservedRows is the number of terminal rows reserved for non-map UI
+// (1 HUD line + up to 5 log lines).
+const reservedRows = 6
 
 func (m model) View() string {
 	if m.state.Map.Width == 0 || m.state.Map.Height == 0 {
@@ -83,7 +143,18 @@ func (m model) View() string {
 	sb.WriteString(hudText)
 	sb.WriteString("\n")
 
-	// Render Map Grid
+	// Compute viewport — how much of the map fits in the terminal.
+	viewW := m.width
+	viewH := m.height - reservedRows
+	if viewW <= 0 {
+		viewW = m.state.Map.Width
+	}
+	if viewH <= 0 {
+		viewH = m.state.Map.Height
+	}
+	x0, y0, x1, y1 := viewport(m.state.Player.Pos, m.state.Map.Width, m.state.Map.Height, viewW, viewH)
+
+	// Render Map Grid (visible sub-rectangle only)
 	playerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(m.state.Player.Color)).Bold(true)
 	player := playerStyle.Render(m.state.Player.Rune)
 	floorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#444444"))
@@ -103,8 +174,8 @@ func (m model) View() string {
 	}
 
 	hasFOV := m.state.Map.Visible != nil && m.state.Map.Explored != nil
-	for y := 0; y < m.state.Map.Height; y++ {
-		for x := 0; x < m.state.Map.Width; x++ {
+	for y := y0; y < y1; y++ {
+		for x := x0; x < x1; x++ {
 			pos := Position{X: x, Y: y}
 			visible := !hasFOV || m.state.Map.Visible[y][x]
 			explored := !hasFOV || m.state.Map.Explored[y][x]

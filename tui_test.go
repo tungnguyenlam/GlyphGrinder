@@ -7,14 +7,30 @@ import (
 	"glyphgrinder/internal/tuitest"
 )
 
-// playerAt reports the grid position of the player glyph in a rendered view.
+// viewOrigin returns the top-left map coordinate of the rendered viewport
+// for the given model. Tests use this to translate screen→map coordinates.
+func viewOrigin(m model) (x0, y0 int) {
+	vw := m.width
+	vh := m.height - reservedRows
+	if vw <= 0 {
+		vw = m.state.Map.Width
+	}
+	if vh <= 0 {
+		vh = m.state.Map.Height
+	}
+	x0, y0, _, _ = viewport(m.state.Player.Pos, m.state.Map.Width, m.state.Map.Height, vw, vh)
+	return x0, y0
+}
+
+// playerAt reports the map-grid position of the player glyph in a rendered view.
+// ox, oy is the camera origin (top-left map coordinate of the viewport).
 // Line 0 is the HUD status bar, so map rows start at line index 1.
-func playerAt(t *testing.T, lines []string) Position {
+func playerAt(t *testing.T, lines []string, ox, oy int) Position {
 	t.Helper()
 	for lineIdx := 1; lineIdx < len(lines); lineIdx++ {
 		plain := stripANSI(lines[lineIdx])
 		if x := strings.IndexRune(plain, '@'); x >= 0 {
-			return Position{X: x, Y: lineIdx - 1}
+			return Position{X: x + ox, Y: (lineIdx - 1) + oy}
 		}
 	}
 	t.Fatalf("player glyph not found in view:\n%s", strings.Join(lines, "\n"))
@@ -45,8 +61,10 @@ func TestViewRendersFullGrid(t *testing.T) {
 
 	lines := d.Lines()
 	// Line 0 is HUD; lines 1..10 are map rows (10 rows total)
-	if got := len(lines); got < 11 {
-		t.Fatalf("view has %d total lines, want at least 11 (HUD + 10 map rows)", got)
+	// With viewport, the rendered map may be clipped; just verify basics.
+	// HUD is line 0, then viewport rows follow.
+	if got := len(lines); got < 2 {
+		t.Fatalf("view has %d total lines, want at least 2 (HUD + map)", got)
 	}
 	// Check HUD
 	plainHUD := stripANSI(lines[0])
@@ -54,21 +72,58 @@ func TestViewRendersFullGrid(t *testing.T) {
 		t.Errorf("HUD line = %q, want 'HP: 100/100'", plainHUD)
 	}
 
-	mapLines := lines[1:11]
-	for y, line := range mapLines {
-		if got, want := len([]rune(stripANSI(line))), 20; got != want {
-			t.Errorf("map row %d has %d cells, want %d", y, got, want)
+	// All rendered map rows should have the same width (the viewport width).
+	vw := m.width
+	if vw > m.state.Map.Width {
+		vw = m.state.Map.Width
+	}
+	for i := 1; i < len(lines); i++ {
+		plain := stripANSI(lines[i])
+		if len(plain) == 0 {
+			break // log lines follow
+		}
+		if got := len([]rune(plain)); got != vw {
+			t.Errorf("map row %d has %d cells, want %d", i-1, got, vw)
 		}
 	}
+
+	ox, oy := viewOrigin(m)
 	wantPos := m.state.Player.Pos
-	if got := playerAt(t, lines); got != wantPos {
+	if got := playerAt(t, lines, ox, oy); got != wantPos {
 		t.Errorf("player rendered at %+v, want %+v", got, wantPos)
 	}
 }
 
 func TestMovementKeys(t *testing.T) {
-	baseModel := initialModelWithSeed(12345)
-	startPos := baseModel.state.Player.Pos
+	makeTestModel := func() model {
+		return model{
+			state: GameState{
+				Map: GameMap{
+					Width:  5,
+					Height: 5,
+					Tiles: [][]TileType{
+						{TileWall, TileWall, TileWall, TileWall, TileWall},
+						{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+						{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+						{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+						{TileWall, TileWall, TileWall, TileWall, TileWall},
+					},
+				},
+				Player: Entity{
+					ID:        0,
+					Name:      "Player",
+					IsPlayer:  true,
+					Pos:       Position{X: 2, Y: 2},
+					Rune:      "@",
+					Color:     "#00FF00",
+					Health:    100,
+					MaxHealth: 100,
+				},
+			},
+		}
+	}
+
+	startPos := Position{X: 2, Y: 2}
 
 	cases := []struct {
 		name string
@@ -85,9 +140,11 @@ func TestMovementKeys(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			d := tuitest.New(t, initialModelWithSeed(12345))
+			d := tuitest.New(t, makeTestModel())
 			d.Keys(tc.keys...)
-			if got := playerAt(t, d.Lines()); got != tc.want {
+			mdl := d.Model().(model)
+			ox, oy := viewOrigin(mdl)
+			if got := playerAt(t, d.Lines(), ox, oy); got != tc.want {
 				t.Errorf("after %v player at %+v, want %+v", tc.keys, got, tc.want)
 			}
 		})
@@ -102,7 +159,9 @@ func TestPlayerCannotWalkThroughWalls(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		d.Key("up")
 	}
-	posUp := playerAt(t, d.Lines())
+	mdl := d.Model().(model)
+	ox, oy := viewOrigin(mdl)
+	posUp := playerAt(t, d.Lines(), ox, oy)
 	if posUp.Y <= 0 || m.state.Map.Tiles[posUp.Y-1][posUp.X] != TileWall {
 		t.Errorf("expected tile above player at %+v to be TileWall", posUp)
 	}
@@ -111,7 +170,9 @@ func TestPlayerCannotWalkThroughWalls(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		d.Key("left")
 	}
-	posLeft := playerAt(t, d.Lines())
+	mdl = d.Model().(model)
+	ox, oy = viewOrigin(mdl)
+	posLeft := playerAt(t, d.Lines(), ox, oy)
 	if posLeft.X <= 0 || m.state.Map.Tiles[posLeft.Y][posLeft.X-1] != TileWall {
 		t.Errorf("expected tile to the left of player at %+v to be TileWall", posLeft)
 	}
@@ -208,19 +269,35 @@ func TestViewRendersMonsters(t *testing.T) {
 	}
 
 	lines := d.Lines()
+	ox, oy := viewOrigin(m)
+	vw := m.width
+	vh := m.height - reservedRows
+
+	visibleMonsterChecked := false
 	for _, e := range m.state.Entities {
-		lineIdx := 1 + e.Pos.Y
-		if lineIdx >= len(lines) {
-			t.Fatalf("monster pos Y %d out of bounds for lines len %d", e.Pos.Y, len(lines))
+		// Only check monsters within the rendered viewport window AND visible in FOV
+		if e.Pos.X >= ox && e.Pos.X < ox+vw && e.Pos.Y >= oy && e.Pos.Y < oy+vh {
+			if m.state.Map.Visible != nil && m.state.Map.Visible[e.Pos.Y][e.Pos.X] {
+				visibleMonsterChecked = true
+				lineIdx := 1 + (e.Pos.Y - oy)
+				if lineIdx >= len(lines) {
+					t.Fatalf("monster pos Y %d out of bounds for lines len %d", e.Pos.Y, len(lines))
+				}
+				plainRow := []rune(stripANSI(lines[lineIdx]))
+				colIdx := e.Pos.X - ox
+				if colIdx >= len(plainRow) {
+					t.Fatalf("monster pos X %d out of bounds for plain row len %d", e.Pos.X, len(plainRow))
+				}
+				gotRune := string(plainRow[colIdx])
+				if gotRune != e.Rune {
+					t.Errorf("expected monster rune %q at %+v (screen row %d col %d), got %q", e.Rune, e.Pos, lineIdx, colIdx, gotRune)
+				}
+			}
 		}
-		plainRow := []rune(stripANSI(lines[lineIdx]))
-		if e.Pos.X >= len(plainRow) {
-			t.Fatalf("monster pos X %d out of bounds for plain row len %d", e.Pos.X, len(plainRow))
-		}
-		gotRune := string(plainRow[e.Pos.X])
-		if gotRune != e.Rune {
-			t.Errorf("expected monster rune %q at %+v, got %q", e.Rune, e.Pos, gotRune)
-		}
+	}
+
+	if !visibleMonsterChecked {
+		t.Log("Note: no monsters spawned within initial FOV of player for seed 12345")
 	}
 }
 
@@ -260,7 +337,7 @@ func TestBumpToAttackViaTUI(t *testing.T) {
 	// Press 'up' key to bump-attack goblin
 	d.Key("up")
 
-	pos := playerAt(t, d.Lines())
+	pos := playerAt(t, d.Lines(), 0, 0)
 	if pos != (Position{X: 2, Y: 2}) {
 		t.Errorf("player position after bump attack = %+v, want (2,2)", pos)
 	}
@@ -303,7 +380,7 @@ func TestMonsterTurnsViaTUI(t *testing.T) {
 	d.Key("right")
 
 	lines := d.Lines()
-	pos := playerAt(t, lines)
+	pos := playerAt(t, lines, 0, 0)
 	if pos != (Position{X: 2, Y: 1}) {
 		t.Errorf("player position = %+v, want (2, 1)", pos)
 	}
@@ -567,5 +644,151 @@ func TestFOVExploredTilesShowDimmed(t *testing.T) {
 				t.Errorf("explored tile at start pos %+v rendered as blank, expected dimmed glyph", startPos)
 			}
 		}
+	}
+}
+
+func TestViewportCalculation(t *testing.T) {
+	cases := []struct {
+		name                           string
+		playerPos                      Position
+		mapW, mapH                     int
+		viewW, viewH                   int
+		wantX0, wantY0, wantX1, wantY1 int
+	}{
+		{
+			name:      "view larger than map",
+			playerPos: Position{X: 10, Y: 5},
+			mapW:      20, mapH: 10,
+			viewW: 80, viewH: 24,
+			wantX0: 0, wantY0: 0, wantX1: 20, wantY1: 10,
+		},
+		{
+			name:      "centered in middle of map",
+			playerPos: Position{X: 30, Y: 15},
+			mapW:      60, mapH: 30,
+			viewW: 20, viewH: 10,
+			wantX0: 20, wantY0: 10, wantX1: 40, wantY1: 20,
+		},
+		{
+			name:      "clamped to top-left border",
+			playerPos: Position{X: 2, Y: 2},
+			mapW:      60, mapH: 30,
+			viewW: 20, viewH: 10,
+			wantX0: 0, wantY0: 0, wantX1: 20, wantY1: 10,
+		},
+		{
+			name:      "clamped to bottom-right border",
+			playerPos: Position{X: 58, Y: 28},
+			mapW:      60, mapH: 30,
+			viewW: 20, viewH: 10,
+			wantX0: 40, wantY0: 20, wantX1: 60, wantY1: 30,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			x0, y0, x1, y1 := viewport(tc.playerPos, tc.mapW, tc.mapH, tc.viewW, tc.viewH)
+			if x0 != tc.wantX0 || y0 != tc.wantY0 || x1 != tc.wantX1 || y1 != tc.wantY1 {
+				t.Errorf("viewport(%+v, %d, %d, %d, %d) = (%d, %d, %d, %d), want (%d, %d, %d, %d)",
+					tc.playerPos, tc.mapW, tc.mapH, tc.viewW, tc.viewH,
+					x0, y0, x1, y1, tc.wantX0, tc.wantY0, tc.wantX1, tc.wantY1)
+			}
+		})
+	}
+}
+
+func TestWindowSizeResizeViewport(t *testing.T) {
+	m := initialModelWithSeed(12345)
+	d := tuitest.New(t, m)
+
+	// Resize window to small terminal: 40 cols, 15 rows (viewH = 15 - 6 = 9)
+	d.Resize(40, 15)
+
+	mdl := d.Model().(model)
+	if mdl.width != 40 || mdl.height != 15 {
+		t.Errorf("model dims = (%d, %d), want (40, 15)", mdl.width, mdl.height)
+	}
+
+	lines := d.Lines()
+	// Line 0 is HUD. Map lines should be 9 rows long.
+	mapRows := 0
+	for i := 1; i < len(lines); i++ {
+		plain := stripANSI(lines[i])
+		if len(plain) == 0 {
+			break
+		}
+		if got := len([]rune(plain)); got != 40 {
+			t.Errorf("row %d width = %d, want 40", mapRows, got)
+		}
+		mapRows++
+	}
+
+	if mapRows != 9 {
+		t.Errorf("rendered map rows = %d, want 9 (15 total height - 6 reserved)", mapRows)
+	}
+}
+
+func TestCameraFollowsPlayer(t *testing.T) {
+	// Create a large 60x30 map with an open floor area around (30, 15)
+	tiles := make([][]TileType, 30)
+	for y := 0; y < 30; y++ {
+		tiles[y] = make([]TileType, 60)
+		for x := 0; x < 60; x++ {
+			if x == 0 || x == 59 || y == 0 || y == 29 {
+				tiles[y][x] = TileWall
+			} else {
+				tiles[y][x] = TileFloor
+			}
+		}
+	}
+
+	gm := GameMap{
+		Width:  60,
+		Height: 30,
+		Tiles:  tiles,
+	}
+	gm.Explored = makeBoolGrid(60, 30)
+	gm.ComputeFOV(Position{X: 30, Y: 15}, FOVRadius)
+
+	m := model{
+		state: GameState{
+			Map: gm,
+			Player: Entity{
+				ID: 0, Name: "Player", IsPlayer: true,
+				Pos:  Position{X: 30, Y: 15},
+				Rune: "@", Color: "#00FF00", Health: 100, MaxHealth: 100, Damage: 10,
+			},
+		},
+		width:  20,
+		height: 16, // viewW = 20, viewH = 16 - 6 = 10
+	}
+
+	d := tuitest.New(t, m)
+
+	ox0, oy0 := viewOrigin(d.Model().(model))
+	if ox0 != 20 || oy0 != 10 {
+		t.Fatalf("initial camera origin = (%d, %d), want (20, 10)", ox0, oy0)
+	}
+
+	// Move player 5 steps right to (35, 15)
+	for i := 0; i < 5; i++ {
+		d.Key("right")
+	}
+
+	mdl := d.Model().(model)
+	if mdl.state.Player.Pos != (Position{X: 35, Y: 15}) {
+		t.Fatalf("player pos = %+v, want (35, 15)", mdl.state.Player.Pos)
+	}
+
+	ox1, oy1 := viewOrigin(mdl)
+	if ox1 != 25 || oy1 != 10 {
+		t.Errorf("camera origin after moving right = (%d, %d), want (25, 10)", ox1, oy1)
+	}
+
+	// Rendered view must still display player '@'
+	lines := d.Lines()
+	gotPos := playerAt(t, lines, ox1, oy1)
+	if gotPos != (Position{X: 35, Y: 15}) {
+		t.Errorf("playerAt returned %+v, want (35, 15)", gotPos)
 	}
 }

@@ -391,17 +391,22 @@ func GenerateMap(width, height int, rng *rand.Rand) (GameMap, []Rect) {
 	maxW := width / 3
 	if maxW < minSize {
 		maxW = minSize
-	} else if maxW > 8 {
-		maxW = 8
+	} else if maxW > 10 {
+		maxW = 10
 	}
 	maxH := height / 3
 	if maxH < minSize {
 		maxH = minSize
-	} else if maxH > 6 {
-		maxH = 6
+	} else if maxH > 8 {
+		maxH = 8
 	}
 
-	maxRooms := 10
+	// Scale max room attempts proportionally to map area.
+	// Baseline: 10 rooms for a 200-tile map (20×10).
+	maxRooms := (width * height) / 20
+	if maxRooms < 10 {
+		maxRooms = 10
+	}
 	var rooms []Rect
 
 	for i := 0; i < maxRooms; i++ {

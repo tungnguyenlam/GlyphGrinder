@@ -14,23 +14,19 @@ Serves `GOAL.md` directly: "A dungeon fades in... a torch pool of warm light sli
 
 ## Exact next action
 
-**M2.2 — Viewport/camera & terminal window resizing.**
+**M2.3 — Color palette & Lip Gloss profile-aware rendering.**
 
 - In `main.go`:
-  - Add `width` and `height` fields to `model` for terminal dimensions (initially 80×24 or from first `tea.WindowSizeMsg`).
-  - Handle `tea.WindowSizeMsg` in `Update` to capture terminal size.
-  - In `View()`, compute a camera viewport centered on the player that clips the map to the terminal size. Only render the visible sub-rectangle of the map grid.
-  - Support map sizes larger than the current 20×10 (e.g. 60×30). Update `initialModel()` to use the larger map.
-- In `game.go`:
-  - Ensure `NewGameWithSeed` and `GenerateMap` work correctly with larger map sizes.
-- Add TUI tests using `d.Resize(w, h)` to verify camera follows the player and adapts to terminal size changes.
+  - Define color tokens using HSL/Truecolor palettes for floors, walls, lit tiles, dimmed memory tiles, player, goblins, and orcs.
+  - Integrate Lip Gloss color profile checking (`lipgloss.ColorProfile()`) to degrade gracefully in 16-color or 256-color terminals while shining in truecolor terminals.
+- Add unit/TUI tests verifying Lip Gloss rendering works across different profiles without crashing or rendering blank strings.
 
-Why next: With FOV and map memory landed (M2.1), the next step is to support larger maps via a scrolling viewport, which is prerequisite for all subsequent visual polish.
+Why next: Now that camera viewport and map resizing are landed (M2.2), rich color ramps will give the scrolling dungeon visual depth.
 
 ## Milestone plan
 
 - [x] **M2.1** Field of view (FOV) & map memory — lit tiles bright, remembered tiles dimmed, unexplored tiles hidden.
-- [ ] **M2.2** Viewport/camera & terminal window resizing — support larger map sizes with camera centered on player and handling `tea.WindowSizeMsg`.
+- [x] **M2.2** Viewport/camera & terminal window resizing — support larger map sizes with camera centered on player and handling `tea.WindowSizeMsg`.
 - [ ] **M2.3** Color palette & Lip Gloss profile-aware rendering — truecolor stone/floor/entity ramps with graceful degradation.
 - [ ] **M2.4** Nerd Font glyph set with ASCII fallback.
 - [ ] **M2.5** Tick-driven movement animation.
@@ -54,4 +50,4 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-07-27  —  VERIFY OK
 ```
 
-gofmt clean, `go vet` clean, builds, headless smoke frame renders, 29 test functions pass (9 new FOV tests), `go.mod` tidy.
+gofmt clean, `go vet` clean, builds, headless smoke frame renders, 32 test functions pass (3 new viewport & camera tests), `go.mod` tidy.
