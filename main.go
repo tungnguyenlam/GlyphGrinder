@@ -11,9 +11,10 @@ import (
 
 type model struct {
 	state   GameState
-	width   int     // terminal columns (from tea.WindowSizeMsg)
-	height  int     // terminal rows  (from tea.WindowSizeMsg)
-	palette Palette // color palette for profile-aware rendering
+	width   int      // terminal columns (from tea.WindowSizeMsg)
+	height  int      // terminal rows  (from tea.WindowSizeMsg)
+	palette Palette  // color palette for profile-aware rendering
+	glyphs  GlyphSet // glyph set for rendering
 }
 
 // Default map dimensions for the larger dungeon.
@@ -28,6 +29,7 @@ func initialModel() model {
 		width:   80,
 		height:  24,
 		palette: DefaultPalette(),
+		glyphs:  DetectGlyphSet(),
 	}
 }
 
@@ -37,6 +39,7 @@ func initialModelWithSeed(seed int64) model {
 		width:   80,
 		height:  24,
 		palette: DefaultPalette(),
+		glyphs:  DetectGlyphSet(),
 	}
 }
 
@@ -45,6 +48,13 @@ func (m model) getPalette() Palette {
 		return DefaultPalette()
 	}
 	return m.palette
+}
+
+func (m model) getGlyphs() GlyphSet {
+	if m.glyphs.Player == "" {
+		return DetectGlyphSet()
+	}
+	return m.glyphs
 }
 
 func (m model) Init() tea.Cmd {
@@ -165,23 +175,26 @@ func (m model) View() string {
 	}
 	x0, y0, x1, y1 := viewport(m.state.Player.Pos, m.state.Map.Width, m.state.Map.Height, viewW, viewH)
 
+	gly := m.getGlyphs()
+
 	// Render Map Grid (visible sub-rectangle only)
 	playerStyle := lipgloss.NewStyle().Foreground(pal.Player).Bold(true)
-	player := playerStyle.Render(m.state.Player.Rune)
+	player := playerStyle.Render(gly.Player)
 	floorStyle := lipgloss.NewStyle().Foreground(pal.FloorLit)
-	floor := floorStyle.Render(".")
+	floor := floorStyle.Render(gly.Floor)
 	wallStyle := lipgloss.NewStyle().Foreground(pal.WallLit)
-	wall := wallStyle.Render("#")
+	wall := wallStyle.Render(gly.Wall)
 	// Dimmed styles for explored-but-not-visible tiles (map memory).
 	dimFloorStyle := lipgloss.NewStyle().Foreground(pal.FloorDim)
-	dimFloor := dimFloorStyle.Render(".")
+	dimFloor := dimFloorStyle.Render(gly.Floor)
 	dimWallStyle := lipgloss.NewStyle().Foreground(pal.WallDim)
-	dimWall := dimWallStyle.Render("#")
+	dimWall := dimWallStyle.Render(gly.Wall)
 
 	entityMap := make(map[Position]string, len(m.state.Entities))
 	for _, e := range m.state.Entities {
 		style := lipgloss.NewStyle().Foreground(ResolveEntityColor(e, pal)).Bold(true)
-		entityMap[e.Pos] = style.Render(e.Rune)
+		glyph := ResolveEntityGlyph(e, gly)
+		entityMap[e.Pos] = style.Render(glyph)
 	}
 
 	hasFOV := m.state.Map.Visible != nil && m.state.Map.Explored != nil

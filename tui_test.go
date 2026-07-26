@@ -29,7 +29,11 @@ func playerAt(t *testing.T, lines []string, ox, oy int) Position {
 	t.Helper()
 	for lineIdx := 1; lineIdx < len(lines); lineIdx++ {
 		plain := stripANSI(lines[lineIdx])
-		if x := strings.IndexRune(plain, '@'); x >= 0 {
+		x := strings.IndexRune(plain, '@')
+		if x < 0 {
+			x = strings.IndexRune(plain, '󰋋')
+		}
+		if x >= 0 {
 			return Position{X: x + ox, Y: (lineIdx - 1) + oy}
 		}
 	}
@@ -289,8 +293,9 @@ func TestViewRendersMonsters(t *testing.T) {
 					t.Fatalf("monster pos X %d out of bounds for plain row len %d", e.Pos.X, len(plainRow))
 				}
 				gotRune := string(plainRow[colIdx])
-				if gotRune != e.Rune {
-					t.Errorf("expected monster rune %q at %+v (screen row %d col %d), got %q", e.Rune, e.Pos, lineIdx, colIdx, gotRune)
+				wantGlyph := ResolveEntityGlyph(e, m.getGlyphs())
+				if gotRune != wantGlyph {
+					t.Errorf("expected monster rune %q at %+v (screen row %d col %d), got %q", wantGlyph, e.Pos, lineIdx, colIdx, gotRune)
 				}
 			}
 		}
@@ -387,8 +392,9 @@ func TestMonsterTurnsViaTUI(t *testing.T) {
 
 	// Map row Y=2 is line index 1+2=3
 	plainRow := stripANSI(lines[3])
-	if got := string([]rune(plainRow)[1]); got != "o" {
-		t.Errorf("expected Orc 'o' at (1, 2), got %q in line: %q", got, plainRow)
+	wantOrcGlyph := ResolveEntityGlyph(NewOrc(1, Position{}), m.getGlyphs())
+	if got := string([]rune(plainRow)[1]); got != wantOrcGlyph {
+		t.Errorf("expected Orc %q at (1, 2), got %q in line: %q", wantOrcGlyph, got, plainRow)
 	}
 }
 
