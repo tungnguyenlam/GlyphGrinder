@@ -7,18 +7,37 @@ Update it continuously — as soon as a sub-task lands or the plan changes.
 
 ## Current milestone
 
-**Post-M7 Polish & Maintenance.** All milestones (M1 Playable Core Loop, M2 Visual Pitch & FOV, M3 Deep Progression & Items, M4 Shipping & CI, M5 Dungeon Mechanics & Magical Depth, M6 Visual Brilliance & Tactical Systems, M7 Replayability, Headless Inspection & Class Archetypes) are complete.
+**Post-M7 Polish & Maintenance.** All milestones (M1–M7) are complete.
 
-Serves `GOAL.md` directly: GlyphGrinder is a complete, highly polished, fast, responsive, and fully verified Go terminal roguelike.
+Serves `GOAL.md` directly: keep the finished roguelike correct, playable, and
+easy for the next agent to extend without rediscovering finished work.
 
 ## Exact next action
 
-**Maintenance Mode / Post-Launch Polish.**
+**Golden-frame regression harness (parking-lot engineering item).**
 
-- Run `./scripts/verify.sh` to confirm green build and test status.
-- Consult `docs/backlog/parking-lot.md` for post-launch ideas when starting new feature work.
+1. Add a small helper (e.g. in `tui_test.go` or a new `golden_test.go`) that
+   builds a fixed-seed model, forces ASCII glyphs + a stable color profile, and
+   writes/compares `View()` output against a checked-in golden file under
+   `testdata/`.
+2. Start with one golden: title screen, and one in-game frame (seed `42`, depth
+   1, Warrior, after a fixed key sequence). Use an update flag
+   (`-update-golden`) only in that test file, not a new dependency.
+3. Run `./scripts/verify.sh` and record the result below.
 
-Why next: Milestones M1 through M7 have been completed and verified against `GOAL.md`.
+Why next: protects View/palette/glyph regressions without a TTY; parking lot
+still lists this as open engineering work after M7.
+
+## Recently completed (this session)
+
+- [x] **Bugfix: dropping a weapon no longer keeps its DamageBonus.**
+  `ActionDropItem` now subtracts `DamageBonus` when the dropped item is a
+  weapon (clamped at 0). Regression tests:
+  `TestDropWeaponRemovesDamageBonus`, `TestWarriorDropStartingWeapon`.
+  Without the fix, Warriors (and anyone who drop+re-picked a dagger) stacked
+  permanent damage.
+- [x] **Parking lot scrub.** Removed M1–M7 items that already shipped so the
+  lot is only uncommitted ideas again.
 
 ## Milestone plan
 
@@ -36,6 +55,7 @@ Why next: Milestones M1 through M7 have been completed and verified against `GOA
 - `README.md` is complete and accurate with current features and controls.
 - Performance benchmarks confirm sub-millisecond execution (< 0.065ms per View render).
 - `./scripts/verify.sh` passes clean.
+- Known rule bugs found in play (weapon drop bonus leak) are fixed with regression tests.
 
 ## Blockers
 
@@ -47,10 +67,6 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-07-27  —  VERIFY OK
 ```
 
-gofmt clean, `go vet` clean, builds, headless smoke frame renders, 85 test functions pass + 3 performance benchmarks pass, `go.mod` tidy.
-
-
-
-
-
-
+gofmt clean, `go vet` clean, builds, headless smoke frame renders, full test
+suite pass (including `TestDropWeaponRemovesDamageBonus` and
+`TestWarriorDropStartingWeapon`), `go.mod` tidy.

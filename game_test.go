@@ -1082,6 +1082,49 @@ func TestActionDropItem(t *testing.T) {
 	}
 }
 
+// Dropping a weapon must reverse the DamageBonus applied on pickup, otherwise
+// drop+re-pickup stacks damage forever (Warrior start gear makes this easy to hit).
+func TestDropWeaponRemovesDamageBonus(t *testing.T) {
+	st := NewGameWithSeed(20, 10, 12345)
+	baseDamage := st.Player.Damage
+
+	weapon := NewIronDagger(101, Position{X: -1, Y: -1})
+	st.Player.Inventory = []Item{weapon}
+	st.Player.Damage += weapon.DamageBonus
+
+	stDropped := st.Step(ActionDropItem)
+	if stDropped.Player.Damage != baseDamage {
+		t.Errorf("after dropping weapon, Damage = %d, want base %d", stDropped.Player.Damage, baseDamage)
+	}
+	if len(stDropped.Player.Inventory) != 0 {
+		t.Errorf("expected empty inventory after drop, got %d", len(stDropped.Player.Inventory))
+	}
+
+	// Re-pickup should restore exactly one bonus, not stack past base+bonus.
+	stPicked := stDropped.Step(ActionPickup)
+	want := baseDamage + weapon.DamageBonus
+	if stPicked.Player.Damage != want {
+		t.Errorf("after re-picking weapon, Damage = %d, want %d", stPicked.Player.Damage, want)
+	}
+}
+
+// Warrior starts with an Iron Dagger already factored into Damage; dropping it
+// must return them to bare-handed damage.
+func TestWarriorDropStartingWeapon(t *testing.T) {
+	st := NewGameWithSeedDepthAndClass(40, 20, 42, 1, ClassWarrior)
+	if len(st.Player.Inventory) == 0 || st.Player.Inventory[0].ItemType != ItemWeapon {
+		t.Fatalf("Warrior should start with a weapon in inventory")
+	}
+	bonus := st.Player.Inventory[0].DamageBonus
+	armedDamage := st.Player.Damage
+
+	stDropped := st.Step(ActionDropItem)
+	want := armedDamage - bonus
+	if stDropped.Player.Damage != want {
+		t.Errorf("Warrior Damage after dropping starter weapon = %d, want %d", stDropped.Player.Damage, want)
+	}
+}
+
 func TestLavaAndWaterHazardTiles(t *testing.T) {
 	st := GameState{
 		Map: GameMap{

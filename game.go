@@ -248,9 +248,16 @@ func (s GameState) Step(act Action) GameState {
 			return s
 		}
 
-		// Drop the last item in inventory
+		// Drop the last item in inventory. Weapons applied their DamageBonus
+		// on pickup, so reverse it here or drop+re-pickup stacks forever.
 		droppedItem := s.Player.Inventory[len(s.Player.Inventory)-1]
 		s.Player.Inventory = s.Player.Inventory[:len(s.Player.Inventory)-1]
+		if droppedItem.ItemType == ItemWeapon {
+			s.Player.Damage -= droppedItem.DamageBonus
+			if s.Player.Damage < 0 {
+				s.Player.Damage = 0
+			}
+		}
 
 		droppedItem.Pos = s.Player.Pos
 		s.Items = append(s.Items, droppedItem)
