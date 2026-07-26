@@ -14,20 +14,20 @@ Serves `GOAL.md` directly: "A dungeon fades in... a torch pool of warm light sli
 
 ## Exact next action
 
-**M2.3 — Color palette & Lip Gloss profile-aware rendering.**
+**M2.4 — Nerd Font glyph set with ASCII fallback.**
 
-- In `main.go`:
-  - Define color tokens using HSL/Truecolor palettes for floors, walls, lit tiles, dimmed memory tiles, player, goblins, and orcs.
-  - Integrate Lip Gloss color profile checking (`lipgloss.ColorProfile()`) to degrade gracefully in 16-color or 256-color terminals while shining in truecolor terminals.
-- Add unit/TUI tests verifying Lip Gloss rendering works across different profiles without crashing or rendering blank strings.
+- In `main.go` / `game.go`:
+  - Define glyph set structures/tokens for Player, Goblins, Orcs, Floor, and Wall tiles with both Nerd Font symbols (e.g., 󰋋/󰆧/󰌆 or unicode dungeon symbols) and clean ASCII fallbacks (`@`, `g`, `o`, `.`, `#`).
+  - Provide auto-detection / config option or environment check for Nerd Font support with graceful ASCII fallback.
+- Add unit/TUI tests verifying rendering under both Nerd Font and ASCII modes.
 
-Why next: Now that camera viewport and map resizing are landed (M2.2), rich color ramps will give the scrolling dungeon visual depth.
+Why next: With color palettes and camera scrolling in place, distinct Nerd Font glyphs will complete the visual identity of monsters and terrain.
 
 ## Milestone plan
 
 - [x] **M2.1** Field of view (FOV) & map memory — lit tiles bright, remembered tiles dimmed, unexplored tiles hidden.
 - [x] **M2.2** Viewport/camera & terminal window resizing — support larger map sizes with camera centered on player and handling `tea.WindowSizeMsg`.
-- [ ] **M2.3** Color palette & Lip Gloss profile-aware rendering — truecolor stone/floor/entity ramps with graceful degradation.
+- [x] **M2.3** Color palette & Lip Gloss profile-aware rendering — truecolor stone/floor/entity ramps with graceful degradation.
 - [ ] **M2.4** Nerd Font glyph set with ASCII fallback.
 - [ ] **M2.5** Tick-driven movement animation.
 
@@ -50,4 +50,4 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-07-27  —  VERIFY OK
 ```
 
-gofmt clean, `go vet` clean, builds, headless smoke frame renders, 32 test functions pass (3 new viewport & camera tests), `go.mod` tidy.
+gofmt clean, `go vet` clean, builds, headless smoke frame renders, 35 test functions pass (3 new color palette & profile tests), `go.mod` tidy.

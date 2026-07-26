@@ -10,9 +10,10 @@ import (
 )
 
 type model struct {
-	state  GameState
-	width  int // terminal columns (from tea.WindowSizeMsg)
-	height int // terminal rows  (from tea.WindowSizeMsg)
+	state   GameState
+	width   int     // terminal columns (from tea.WindowSizeMsg)
+	height  int     // terminal rows  (from tea.WindowSizeMsg)
+	palette Palette // color palette for profile-aware rendering
 }
 
 // Default map dimensions for the larger dungeon.
@@ -23,18 +24,27 @@ const (
 
 func initialModel() model {
 	return model{
-		state:  NewGame(defaultMapWidth, defaultMapHeight),
-		width:  80,
-		height: 24,
+		state:   NewGame(defaultMapWidth, defaultMapHeight),
+		width:   80,
+		height:  24,
+		palette: DefaultPalette(),
 	}
 }
 
 func initialModelWithSeed(seed int64) model {
 	return model{
-		state:  NewGameWithSeed(defaultMapWidth, defaultMapHeight, seed),
-		width:  80,
-		height: 24,
+		state:   NewGameWithSeed(defaultMapWidth, defaultMapHeight, seed),
+		width:   80,
+		height:  24,
+		palette: DefaultPalette(),
 	}
+}
+
+func (m model) getPalette() Palette {
+	if m.palette.FloorLit.TrueColor == "" && m.palette.FloorLit.ANSI256 == "" && m.palette.FloorLit.ANSI == "" {
+		return DefaultPalette()
+	}
+	return m.palette
 }
 
 func (m model) Init() tea.Cmd {
@@ -123,6 +133,7 @@ func (m model) View() string {
 		return ""
 	}
 
+	pal := m.getPalette()
 	var sb strings.Builder
 
 	// Render HUD / Status Bar
@@ -130,14 +141,14 @@ func (m model) View() string {
 	if hp < 0 {
 		hp = 0
 	}
-	hpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF00")).Bold(true)
+	hpStyle := lipgloss.NewStyle().Foreground(pal.HUDNormal).Bold(true)
 	if hp == 0 {
-		hpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555")).Bold(true)
+		hpStyle = lipgloss.NewStyle().Foreground(pal.HUDWarning).Bold(true)
 	}
 	hudText := hpStyle.Render(fmt.Sprintf("HP: %d/%d", hp, m.state.Player.MaxHealth))
 
 	if m.state.Player.Health <= 0 {
-		gameOverStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555")).Bold(true)
+		gameOverStyle := lipgloss.NewStyle().Foreground(pal.HUDWarning).Bold(true)
 		hudText += gameOverStyle.Render(" | *** GAME OVER *** (Press r to restart)")
 	}
 	sb.WriteString(hudText)
@@ -155,21 +166,21 @@ func (m model) View() string {
 	x0, y0, x1, y1 := viewport(m.state.Player.Pos, m.state.Map.Width, m.state.Map.Height, viewW, viewH)
 
 	// Render Map Grid (visible sub-rectangle only)
-	playerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(m.state.Player.Color)).Bold(true)
+	playerStyle := lipgloss.NewStyle().Foreground(pal.Player).Bold(true)
 	player := playerStyle.Render(m.state.Player.Rune)
-	floorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#444444"))
+	floorStyle := lipgloss.NewStyle().Foreground(pal.FloorLit)
 	floor := floorStyle.Render(".")
-	wallStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
+	wallStyle := lipgloss.NewStyle().Foreground(pal.WallLit)
 	wall := wallStyle.Render("#")
 	// Dimmed styles for explored-but-not-visible tiles (map memory).
-	dimFloorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#222222"))
+	dimFloorStyle := lipgloss.NewStyle().Foreground(pal.FloorDim)
 	dimFloor := dimFloorStyle.Render(".")
-	dimWallStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#333333"))
+	dimWallStyle := lipgloss.NewStyle().Foreground(pal.WallDim)
 	dimWall := dimWallStyle.Render("#")
 
 	entityMap := make(map[Position]string, len(m.state.Entities))
 	for _, e := range m.state.Entities {
-		style := lipgloss.NewStyle().Foreground(lipgloss.Color(e.Color)).Bold(true)
+		style := lipgloss.NewStyle().Foreground(ResolveEntityColor(e, pal)).Bold(true)
 		entityMap[e.Pos] = style.Render(e.Rune)
 	}
 
@@ -214,7 +225,7 @@ func (m model) View() string {
 	if logCount > 5 {
 		start = logCount - 5
 	}
-	logStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#AAAAAA"))
+	logStyle := lipgloss.NewStyle().Foreground(pal.HUDLog)
 	for i := start; i < logCount; i++ {
 		sb.WriteString(logStyle.Render(m.state.Log[i]))
 		if i < logCount-1 {
