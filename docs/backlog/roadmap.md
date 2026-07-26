@@ -18,3 +18,7 @@ Multiple dungeon floors, items & inventory (potions & weapons), varied monster t
 ## M4 — Ships to other people *(completed 2026-07-27 — see [done.md](done.md))*
 
 `go install` verification, README rewrite, degradation checks, benchmark suite, and GitHub Actions CI.
+
+## M5 — Dungeon Mechanics & Magical Depth *(completed 2026-07-27 — see [done.md](done.md))*
+
+Magic scrolls (Fireball & Teleportation), interactive doors (`+`/`/`), status effects (Poison, Regeneration, Confusion), seed replayability (`GLYPHGRINDER_SEED`).

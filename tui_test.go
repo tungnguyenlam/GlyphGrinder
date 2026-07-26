@@ -1249,3 +1249,34 @@ func TestDoorOpeningViaTUI(t *testing.T) {
 		t.Errorf("expected 'You open the door.' log message in TUI view, got:\n%s", fullText)
 	}
 }
+
+func TestSeedReplayabilityViaTUI(t *testing.T) {
+	seed := int64(99999)
+
+	m1 := initialModelWithSeed(seed)
+	d1 := tuitest.New(t, m1)
+
+	m2 := initialModelWithSeed(seed)
+	d2 := tuitest.New(t, m2)
+
+	actions := []string{"up", "right", "down", "left", "g", "h"}
+	for _, act := range actions {
+		d1.Key(act)
+		d2.Key(act)
+	}
+
+	view1 := stripANSI(d1.View())
+	view2 := stripANSI(d2.View())
+
+	if view1 != view2 {
+		t.Errorf("expected deterministic views for identical seed %d and key sequence, got mismatch:\nView 1:\n%s\nView 2:\n%s", seed, view1, view2)
+	}
+}
+
+func TestGLYPHGRINDER_SEEDEnvOverride(t *testing.T) {
+	t.Setenv("GLYPHGRINDER_SEED", "777")
+	m := initialModel()
+	if m.state.Seed != 777 {
+		t.Errorf("expected model seed = 777 from GLYPHGRINDER_SEED, got %d", m.state.Seed)
+	}
+}

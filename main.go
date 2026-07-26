@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -50,7 +51,16 @@ const (
 )
 
 func initialModel() model {
-	st := NewGame(defaultMapWidth, defaultMapHeight)
+	var st GameState
+	if seedStr := os.Getenv("GLYPHGRINDER_SEED"); seedStr != "" {
+		if sVal, err := strconv.ParseInt(seedStr, 10, 64); err == nil {
+			st = NewGameWithSeed(defaultMapWidth, defaultMapHeight, sVal)
+		} else {
+			st = NewGame(defaultMapWidth, defaultMapHeight)
+		}
+	} else {
+		st = NewGame(defaultMapWidth, defaultMapHeight)
+	}
 	return model{
 		state:          st,
 		width:          80,
@@ -89,6 +99,19 @@ func (m model) getGlyphs() GlyphSet {
 		return DetectGlyphSet()
 	}
 	return m.glyphs
+}
+
+// continuousCameraEasing calculates continuous camera center coordinates for smooth visual tracking.
+func continuousCameraEasing(curX, curY, targetX, targetY float64, animTicks int) (float64, float64) {
+	if animTicks <= 0 {
+		return targetX, targetY
+	}
+	t := float64(maxAnimTicks-animTicks) / float64(maxAnimTicks)
+	easeT := 1 - math.Pow(1-t, 3)
+
+	newX := curX + (targetX-curX)*easeT
+	newY := curY + (targetY-curY)*easeT
+	return newX, newY
 }
 
 func (m model) getCamPos() (float64, float64) {
@@ -289,7 +312,7 @@ func (m model) View() string {
 	if hp == 0 {
 		hpStyle = lipgloss.NewStyle().Foreground(pal.HUDWarning).Bold(true)
 	}
-	hudStr := fmt.Sprintf("HP: %d/%d | Depth: %d", hp, m.state.Player.MaxHealth, depth)
+	hudStr := fmt.Sprintf("HP: %d/%d | Depth: %d | Seed: %d", hp, m.state.Player.MaxHealth, depth, m.state.Seed)
 	if len(m.state.Player.Inventory) > 0 {
 		var invNames []string
 		for _, item := range m.state.Player.Inventory {

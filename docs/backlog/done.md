@@ -4,6 +4,17 @@ Completed milestones, newest first. This is the project's memory of what has
 already been built and tried — check here before "discovering" that something
 is missing.
 
+## 2026-07-27 — M5: Dungeon Mechanics & Magical Depth
+
+Expand tactical gameplay with consumable magic scrolls, interactive doors, status effects, and seed replayability.
+
+- M5.1: Consumable Magic Scrolls system (`ItemScroll`: Fireball scroll `?` dealing 15 AoE damage to monsters within radius 3, Teleportation scroll `?` teleporting player to a random unoccupied floor tile).
+- M5.2: Interactive Doors system (`TileDoorClosed` `+`/`󰌝`, `TileDoorOpen` `/`/`󰌟`), room entrance door placement during map generation, turn consumption on door opening, and FOV line-of-sight obstruction.
+- M5.3: Status Effects system (`ActiveStatus`, `StatusPoison`, `StatusRegen`, `StatusConfused`), Regeneration Potions, status duration ticks, and confused movement direction scrambling.
+- M5.4: Seed Replayability & HUD display (`Seed: X`), `GLYPHGRINDER_SEED` environment variable override, and TUI tests asserting 100% deterministic view output across identical key sequences.
+
+Verified: `./scripts/verify.sh` — VERIFY OK (74 test functions pass + 3 performance benchmarks pass).
+
 ## 2026-07-27 — M4: Ships to other people
 
 Production-ready packaging, documentation, benchmarks, CI, and graceful degradation across terminal environments.
