@@ -13,21 +13,20 @@ Serves `GOAL.md` directly: "And it just runs. `go install` or a single binary, n
 
 ## Exact next action
 
-**M4.3 — Performance benchmarks (`BenchmarkView`, `BenchmarkStep`) holding frame budgets under 1ms.**
+**M4.4 — GitHub Actions CI workflow running `./scripts/verify.sh`.**
 
-- Create `bench_test.go`:
-  - `BenchmarkView`: measure `View()` execution time for 80x24 viewport with FOV, entities, and items.
-  - `BenchmarkStep`: measure `Step()` execution time for player action + monster turns + FOV shadowcasting.
-  - `BenchmarkComputeFOV`: measure `ComputeFOV()` shadowcasting algorithm speed.
-- Verify sub-millisecond per-op execution (< 1ms per frame) to satisfy `GOAL.md` smooth battery-friendly performance goal.
+- Create `.github/workflows/ci.yml`:
+  - Set up workflow triggering on `push` and `pull_request`.
+  - Configure Go environment on `ubuntu-latest`.
+  - Run `./scripts/verify.sh` and `go test -bench=.`.
 
-Why next: M4.3 provides empirical performance benchmarks protecting render and step frame rates.
+Why next: M4.4 completes M4 by enforcing continuous integration and automated verification on every commit.
 
 ## Milestone plan
 
 - [x] **M4.1** `go install` verification & README documentation rewrite.
 - [x] **M4.2** Terminal capability & environment degradation checks (NO_COLOR, GLYPHGRINDER_ASCII, tiny window sizes).
-- [ ] **M4.3** Performance benchmarks (`BenchmarkView`, `BenchmarkStep`) holding frame budgets under 1ms.
+- [x] **M4.3** Performance benchmarks (`BenchmarkView`, `BenchmarkStep`) holding frame budgets under 1ms.
 - [ ] **M4.4** GitHub Actions CI workflow running `./scripts/verify.sh`.
 
 ## Acceptance criteria for M4
@@ -49,6 +48,6 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-07-27  —  VERIFY OK
 ```
 
-gofmt clean, `go vet` clean, builds, headless smoke frame renders, 65 test functions pass (including 3 new degradation, token resolution, and extreme viewport tests), `go.mod` tidy.
+gofmt clean, `go vet` clean, builds, headless smoke frame renders, 65 test functions pass + 3 performance benchmarks pass (< 0.09ms per View render), `go.mod` tidy.
 
 
