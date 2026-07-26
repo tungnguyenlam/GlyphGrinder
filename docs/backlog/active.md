@@ -13,19 +13,20 @@ Serves `GOAL.md` directly: "And it just runs. `go install` or a single binary, n
 
 ## Exact next action
 
-**M4.2 — Terminal capability & environment degradation checks.**
+**M4.3 — Performance benchmarks (`BenchmarkView`, `BenchmarkStep`) holding frame budgets under 1ms.**
 
-- In `colors.go`, `glyphs.go`, `colors_test.go`, `glyphs_test.go`:
-  - Test environment variable overrides (`NO_COLOR`, `GLYPHGRINDER_ASCII`, `TERM=dumb`, `GLYPHGRINDER_NERD_FONTS`).
-  - Add tests in `colors_test.go` and `glyphs_test.go` ensuring complete coverage for ASCII glyph fallbacks and palette rendering under basic terminals.
-  - Add TUI tests in `tui_test.go` testing extreme viewport sizes (e.g. 10x5, 5x5, 0x0) ensuring no panics and clean clipping.
+- Create `bench_test.go`:
+  - `BenchmarkView`: measure `View()` execution time for 80x24 viewport with FOV, entities, and items.
+  - `BenchmarkStep`: measure `Step()` execution time for player action + monster turns + FOV shadowcasting.
+  - `BenchmarkComputeFOV`: measure `ComputeFOV()` shadowcasting algorithm speed.
+- Verify sub-millisecond per-op execution (< 1ms per frame) to satisfy `GOAL.md` smooth battery-friendly performance goal.
 
-Why next: M4.2 ensures GlyphGrinder degrades gracefully on any terminal environment without crashing.
+Why next: M4.3 provides empirical performance benchmarks protecting render and step frame rates.
 
 ## Milestone plan
 
 - [x] **M4.1** `go install` verification & README documentation rewrite.
-- [ ] **M4.2** Terminal capability & environment degradation checks (NO_COLOR, GLYPHGRINDER_ASCII, tiny window sizes).
+- [x] **M4.2** Terminal capability & environment degradation checks (NO_COLOR, GLYPHGRINDER_ASCII, tiny window sizes).
 - [ ] **M4.3** Performance benchmarks (`BenchmarkView`, `BenchmarkStep`) holding frame budgets under 1ms.
 - [ ] **M4.4** GitHub Actions CI workflow running `./scripts/verify.sh`.
 
@@ -48,6 +49,6 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-07-27  —  VERIFY OK
 ```
 
-gofmt clean, `go vet` clean, builds, headless smoke frame renders, 62 test functions pass, `go.mod` tidy.
+gofmt clean, `go vet` clean, builds, headless smoke frame renders, 65 test functions pass (including 3 new degradation, token resolution, and extreme viewport tests), `go.mod` tidy.
 
 

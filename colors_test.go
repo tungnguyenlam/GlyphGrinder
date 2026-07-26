@@ -17,10 +17,16 @@ func TestDefaultPaletteTokens(t *testing.T) {
 		"Player":     pal.Player,
 		"Goblin":     pal.Goblin,
 		"Orc":        pal.Orc,
+		"Troll":      pal.Troll,
+		"Archer":     pal.Archer,
 		"FloorLit":   pal.FloorLit,
 		"WallLit":    pal.WallLit,
 		"FloorDim":   pal.FloorDim,
 		"WallDim":    pal.WallDim,
+		"Stairs":     pal.Stairs,
+		"Potion":     pal.Potion,
+		"Weapon":     pal.Weapon,
+		"Amulet":     pal.Amulet,
 		"HUDNormal":  pal.HUDNormal,
 		"HUDWarning": pal.HUDWarning,
 		"HUDLog":     pal.HUDLog,
@@ -57,9 +63,38 @@ func TestResolveEntityColor(t *testing.T) {
 		t.Errorf("orc color = %v, want %v", got, pal.Orc)
 	}
 
+	troll := Entity{Name: "Troll", Color: "#FFFFFF"}
+	if got := ResolveEntityColor(troll, pal); got != pal.Troll {
+		t.Errorf("troll color = %v, want %v", got, pal.Troll)
+	}
+
+	archer := Entity{Name: "Archer", Color: "#FFFFFF"}
+	if got := ResolveEntityColor(archer, pal); got != pal.Archer {
+		t.Errorf("archer color = %v, want %v", got, pal.Archer)
+	}
+
 	custom := Entity{Name: "Dragon", Color: "#FF00FF"}
 	if got := ResolveEntityColor(custom, pal); got != lipgloss.Color("#FF00FF") {
 		t.Errorf("custom entity color = %v, want %v", got, lipgloss.Color("#FF00FF"))
+	}
+}
+
+func TestResolveItemColor(t *testing.T) {
+	pal := DefaultPalette()
+
+	pot := Item{ItemType: ItemPotion}
+	if got := ResolveItemColor(pot, pal); got != pal.Potion {
+		t.Errorf("potion color = %v, want %v", got, pal.Potion)
+	}
+
+	weap := Item{ItemType: ItemWeapon}
+	if got := ResolveItemColor(weap, pal); got != pal.Weapon {
+		t.Errorf("weapon color = %v, want %v", got, pal.Weapon)
+	}
+
+	amu := Item{ItemType: ItemAmulet}
+	if got := ResolveItemColor(amu, pal); got != pal.Amulet {
+		t.Errorf("amulet color = %v, want %v", got, pal.Amulet)
 	}
 }
 

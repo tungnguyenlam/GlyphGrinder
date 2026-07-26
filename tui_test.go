@@ -1155,3 +1155,26 @@ func TestVictoryStateAndRestartViaTUI(t *testing.T) {
 		t.Errorf("expected fresh HP: 100/100 after restart, got %q", plainHUDRestarted)
 	}
 }
+
+func TestExtremeViewportDimensions(t *testing.T) {
+	m := initialModelWithSeed(12345)
+	d := tuitest.New(t, m)
+
+	tinyDimensions := []struct {
+		w, h int
+	}{
+		{0, 0},
+		{5, 5},
+		{10, 5},
+		{1, 1},
+		{200, 100},
+	}
+
+	for _, dim := range tinyDimensions {
+		d.Resize(dim.w, dim.h)
+		output := d.View()
+		if dim.w > 0 && dim.h > 0 && output == "" {
+			t.Errorf("View() empty for dimensions (%d, %d)", dim.w, dim.h)
+		}
+	}
+}

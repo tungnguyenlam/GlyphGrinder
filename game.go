@@ -701,6 +701,13 @@ func GenerateMap(width, height int, rng *rand.Rand) (GameMap, []Rect) {
 		}
 	}
 	stairsPos := rooms[stairsRoomIdx].Center()
+	if stairsPos == spawnPos {
+		if rooms[stairsRoomIdx].W > 1 {
+			stairsPos.X = rooms[stairsRoomIdx].X + rooms[stairsRoomIdx].W - 1
+		} else if rooms[stairsRoomIdx].H > 1 {
+			stairsPos.Y = rooms[stairsRoomIdx].Y + rooms[stairsRoomIdx].H - 1
+		}
+	}
 	m.Tiles[stairsPos.Y][stairsPos.X] = TileStairsDown
 
 	return m, rooms

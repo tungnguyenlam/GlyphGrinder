@@ -9,12 +9,12 @@ import (
 
 func TestGlyphSetTokens(t *testing.T) {
 	ascii := ASCIIGlyphs()
-	if ascii.Player != "@" || ascii.Goblin != "g" || ascii.Orc != "o" || ascii.Floor != "." || ascii.Wall != "#" {
+	if ascii.Player != "@" || ascii.Goblin != "g" || ascii.Orc != "o" || ascii.Troll != "T" || ascii.Archer != "A" || ascii.Floor != "." || ascii.Wall != "#" || ascii.Potion != "!" || ascii.Weapon != "/" || ascii.Amulet != "*" {
 		t.Errorf("unexpected ASCIIGlyphs tokens: %+v", ascii)
 	}
 
 	nerd := NerdFontGlyphs()
-	if nerd.Player != "󰋋" || nerd.Goblin != "󰆧" || nerd.Orc != "󰌆" || nerd.Floor != "·" || nerd.Wall != "▓" {
+	if nerd.Player != "󰋋" || nerd.Goblin != "󰆧" || nerd.Orc != "󰌆" || nerd.Troll != "󰇄" || nerd.Archer != "󰓤" || nerd.Floor != "·" || nerd.Wall != "▓" || nerd.Potion != "󰏗" || nerd.Weapon != "󰓥" || nerd.Amulet != "󰇮" {
 		t.Errorf("unexpected NerdFontGlyphs tokens: %+v", nerd)
 	}
 }
@@ -26,6 +26,8 @@ func TestResolveEntityGlyph(t *testing.T) {
 	player := Entity{IsPlayer: true, Name: "Player", Rune: "@"}
 	goblin := Entity{IsPlayer: false, Name: "Goblin", Rune: "g"}
 	orc := Entity{IsPlayer: false, Name: "Orc", Rune: "o"}
+	troll := Entity{IsPlayer: false, Name: "Troll", Rune: "T"}
+	archer := Entity{IsPlayer: false, Name: "Archer", Rune: "A"}
 	custom := Entity{IsPlayer: false, Name: "Dragon", Rune: "D"}
 
 	// ASCII mode
@@ -37,6 +39,12 @@ func TestResolveEntityGlyph(t *testing.T) {
 	}
 	if got := ResolveEntityGlyph(orc, ascii); got != "o" {
 		t.Errorf("ResolveEntityGlyph(orc, ascii) = %q, want 'o'", got)
+	}
+	if got := ResolveEntityGlyph(troll, ascii); got != "T" {
+		t.Errorf("ResolveEntityGlyph(troll, ascii) = %q, want 'T'", got)
+	}
+	if got := ResolveEntityGlyph(archer, ascii); got != "A" {
+		t.Errorf("ResolveEntityGlyph(archer, ascii) = %q, want 'A'", got)
 	}
 	if got := ResolveEntityGlyph(custom, ascii); got != "D" {
 		t.Errorf("ResolveEntityGlyph(custom, ascii) = %q, want 'D'", got)
@@ -52,8 +60,43 @@ func TestResolveEntityGlyph(t *testing.T) {
 	if got := ResolveEntityGlyph(orc, nerd); got != "󰌆" {
 		t.Errorf("ResolveEntityGlyph(orc, nerd) = %q, want '󰌆'", got)
 	}
+	if got := ResolveEntityGlyph(troll, nerd); got != "󰇄" {
+		t.Errorf("ResolveEntityGlyph(troll, nerd) = %q, want '󰇄'", got)
+	}
+	if got := ResolveEntityGlyph(archer, nerd); got != "󰓤" {
+		t.Errorf("ResolveEntityGlyph(archer, nerd) = %q, want '󰓤'", got)
+	}
 	if got := ResolveEntityGlyph(custom, nerd); got != "D" {
 		t.Errorf("ResolveEntityGlyph(custom, nerd) = %q, want 'D'", got)
+	}
+}
+
+func TestResolveItemGlyph(t *testing.T) {
+	ascii := ASCIIGlyphs()
+	nerd := NerdFontGlyphs()
+
+	pot := Item{ItemType: ItemPotion}
+	weap := Item{ItemType: ItemWeapon}
+	amu := Item{ItemType: ItemAmulet}
+
+	if got := ResolveItemGlyph(pot, ascii); got != "!" {
+		t.Errorf("potion ascii = %q, want '!'", got)
+	}
+	if got := ResolveItemGlyph(weap, ascii); got != "/" {
+		t.Errorf("weapon ascii = %q, want '/'", got)
+	}
+	if got := ResolveItemGlyph(amu, ascii); got != "*" {
+		t.Errorf("amulet ascii = %q, want '*'", got)
+	}
+
+	if got := ResolveItemGlyph(pot, nerd); got != "󰏗" {
+		t.Errorf("potion nerd = %q, want '󰏗'", got)
+	}
+	if got := ResolveItemGlyph(weap, nerd); got != "󰓥" {
+		t.Errorf("weapon nerd = %q, want '󰓥'", got)
+	}
+	if got := ResolveItemGlyph(amu, nerd); got != "󰇮" {
+		t.Errorf("amulet nerd = %q, want '󰇮'", got)
 	}
 }
 
