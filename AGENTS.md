@@ -8,26 +8,16 @@ follow the Startup Routine. Keep this file concise — durable detail belongs in
 ## Current State
 
 GlyphGrinder is a terminal roguelike written in Go, built on Bubble Tea
-(`github.com/charmbracelet/bubbletea`) and Lip Gloss for styling. It is very
-early: a single `package main` at the repo root holds the whole game — `game.go`
-has the flat `GameState`/`GameMap`/`Entity` model and `NewGame`, and `main.go`
-has the Bubble Tea `model` with `Init`/`Update`/`View`. Right now the game boots
-into a fixed 20x10 walled room where you move an `@` with arrows or WASD and
-quit with `q`; there are no monsters, no combat, no level generation, and no
-animation yet.
+(`github.com/charmbracelet/bubbletea`) and Lip Gloss for styling. It features a
+procedurally generated dungeon (rooms and corridors), player movement, monster
+spawning (Goblins and Orcs), turn-based AI, bump-to-attack combat, a message log,
+a HUD status bar displaying HP, permadeath with game over state, and restart on 'r'.
+A single `package main` at the repo root holds the whole game — `game.go` has the
+flat `GameState`/`GameMap`/`Entity` model, and `main.go` has the Bubble Tea
+`model` with `Init`/`Update`/`View`.
 
 The north star is [GOAL.md](GOAL.md) — read it before planning work, and check
 every task against it.
-
-<!-- TEMPORARY-PRIORITY START (added 2026-07-26; delete this whole block when the
-     "Playable core loop" milestone in docs/backlog/active.md is done)
-     Right now everything is about getting from "a square you can walk around"
-     to a playable core loop: real map generation, monsters, and turn-based
-     combat. Prefer work that moves that forward. Visual polish (animation,
-     lighting, Nerd Font glyph sets) is deliberately deferred until there is a
-     game to look at — park polish ideas in docs/backlog/parking-lot.md instead
-     of building them now.
-TEMPORARY-PRIORITY END -->
 
 ## Startup Routine
 
@@ -85,9 +75,6 @@ Sharp edges found during real work. Prune entries that stop being true.
   always walls the border, so the `Pos.Y > 0`-style checks never fire today.
   They will matter the moment map generation stops guaranteeing a wall ring —
   do not delete them without also guaranteeing the invariant.
-- **`GameState.Entities` and `GameState.Log` are declared but never read or
-  written**, and `Entity.Health`/`Damage` are set only for the player. Don't
-  assume there is combat or monster code somewhere; there isn't.
 - **`View` returns styled cells**, so a rendered line's `len()` is not its
   column count. Tests must strip ANSI escapes before asserting positions — see
   `stripANSI` in `tui_test.go`.

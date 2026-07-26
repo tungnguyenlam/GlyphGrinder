@@ -4,6 +4,20 @@ Completed milestones, newest first. This is the project's memory of what has
 already been built and tried — check here before "discovering" that something
 is missing.
 
+## 2026-07-27 — M1: Playable core loop
+
+Transformed the initial static 20x10 square room into a playable roguelike loop.
+
+- M1.1: Factored movement into `tryMove(dx, dy)`.
+- M1.2: Decoupled input handling in `Update` from turn processing via `Step(Action)`.
+- M1.3: Dungeon map generation with rooms and corridors carved into `GameMap`, seeded deterministically for testability.
+- M1.4: Entity system populated with monsters (Goblins and Orcs) rendered on the map.
+- M1.5: Bump-to-attack combat dealing damage, removing dead entities, and appending combat events to `GameState.Log`.
+- M1.6: Turn-based monster AI stepping towards the player and attacking when adjacent.
+- M1.7: Rendered HUD status bar (`HP: X/Y`), message log display below the map, GAME OVER banner on player death, and single-keypress restart (`r`).
+
+Verified: `./scripts/verify.sh` — VERIFY OK.
+
 ## 2026-07-26 — M0: Agent-centric scaffolding
 
 Set the repo up so agents can pick up work across sessions without

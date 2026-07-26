@@ -29,10 +29,19 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		var act Action
-		switch msg.String() {
-		case "ctrl+c", "q":
+		k := msg.String()
+		if k == "ctrl+c" || k == "q" {
 			return m, tea.Quit
+		}
+		if m.state.Player.Health <= 0 {
+			if k == "r" {
+				m.state = NewGame(20, 10)
+			}
+			return m, nil
+		}
+
+		var act Action
+		switch k {
 		case "up", "w":
 			act = ActionMoveUp
 		case "down", "s":
@@ -54,6 +63,27 @@ func (m model) View() string {
 		return ""
 	}
 
+	var sb strings.Builder
+
+	// Render HUD / Status Bar
+	hp := m.state.Player.Health
+	if hp < 0 {
+		hp = 0
+	}
+	hpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF00")).Bold(true)
+	if hp == 0 {
+		hpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555")).Bold(true)
+	}
+	hudText := hpStyle.Render(fmt.Sprintf("HP: %d/%d", hp, m.state.Player.MaxHealth))
+
+	if m.state.Player.Health <= 0 {
+		gameOverStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555")).Bold(true)
+		hudText += gameOverStyle.Render(" | *** GAME OVER *** (Press r to restart)")
+	}
+	sb.WriteString(hudText)
+	sb.WriteString("\n")
+
+	// Render Map Grid
 	playerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(m.state.Player.Color)).Bold(true)
 	player := playerStyle.Render(m.state.Player.Rune)
 	floorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#444444"))
@@ -67,7 +97,6 @@ func (m model) View() string {
 		entityMap[e.Pos] = style.Render(e.Rune)
 	}
 
-	var sb strings.Builder
 	for y := 0; y < m.state.Map.Height; y++ {
 		for x := 0; x < m.state.Map.Width; x++ {
 			pos := Position{X: x, Y: y}
@@ -76,7 +105,6 @@ func (m model) View() string {
 			} else if renderedEntity, found := entityMap[pos]; found {
 				sb.WriteString(renderedEntity)
 			} else {
-				// Render floor tiles or walls based on the map state
 				if m.state.Map.Tiles[y][x] == TileWall {
 					sb.WriteString(wall)
 				} else {
@@ -84,7 +112,19 @@ func (m model) View() string {
 				}
 			}
 		}
-		if y < m.state.Map.Height-1 {
+		sb.WriteString("\n")
+	}
+
+	// Render Message Log (last 5 entries)
+	logCount := len(m.state.Log)
+	start := 0
+	if logCount > 5 {
+		start = logCount - 5
+	}
+	logStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#AAAAAA"))
+	for i := start; i < logCount; i++ {
+		sb.WriteString(logStyle.Render(m.state.Log[i]))
+		if i < logCount-1 {
 			sb.WriteString("\n")
 		}
 	}

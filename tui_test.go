@@ -8,16 +8,13 @@ import (
 )
 
 // playerAt reports the grid position of the player glyph in a rendered view.
-// Styling is stripped by looking for the raw player rune, which is safe as
-// long as no other glyph reuses it (see AGENTS.md gotchas).
+// Line 0 is the HUD status bar, so map rows start at line index 1.
 func playerAt(t *testing.T, lines []string) Position {
 	t.Helper()
-	for y, line := range lines {
-		// Cells are styled, so count runes of the unstyled grid instead by
-		// stripping ANSI escapes.
-		plain := stripANSI(line)
+	for lineIdx := 1; lineIdx < len(lines); lineIdx++ {
+		plain := stripANSI(lines[lineIdx])
 		if x := strings.IndexRune(plain, '@'); x >= 0 {
-			return Position{X: x, Y: y}
+			return Position{X: x, Y: lineIdx - 1}
 		}
 	}
 	t.Fatalf("player glyph not found in view:\n%s", strings.Join(lines, "\n"))
@@ -47,12 +44,20 @@ func TestViewRendersFullGrid(t *testing.T) {
 	d := tuitest.New(t, m)
 
 	lines := d.Lines()
-	if got, want := len(lines), 10; got != want {
-		t.Fatalf("view has %d rows, want %d", got, want)
+	// Line 0 is HUD; lines 1..10 are map rows (10 rows total)
+	if got := len(lines); got < 11 {
+		t.Fatalf("view has %d total lines, want at least 11 (HUD + 10 map rows)", got)
 	}
-	for y, line := range lines {
+	// Check HUD
+	plainHUD := stripANSI(lines[0])
+	if !strings.Contains(plainHUD, "HP: 100/100") {
+		t.Errorf("HUD line = %q, want 'HP: 100/100'", plainHUD)
+	}
+
+	mapLines := lines[1:11]
+	for y, line := range mapLines {
 		if got, want := len([]rune(stripANSI(line))), 20; got != want {
-			t.Errorf("row %d has %d cells, want %d", y, got, want)
+			t.Errorf("map row %d has %d cells, want %d", y, got, want)
 		}
 	}
 	wantPos := m.state.Player.Pos
@@ -204,10 +209,11 @@ func TestViewRendersMonsters(t *testing.T) {
 
 	lines := d.Lines()
 	for _, e := range m.state.Entities {
-		if e.Pos.Y >= len(lines) {
+		lineIdx := 1 + e.Pos.Y
+		if lineIdx >= len(lines) {
 			t.Fatalf("monster pos Y %d out of bounds for lines len %d", e.Pos.Y, len(lines))
 		}
-		plainRow := []rune(stripANSI(lines[e.Pos.Y]))
+		plainRow := []rune(stripANSI(lines[lineIdx]))
 		if e.Pos.X >= len(plainRow) {
 			t.Fatalf("monster pos X %d out of bounds for plain row len %d", e.Pos.X, len(plainRow))
 		}
@@ -258,9 +264,6 @@ func TestBumpToAttackViaTUI(t *testing.T) {
 	if pos != (Position{X: 2, Y: 2}) {
 		t.Errorf("player position after bump attack = %+v, want (2,2)", pos)
 	}
-
-	// Verify monster killed in state (retrieved from driver model)
-	// Note: tuitest Driver updates model internal state on key press
 }
 
 func TestMonsterTurnsViaTUI(t *testing.T) {
@@ -305,9 +308,134 @@ func TestMonsterTurnsViaTUI(t *testing.T) {
 		t.Errorf("player position = %+v, want (2, 1)", pos)
 	}
 
-	// Verify Orc glyph 'o' is rendered at (1, 2)
-	plainRow := stripANSI(lines[2]) // Y = 2
+	// Map row Y=2 is line index 1+2=3
+	plainRow := stripANSI(lines[3])
 	if got := string([]rune(plainRow)[1]); got != "o" {
 		t.Errorf("expected Orc 'o' at (1, 2), got %q in line: %q", got, plainRow)
+	}
+}
+
+func TestViewRendersHUDAndLog(t *testing.T) {
+	m := model{
+		state: GameState{
+			Map: GameMap{
+				Width:  5,
+				Height: 5,
+				Tiles: [][]TileType{
+					{TileWall, TileWall, TileWall, TileWall, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileWall, TileWall, TileWall, TileWall},
+				},
+			},
+			Player: Entity{
+				ID:        0,
+				Name:      "Player",
+				IsPlayer:  true,
+				Pos:       Position{X: 2, Y: 2},
+				Rune:      "@",
+				Color:     "#00FF00",
+				Damage:    10,
+				Health:    100,
+				MaxHealth: 100,
+			},
+			Entities: []Entity{
+				NewGoblin(1, Position{X: 2, Y: 1}),
+			},
+		},
+	}
+
+	d := tuitest.New(t, m)
+
+	// Initially HUD has HP: 100/100, log is empty
+	lines := d.Lines()
+	plainHUD := stripANSI(lines[0])
+	if !strings.Contains(plainHUD, "HP: 100/100") {
+		t.Errorf("expected HP: 100/100 in HUD line, got %q", plainHUD)
+	}
+
+	// Bump attack goblin (kills 10 HP goblin)
+	d.Key("up")
+
+	linesAfter := d.Lines()
+	fullText := stripANSI(strings.Join(linesAfter, "\n"))
+	if !strings.Contains(fullText, "Player hits Goblin for 10 damage.") {
+		t.Errorf("expected hit message in rendered log, got:\n%s", fullText)
+	}
+	if !strings.Contains(fullText, "Goblin dies.") {
+		t.Errorf("expected death message in rendered log, got:\n%s", fullText)
+	}
+}
+
+func TestGameOverAndRestartViaTUI(t *testing.T) {
+	m := model{
+		state: GameState{
+			Map: GameMap{
+				Width:  5,
+				Height: 5,
+				Tiles: [][]TileType{
+					{TileWall, TileWall, TileWall, TileWall, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileWall, TileWall, TileWall, TileWall},
+				},
+			},
+			Player: Entity{
+				ID:        0,
+				Name:      "Player",
+				IsPlayer:  true,
+				Pos:       Position{X: 2, Y: 2},
+				Rune:      "@",
+				Color:     "#00FF00",
+				Damage:    10,
+				Health:    5, // Low health
+				MaxHealth: 100,
+			},
+			Entities: []Entity{
+				NewOrc(1, Position{X: 2, Y: 1}), // Orc deals 6 damage
+			},
+		},
+	}
+
+	d := tuitest.New(t, m)
+
+	// Player attacks Orc, Orc counter-attacks for 6 damage, killing Player (5 HP -> 0 HP)
+	d.Key("up")
+
+	linesDead := d.Lines()
+	plainHUD := stripANSI(linesDead[0])
+	if !strings.Contains(plainHUD, "HP: 0/100") {
+		t.Errorf("expected HP: 0/100 in dead HUD, got %q", plainHUD)
+	}
+	if !strings.Contains(plainHUD, "GAME OVER") {
+		t.Errorf("expected GAME OVER in dead HUD, got %q", plainHUD)
+	}
+	if !strings.Contains(plainHUD, "Press r to restart") {
+		t.Errorf("expected restart prompt in dead HUD, got %q", plainHUD)
+	}
+
+	fullDeadText := stripANSI(strings.Join(linesDead, "\n"))
+	if !strings.Contains(fullDeadText, "Player dies.") {
+		t.Errorf("expected 'Player dies.' in log, got:\n%s", fullDeadText)
+	}
+
+	// Movement key while dead does not act or revive
+	d.Key("up")
+	linesStillDead := d.Lines()
+	if !strings.Contains(stripANSI(linesStillDead[0]), "GAME OVER") {
+		t.Errorf("expected still GAME OVER after movement key while dead")
+	}
+
+	// Press 'r' to restart game
+	d.Key("r")
+	linesRestarted := d.Lines()
+	plainHUDRestarted := stripANSI(linesRestarted[0])
+	if !strings.Contains(plainHUDRestarted, "HP: 100/100") {
+		t.Errorf("expected HP: 100/100 after restart, got %q", plainHUDRestarted)
+	}
+	if strings.Contains(plainHUDRestarted, "GAME OVER") {
+		t.Errorf("did not expect GAME OVER after restart")
 	}
 }
