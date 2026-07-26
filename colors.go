@@ -22,6 +22,7 @@ type Palette struct {
 	Potion     lipgloss.CompleteColor
 	Weapon     lipgloss.CompleteColor
 	Amulet     lipgloss.CompleteColor
+	Scroll     lipgloss.CompleteColor
 	HUDNormal  lipgloss.CompleteColor
 	HUDWarning lipgloss.CompleteColor
 	HUDLog     lipgloss.CompleteColor
@@ -97,6 +98,11 @@ func DefaultPalette() Palette {
 			ANSI256:   "220",
 			ANSI:      "3",
 		},
+		Scroll: lipgloss.CompleteColor{
+			TrueColor: "#E040FB",
+			ANSI256:   "171",
+			ANSI:      "5",
+		},
 		HUDNormal: lipgloss.CompleteColor{
 			TrueColor: "#00FF87",
 			ANSI256:   "46",
@@ -143,6 +149,8 @@ func ResolveItemColor(it Item, p Palette) lipgloss.TerminalColor {
 		return p.Weapon
 	case ItemAmulet:
 		return p.Amulet
+	case ItemScroll:
+		return p.Scroll
 	default:
 		return p.HUDNormal
 	}

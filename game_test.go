@@ -887,3 +887,85 @@ func TestAmuletPickupTriggersVictory(t *testing.T) {
 		t.Error("expected no player movement after victory state is reached")
 	}
 }
+
+func TestFireballScrollAoE(t *testing.T) {
+	gm := GameMap{
+		Width:  15,
+		Height: 15,
+		Tiles:  make([][]TileType, 15),
+	}
+	for y := 0; y < 15; y++ {
+		gm.Tiles[y] = make([]TileType, 15)
+		for x := 0; x < 15; x++ {
+			gm.Tiles[y][x] = TileFloor
+		}
+	}
+	gm.Explored = makeBoolGrid(15, 15)
+
+	playerPos := Position{X: 5, Y: 5}
+	goblinPos := Position{X: 6, Y: 5}  // inside radius 3
+	trollPos := Position{X: 12, Y: 12} // outside radius 3
+
+	st := GameState{
+		Map: gm,
+		Player: Entity{
+			ID: 0, Name: "Player", IsPlayer: true, Pos: playerPos,
+			Health: 100, MaxHealth: 100,
+			Inventory: []Item{
+				NewFireballScroll(1, Position{X: -1, Y: -1}),
+			},
+		},
+		Entities: []Entity{
+			NewGoblin(1, goblinPos), // HP 10
+			NewTroll(2, trollPos),   // HP 40
+		},
+	}
+
+	nextState := st.Step(ActionUseItem)
+
+	// Goblin at (6,5) has 10 HP and takes 15 damage from fireball, dying
+	foundGoblin := false
+	foundTroll := false
+	for _, e := range nextState.Entities {
+		if e.ID == 1 {
+			foundGoblin = true
+		}
+		if e.ID == 2 {
+			foundTroll = true
+		}
+	}
+
+	if foundGoblin {
+		t.Error("expected goblin in radius 3 to die from 15 damage Fireball")
+	}
+	if !foundTroll {
+		t.Error("expected troll outside radius 3 to survive Fireball")
+	}
+
+	fullLog := strings.Join(nextState.Log, "\n")
+	if !strings.Contains(fullLog, "Scroll of Fireball") {
+		t.Errorf("expected Fireball scroll log, got %q", fullLog)
+	}
+}
+
+func TestTeleportScroll(t *testing.T) {
+	st := NewGameWithSeed(20, 10, 12345)
+	origPos := st.Player.Pos
+	st.Player.Inventory = []Item{NewTeleportScroll(1, Position{X: -1, Y: -1})}
+
+	nextState := st.Step(ActionUseItem)
+
+	if nextState.Player.Pos == origPos {
+		t.Errorf("expected player position to change after reading Teleport scroll, stayed at %+v", origPos)
+	}
+
+	tileAtNewPos := nextState.Map.Tiles[nextState.Player.Pos.Y][nextState.Player.Pos.X]
+	if tileAtNewPos != TileFloor {
+		t.Errorf("expected player to teleport onto a floor tile, got tile %v", tileAtNewPos)
+	}
+
+	fullLog := strings.Join(nextState.Log, "\n")
+	if !strings.Contains(fullLog, "Scroll of Teleportation") {
+		t.Errorf("expected Teleportation log message, got %q", fullLog)
+	}
+}

@@ -21,6 +21,14 @@ const (
 	TileStairsDown
 )
 
+// ScrollType defines the magic spell effect of a scroll.
+type ScrollType uint8
+
+const (
+	ScrollFireball ScrollType = iota
+	ScrollTeleport
+)
+
 // ItemType defines the classification of an item.
 type ItemType uint8
 
@@ -28,6 +36,7 @@ const (
 	ItemPotion ItemType = iota
 	ItemWeapon
 	ItemAmulet
+	ItemScroll
 )
 
 // Item represents an object on the map or in an entity's inventory.
@@ -38,6 +47,7 @@ type Item struct {
 	ItemType    ItemType
 	HealAmount  int
 	DamageBonus int
+	ScrollKind  ScrollType
 }
 
 // GameMap holds the grid.
@@ -197,7 +207,7 @@ func (s GameState) Step(act Action) GameState {
 		targetIdx := -1
 		if act == ActionUseItem {
 			for i, it := range s.Player.Inventory {
-				if it.ItemType == ItemPotion {
+				if it.ItemType == ItemPotion || it.ItemType == ItemScroll {
 					targetIdx = i
 					break
 				}
@@ -239,6 +249,70 @@ func (s GameState) Step(act Action) GameState {
 			s.Log = append(s.Log, fmt.Sprintf("You drink the %s and recover %d HP.", item.Name, heal))
 		} else if item.ItemType == ItemWeapon {
 			s.Log = append(s.Log, fmt.Sprintf("You are wielding the %s (+%d damage).", item.Name, item.DamageBonus))
+		} else if item.ItemType == ItemScroll {
+			newInv := make([]Item, 0, len(s.Player.Inventory)-1)
+			for i, it := range s.Player.Inventory {
+				if i != targetIdx {
+					newInv = append(newInv, it)
+				}
+			}
+			s.Player.Inventory = newInv
+
+			if item.ScrollKind == ScrollFireball {
+				fireballRadius := 3
+				fireballDamage := 15
+				var remainingEntities []Entity
+				hitCount := 0
+				for _, e := range s.Entities {
+					dx := abs(e.Pos.X - s.Player.Pos.X)
+					dy := abs(e.Pos.Y - s.Player.Pos.Y)
+					if dx <= fireballRadius && dy <= fireballRadius {
+						e.Health -= fireballDamage
+						hitCount++
+						if e.Health <= 0 {
+							s.Log = append(s.Log, fmt.Sprintf("The %s is engulfed in flames and dies!", e.Name))
+						} else {
+							s.Log = append(s.Log, fmt.Sprintf("The %s is scorched by fireball for %d damage.", e.Name, fireballDamage))
+							remainingEntities = append(remainingEntities, e)
+						}
+					} else {
+						remainingEntities = append(remainingEntities, e)
+					}
+				}
+				s.Entities = remainingEntities
+				if hitCount == 0 {
+					s.Log = append(s.Log, "You read the Scroll of Fireball! Flame bursts into the empty air.")
+				} else {
+					s.Log = append(s.Log, "You read the Scroll of Fireball! A fiery blast consumes surrounding enemies.")
+				}
+			} else if item.ScrollKind == ScrollTeleport {
+				var candidates []Position
+				for y := 1; y < s.Map.Height-1; y++ {
+					for x := 1; x < s.Map.Width-1; x++ {
+						pos := Position{X: x, Y: y}
+						if s.Map.Tiles[y][x] == TileFloor && pos != s.Player.Pos {
+							occupied := false
+							for _, e := range s.Entities {
+								if e.Pos == pos {
+									occupied = true
+									break
+								}
+							}
+							if !occupied {
+								candidates = append(candidates, pos)
+							}
+						}
+					}
+				}
+				if len(candidates) > 0 {
+					targetPosIdx := (s.Player.Pos.X + s.Player.Pos.Y*13 + len(s.Log)*7) % len(candidates)
+					if targetPosIdx < 0 {
+						targetPosIdx = -targetPosIdx
+					}
+					s.Player.Pos = candidates[targetPosIdx]
+				}
+				s.Log = append(s.Log, "You read the Scroll of Teleportation and vanish!")
+			}
 		}
 
 		s.runMonsterTurns()
@@ -831,6 +905,28 @@ func NewAmuletOfYendor(id int, pos Position) Item {
 	}
 }
 
+// NewFireballScroll creates a Fireball scroll item.
+func NewFireballScroll(id int, pos Position) Item {
+	return Item{
+		ID:         id,
+		Name:       "Scroll of Fireball",
+		Pos:        pos,
+		ItemType:   ItemScroll,
+		ScrollKind: ScrollFireball,
+	}
+}
+
+// NewTeleportScroll creates a Teleportation scroll item.
+func NewTeleportScroll(id int, pos Position) Item {
+	return Item{
+		ID:         id,
+		Name:       "Scroll of Teleportation",
+		Pos:        pos,
+		ItemType:   ItemScroll,
+		ScrollKind: ScrollTeleport,
+	}
+}
+
 // NewGameWithSeedAndDepth initializes game state with a deterministic seed and floor depth.
 func NewGameWithSeedAndDepth(width, height int, seed int64, depth int) GameState {
 	if depth < 1 {
@@ -938,10 +1034,15 @@ func NewGameWithSeedAndDepth(width, height int, seed int64, depth int) GameState
 				}
 				if !occupied {
 					var item Item
-					if rng.Intn(10) < 7 {
+					itemRoll := rng.Intn(100)
+					if itemRoll < 50 {
 						item = NewHealthPotion(nextItemID, pos)
-					} else {
+					} else if itemRoll < 70 {
 						item = NewIronDagger(nextItemID, pos)
+					} else if itemRoll < 85 {
+						item = NewFireballScroll(nextItemID, pos)
+					} else {
+						item = NewTeleportScroll(nextItemID, pos)
 					}
 					nextItemID++
 					items = append(items, item)

@@ -7,32 +7,39 @@ Update it continuously — as soon as a sub-task lands or the plan changes.
 
 ## Current milestone
 
-**Post-M4 Polish & Maintenance.** All core milestones (M1 Playable Core Loop, M2 Visual Pitch & FOV, M3 Deep Progression & Items, M4 Shipping & CI) are complete.
+**M5 — Dungeon Mechanics & Magical Depth.** Expand tactical gameplay with consumable magic scrolls, interactive doors, status effects, and seed replayability.
 
-Serves `GOAL.md` directly: GlyphGrinder is a complete, beautiful, fast, and fully verified Go terminal roguelike.
+Serves `GOAL.md` directly: "It is a real roguelike underneath the polish... items that change how you play... turn-based combat where a mistake costs you the run."
 
 ## Exact next action
 
-**Maintenance Mode / Post-Launch Polish.**
+**M5.2 — Interactive Doors (Closed Doors `+` & Open Doors `/`).**
 
-- Run `./scripts/verify.sh` to confirm green build and test status.
-- Consult `docs/backlog/parking-lot.md` for potential post-launch features (e.g. extended item types, spell scrolls, tile animations) when starting new feature work.
+- In `game.go`:
+  - Add `TileDoorClosed` and `TileDoorOpen` to `TileType`.
+  - Place `TileDoorClosed` at room entrances during corridor carving in `GenerateMap`.
+  - In `Step(Action)`: Bumping `TileDoorClosed` transforms it to `TileDoorOpen`, logs `"You open the door."`, consumes 1 turn, and reveals room via FOV.
+  - Update `ComputeFOV` shadowcasting: `TileDoorClosed` blocks vision; `TileDoorOpen` allows vision.
+- In `glyphs.go` & `colors.go`:
+  - Add `DoorClosed` (`+`, `󰌝`) and `DoorOpen` (`/`, `󰌟`) to `GlyphSet` and wood color (`#D7CCC8`) to `Palette`.
+- Add unit and TUI tests in `game_test.go` and `tui_test.go` verifying door opening, turn consumption, and FOV line of sight.
 
-Why next: All planned milestones M1 through M4 have been completed and verified against `GOAL.md`.
+Why next: M5.2 adds classic roguelike room boundary mechanics and tactical FOV reveals when opening doors.
 
 ## Milestone plan
 
-- [x] **M1** Playable core loop (dungeon generation, movement, combat, HUD, death/restart).
-- [x] **M2** Visual pitch (Nerd Font & ASCII fallbacks, TrueColor palette, FOV shadowcasting, camera easing).
-- [x] **M3** A run worth finishing (stairs & depth, items & inventory, Trolls & Archers with ranged AI, Amulet of Yendor win condition).
-- [x] **M4** Ships to other people (`go install`, README rewrite, degradation checks, benchmarks, GitHub Actions CI).
+- [x] **M5.1** Magic Scrolls (Fireball AoE damage & Teleportation scrolls).
+- [ ] **M5.2** Interactive Doors (Carved closed doors `+` / open doors `/` between rooms).
+- [ ] **M5.3** Status Effects (Poison, Regeneration, Confusion with turn duration).
+- [ ] **M5.4** Seed Replayability & Input Verification (Deterministic seed options and golden frame tests).
 
-## Acceptance criteria
+## Acceptance criteria for M5
 
-- All milestones M1–M4 completed and logged in `docs/backlog/done.md`.
-- `README.md` is complete and accurate.
-- Performance benchmarks confirm sub-millisecond execution (< 0.09ms per View render).
-- `./scripts/verify.sh` passes clean.
+- Magic scrolls generate, pick up to inventory, and execute spell effects (Fireball AoE damage, Teleportation).
+- Doors spawn between rooms/corridors and open upon player interaction.
+- Status effects apply over turns and affect player/monster combat.
+- All rules and interactions covered by unit and TUI tests.
+- `./scripts/verify.sh` passes.
 
 ## Blockers
 
@@ -44,6 +51,6 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-07-27  —  VERIFY OK
 ```
 
-gofmt clean, `go vet` clean, builds, headless smoke frame renders, 65 test functions pass + 3 performance benchmarks pass, `go.mod` tidy.
+gofmt clean, `go vet` clean, builds, headless smoke frame renders, 68 test functions pass (including 3 new Fireball AoE, Teleport, and TUI scroll tests) + 3 performance benchmarks pass, `go.mod` tidy.
 
 

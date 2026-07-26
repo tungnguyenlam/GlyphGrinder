@@ -1178,3 +1178,40 @@ func TestExtremeViewportDimensions(t *testing.T) {
 		}
 	}
 }
+
+func TestScrollUsageViaTUI(t *testing.T) {
+	m := model{
+		state: GameState{
+			Map: GameMap{
+				Width:  5,
+				Height: 5,
+				Tiles: [][]TileType{
+					{TileWall, TileWall, TileWall, TileWall, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileWall, TileWall, TileWall, TileWall},
+				},
+			},
+			Player: Entity{
+				ID: 0, Name: "Player", IsPlayer: true, Pos: Position{X: 2, Y: 2},
+				Rune: "@", Color: "#00FF00", Health: 100, MaxHealth: 100,
+				Inventory: []Item{
+					NewFireballScroll(1, Position{X: -1, Y: -1}),
+				},
+			},
+		},
+	}
+
+	d := tuitest.New(t, m)
+
+	// Press 'h' to use fireball scroll
+	d.Key("h")
+
+	lines := d.Lines()
+	fullText := stripANSI(strings.Join(lines, "\n"))
+
+	if !strings.Contains(fullText, "Scroll of Fireball") {
+		t.Errorf("expected Fireball scroll log message in TUI view, got:\n%s", fullText)
+	}
+}
