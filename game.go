@@ -27,6 +27,7 @@ type ItemType uint8
 const (
 	ItemPotion ItemType = iota
 	ItemWeapon
+	ItemAmulet
 )
 
 // Item represents an object on the map or in an entity's inventory.
@@ -89,18 +90,19 @@ const (
 
 // GameState is the flat root state of the game engine.
 type GameState struct {
-	Seed     int64
-	Depth    int
-	Map      GameMap
-	Player   Entity
-	Entities []Entity
-	Items    []Item
-	Log      []string
+	Seed      int64
+	Depth     int
+	Map       GameMap
+	Player    Entity
+	Entities  []Entity
+	Items     []Item
+	Log       []string
+	IsVictory bool
 }
 
 // Step processes a single game turn based on the provided player action.
 func (s GameState) Step(act Action) GameState {
-	if act == ActionNone {
+	if act == ActionNone || s.IsVictory || s.Player.Health <= 0 {
 		return s
 	}
 
@@ -170,6 +172,9 @@ func (s GameState) Step(act Action) GameState {
 		s.Player.Inventory = append(s.Player.Inventory, picked)
 		if picked.ItemType == ItemWeapon {
 			s.Player.Damage += picked.DamageBonus
+		} else if picked.ItemType == ItemAmulet {
+			s.IsVictory = true
+			s.Log = append(s.Log, "*** YOU HAVE FOUND THE AMULET OF YENDOR! VICTORY IS YOURS! ***")
 		}
 		s.Log = append(s.Log, fmt.Sprintf("You pick up the %s.", picked.Name))
 
@@ -809,6 +814,16 @@ func NewIronDagger(id int, pos Position) Item {
 	}
 }
 
+// NewAmuletOfYendor creates the Amulet of Yendor goal item.
+func NewAmuletOfYendor(id int, pos Position) Item {
+	return Item{
+		ID:       id,
+		Name:     "Amulet of Yendor",
+		Pos:      pos,
+		ItemType: ItemAmulet,
+	}
+}
+
 // NewGameWithSeedAndDepth initializes game state with a deterministic seed and floor depth.
 func NewGameWithSeedAndDepth(width, height int, seed int64, depth int) GameState {
 	if depth < 1 {
@@ -876,6 +891,24 @@ func NewGameWithSeedAndDepth(width, height int, seed int64, depth int) GameState
 
 	nextItemID := 1
 	var items []Item
+	var logMsg []string
+
+	if depth >= 5 {
+		// On Depth 5, remove down stairs and spawn Amulet of Yendor
+		for y := 0; y < gameMap.Height; y++ {
+			for x := 0; x < gameMap.Width; x++ {
+				if gameMap.Tiles[y][x] == TileStairsDown {
+					gameMap.Tiles[y][x] = TileFloor
+					amulet := NewAmuletOfYendor(nextItemID, Position{X: x, Y: y})
+					nextItemID++
+					items = append(items, amulet)
+					break
+				}
+			}
+		}
+		logMsg = append(logMsg, "You feel a mystic power... The Amulet of Yendor is on this floor!")
+	}
+
 	for _, r := range rooms {
 		if rng.Intn(10) < 5 {
 			rx := r.X + rng.Intn(r.W)
@@ -917,6 +950,7 @@ func NewGameWithSeedAndDepth(width, height int, seed int64, depth int) GameState
 		Seed:  seed,
 		Depth: depth,
 		Map:   gameMap,
+		Log:   logMsg,
 		Player: Entity{
 			ID:        0,
 			Name:      "Player",

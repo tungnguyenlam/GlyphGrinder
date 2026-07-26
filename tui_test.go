@@ -1098,3 +1098,60 @@ func TestArcherRangedAttackViaTUI(t *testing.T) {
 		t.Errorf("expected HP: 96/100 after archer ranged hit, got %q", plainHUD)
 	}
 }
+
+func TestVictoryStateAndRestartViaTUI(t *testing.T) {
+	m := model{
+		state: GameState{
+			Map: GameMap{
+				Width:  5,
+				Height: 5,
+				Tiles: [][]TileType{
+					{TileWall, TileWall, TileWall, TileWall, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileWall, TileWall, TileWall, TileWall},
+				},
+			},
+			Player: Entity{
+				ID: 0, Name: "Player", IsPlayer: true, Pos: Position{X: 2, Y: 2},
+				Rune: "@", Color: "#00FF00", Health: 100, MaxHealth: 100,
+			},
+			Items: []Item{
+				NewAmuletOfYendor(1, Position{X: 2, Y: 2}),
+			},
+		},
+	}
+
+	d := tuitest.New(t, m)
+
+	// Press 'g' to pick up Amulet of Yendor
+	d.Key("g")
+
+	linesWon := d.Lines()
+	plainHUDWon := stripANSI(linesWon[0])
+	if !strings.Contains(plainHUDWon, "VICTORY!") {
+		t.Errorf("expected VICTORY! in HUD line after picking up Amulet, got %q", plainHUDWon)
+	}
+	if !strings.Contains(plainHUDWon, "Press r to restart") {
+		t.Errorf("expected restart prompt in victory HUD line, got %q", plainHUDWon)
+	}
+
+	// Movement key while won does not act or change state
+	d.Key("up")
+	linesStillWon := d.Lines()
+	if !strings.Contains(stripANSI(linesStillWon[0]), "VICTORY!") {
+		t.Errorf("expected still VICTORY after movement key while won")
+	}
+
+	// Press 'r' to restart game
+	d.Key("r")
+	linesRestarted := d.Lines()
+	plainHUDRestarted := stripANSI(linesRestarted[0])
+	if strings.Contains(plainHUDRestarted, "VICTORY!") {
+		t.Errorf("did not expect VICTORY after restart")
+	}
+	if !strings.Contains(plainHUDRestarted, "HP: 100/100") {
+		t.Errorf("expected fresh HP: 100/100 after restart, got %q", plainHUDRestarted)
+	}
+}

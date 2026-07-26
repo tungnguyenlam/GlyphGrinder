@@ -833,3 +833,57 @@ func TestMonsterScalingByDepth(t *testing.T) {
 		t.Error("expected at least one Archer to spawn in depth 3 test runs")
 	}
 }
+
+func TestDepth5SpawnsAmuletWithoutStairs(t *testing.T) {
+	st := NewGameWithSeedAndDepth(60, 30, 12345, 5)
+
+	// Verify no stairs down exist on depth 5
+	for y := 0; y < st.Map.Height; y++ {
+		for x := 0; x < st.Map.Width; x++ {
+			if st.Map.Tiles[y][x] == TileStairsDown {
+				t.Error("expected no down stairs on depth 5")
+			}
+		}
+	}
+
+	// Verify Amulet of Yendor is spawned
+	foundAmulet := false
+	for _, it := range st.Items {
+		if it.ItemType == ItemAmulet && it.Name == "Amulet of Yendor" {
+			foundAmulet = true
+			break
+		}
+	}
+
+	if !foundAmulet {
+		t.Error("expected Amulet of Yendor to spawn on depth 5")
+	}
+
+	if len(st.Log) == 0 || !strings.Contains(st.Log[0], "Amulet of Yendor is on this floor!") {
+		t.Errorf("expected level 5 start log message, got %v", st.Log)
+	}
+}
+
+func TestAmuletPickupTriggersVictory(t *testing.T) {
+	st := NewGameWithSeedAndDepth(20, 10, 12345, 5)
+	amuletPos := Position{X: 2, Y: 2}
+	st.Items = []Item{NewAmuletOfYendor(100, amuletPos)}
+	st.Player.Pos = amuletPos
+
+	nextState := st.Step(ActionPickup)
+
+	if !nextState.IsVictory {
+		t.Error("expected IsVictory=true after picking up Amulet of Yendor")
+	}
+
+	fullLog := strings.Join(nextState.Log, "\n")
+	if !strings.Contains(fullLog, "VICTORY IS YOURS!") {
+		t.Errorf("expected victory message in log, got %q", fullLog)
+	}
+
+	// Further movement steps are ignored when IsVictory is true
+	stepAfterVictory := nextState.Step(ActionMoveUp)
+	if stepAfterVictory.Player.Pos != nextState.Player.Pos {
+		t.Error("expected no player movement after victory state is reached")
+	}
+}

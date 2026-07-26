@@ -154,7 +154,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if k == "ctrl+c" || k == "q" {
 			return m, tea.Quit
 		}
-		if m.state.Player.Health <= 0 {
+		if m.state.Player.Health <= 0 || m.state.IsVictory {
 			if k == "r" {
 				m.state = NewGame(defaultMapWidth, defaultMapHeight)
 				m.camX = float64(m.state.Player.Pos.X)
@@ -299,7 +299,10 @@ func (m model) View() string {
 	}
 	hudText := hpStyle.Render(hudStr)
 
-	if m.state.Player.Health <= 0 {
+	if m.state.IsVictory {
+		victoryStyle := lipgloss.NewStyle().Foreground(pal.Stairs).Bold(true)
+		hudText += victoryStyle.Render(" | *** VICTORY! YOU ESCAPED WITH THE AMULET OF YENDOR *** (Press r to restart)")
+	} else if m.state.Player.Health <= 0 {
 		gameOverStyle := lipgloss.NewStyle().Foreground(pal.HUDWarning).Bold(true)
 		hudText += gameOverStyle.Render(" | *** GAME OVER *** (Press r to restart)")
 	}

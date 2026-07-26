@@ -7,41 +7,34 @@ Update it continuously — as soon as a sub-task lands or the plan changes.
 
 ## Current milestone
 
-**M3 — A run worth finishing.** Build depth and gameplay progression:
-multiple dungeon levels with stairs, item pickup/inventory (potions & weapons), varied monster types/AI, and a victory condition.
+**M4 — Ships to other people.** Production-ready packaging, documentation, benchmarks, CI, and graceful degradation across terminal environments.
 
-Serves `GOAL.md` directly: "It is a real roguelike underneath the polish, not a tech demo: procedurally generated levels, permadeath, turn-based combat where a mistake costs you the run, items that change how you play."
+Serves `GOAL.md` directly: "And it just runs. `go install` or a single binary, no config file, no font wrangling beyond 'install a Nerd Font', graceful degradation to plainer glyphs and colors when the terminal can't do better."
 
 ## Exact next action
 
-**M3.4 — Win condition & victory screen (Amulet of Yendor on Depth 5).**
+**M4.1 — `go install` verification & README rewrite.**
 
-- In `game.go`:
-  - Add `ItemAmulet` item type ("Amulet of Yendor", `*`).
-  - On Depth 5 (`depth == 5`), spawn the Amulet of Yendor instead of down stairs.
-  - Picking up the Amulet sets `IsVictory bool` on `GameState` and logs victory message.
-- In `main.go`:
-  - Add `Amulet` (`*`, `󰇮`) to `GlyphSet` and gold color to `Palette`.
-  - Update `View()` to display victory HUD banner when `IsVictory` is true.
-  - Ignore action keys in victory state (except `r` restart and `q` quit).
-- Add unit and TUI tests in `game_test.go` and `tui_test.go` verifying Depth 5 Amulet spawn, victory trigger on pickup, victory screen rendering, and restart key.
+- Verify `go install ./...` produces a working binary.
+- Rewrite `README.md` to showcase GlyphGrinder features, controls, Nerd Font requirements, installation instructions, and architecture breakdown.
+- Add unit/TUI test in `tui_test.go` or `main_test.go` verifying help/version or model initializers cleanly.
 
-Why next: M3.4 completes M3 "A run worth finishing" by providing a satisfying goal and end-game state.
+Why next: M4.1 makes the project instantly discoverable, installable, and documented for external users.
 
 ## Milestone plan
 
-- [x] **M3.1** Multiple dungeon levels & stairs (`>`) with depth HUD tracking.
-- [x] **M3.2** Items & Inventory (health potions `!`, weapons `/`, pickup `g`/`,`, drink `h`).
-- [x] **M3.3** Enhanced monster types & AI (Troll `T`, Archer `A`).
-- [ ] **M3.4** Win condition & victory screen (Amulet of Yendor on Depth 5).
+- [ ] **M4.1** `go install` verification & README documentation rewrite.
+- [ ] **M4.2** Terminal capability & environment degradation checks (NO_COLOR, GLYPHGRINDER_ASCII, tiny window sizes).
+- [ ] **M4.3** Performance benchmarks (`BenchmarkView`, `BenchmarkStep`) holding frame budgets under 1ms.
+- [ ] **M4.4** GitHub Actions CI workflow running `./scripts/verify.sh`.
 
-## Acceptance criteria for M3
+## Acceptance criteria for M4
 
-- Player can descend through multiple dungeon floors via down stairs.
-- Items generate on floors, can be picked up, viewed in inventory, and consumed.
-- New monster types have distinct stats and behaviors.
-- Descending to Depth 5 and retrieving the goal item triggers a victory state.
-- All rules and interactions covered by `internal/tuitest` unit and TUI tests.
+- Binary builds and installs via `go install`.
+- `README.md` provides clear controls, installation guide, and design summary.
+- Terminal degradation modes (ASCII fallback, monochrome, small windows) tested and verified.
+- Benchmarks verify sub-millisecond view render time.
+- CI configuration in `.github/workflows/ci.yml` passes `./scripts/verify.sh`.
 - `./scripts/verify.sh` passes.
 
 ## Blockers
@@ -54,6 +47,6 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-07-27  —  VERIFY OK
 ```
 
-gofmt clean, `go vet` clean, builds, headless smoke frame renders, 59 test functions pass (4 new Troll, Archer ranged attack, depth monster scaling, and TUI archer tests), `go.mod` tidy.
+gofmt clean, `go vet` clean, builds, headless smoke frame renders, 62 test functions pass (including 3 new Amulet spawn, victory trigger, and victory TUI tests), `go.mod` tidy.
 
 

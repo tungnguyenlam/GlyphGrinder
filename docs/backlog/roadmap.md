@@ -7,30 +7,15 @@ Committed future work, in order. A milestone moves from here into
 
 Generated dungeon, monsters, bump-to-attack combat, death and restart.
 
-## M2 — It looks like the pitch *(in progress — see [active.md](active.md))*
+## M2 — It looks like the pitch *(completed 2026-07-27 — see [done.md](done.md))*
 
-The point at which the README's claim stops being aspirational.
+Nerd Font glyphs, truecolor palette, FOV shadowcasting, movement animation, viewport camera.
 
-- Nerd Font glyph set for entities and terrain, with an ASCII fallback when the
-  terminal or font can't do it.
-- A real palette: truecolor stone/floor/entity ramps instead of the current
-  three hard-coded greys, with graceful degradation via `lipgloss`'s color
-  profile detection.
-- Field of view and memory: lit tiles bright, remembered tiles dimmed,
-  unexplored tiles black.
-- Movement animation — entities interpolate between tiles over a few frames,
-  driven by tick messages (ADR-0003), never by `View` reading the clock.
-- A viewport/camera so the map can be larger than the terminal, following the
-  player and reacting to `tea.WindowSizeMsg` (currently ignored entirely).
+## M3 — A run worth finishing *(completed 2026-07-27 — see [done.md](done.md))*
 
-## M3 — A run worth finishing
+Multiple dungeon floors, items & inventory (potions & weapons), varied monster types (Trolls & Archers) with ranged AI, and Amulet of Yendor win condition.
 
-- Multiple dungeon levels with stairs and increasing difficulty.
-- Items: pick up, inventory, use/equip; at minimum potions and one weapon tier.
-- More than one monster type, with different stats and movement behavior.
-- A win condition — a reason to descend.
-
-## M4 — Ships to other people
+## M4 — Ships to other people *(in progress — see [active.md](active.md))*
 
 - `go install` verified from a clean machine; README rewritten as install +
   controls + screenshot.

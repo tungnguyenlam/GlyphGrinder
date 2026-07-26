@@ -4,6 +4,17 @@ Completed milestones, newest first. This is the project's memory of what has
 already been built and tried — check here before "discovering" that something
 is missing.
 
+## 2026-07-27 — M3: A run worth finishing
+
+Build depth and gameplay progression: multiple dungeon levels with stairs, item pickup/inventory (potions & weapons), varied monster types/AI, and a victory condition.
+
+- M3.1: Multiple dungeon levels & stairs (`>`) with depth HUD tracking and FOV recalculation on floor transition.
+- M3.2: Item system (`Item`, `ItemType`), item generation (Health Potions `!`, Iron Daggers `/`), inventory pickup (`g`/`,`), potion drinking (`h`/`1..9`), weapon damage bonus (+3), floor item rendering, and inventory status in HUD.
+- M3.3: Enhanced monster types (Trolls `T` with high HP/damage, Archers `A` with ranged attacks up to range 5), depth-scaled monster spawning, and ranged AI in `runMonsterTurns`.
+- M3.4: Win condition & victory state (Amulet of Yendor `*` spawning on Depth 5, victory trigger on pickup, victory banner in HUD, and keypress locking with single-key restart `r`).
+
+Verified: `./scripts/verify.sh` — VERIFY OK (59 test functions pass).
+
 ## 2026-07-27 — M2: It looks like the pitch
 
 Transformed GlyphGrinder into a visually distinct, responsive terminal roguelike.

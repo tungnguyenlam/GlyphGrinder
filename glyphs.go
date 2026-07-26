@@ -15,6 +15,7 @@ type GlyphSet struct {
 	StairsDown string
 	Potion     string
 	Weapon     string
+	Amulet     string
 }
 
 // ASCIIGlyphs returns the standard ASCII fallback glyph set.
@@ -30,6 +31,7 @@ func ASCIIGlyphs() GlyphSet {
 		StairsDown: ">",
 		Potion:     "!",
 		Weapon:     "/",
+		Amulet:     "*",
 	}
 }
 
@@ -46,6 +48,7 @@ func NerdFontGlyphs() GlyphSet {
 		StairsDown: "󰌑", // U+F0311 (stairs down)
 		Potion:     "󰏗", // U+F03D7 (potion)
 		Weapon:     "󰓥", // U+F04E5 (sword)
+		Amulet:     "󰇮", // U+F01EE (amulet / gem)
 	}
 }
 
@@ -78,6 +81,8 @@ func ResolveItemGlyph(it Item, g GlyphSet) string {
 		return g.Potion
 	case ItemWeapon:
 		return g.Weapon
+	case ItemAmulet:
+		return g.Amulet
 	default:
 		return "?"
 	}
