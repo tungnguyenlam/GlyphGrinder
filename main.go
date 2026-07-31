@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math"
+	"math/rand"
 	"os"
 	"strconv"
 	"strings"
@@ -15,8 +16,11 @@ import (
 var tickInterval = 16 * time.Millisecond
 
 const (
-	camSpeed     = 0.35
-	maxAnimTicks = 4
+	camSpeed          = 0.35
+	maxAnimTicks      = 4
+	maxShakeFrames    = 6
+	shakeDecay        = 0.85 // multiplicative decay per frame
+	heavyHitThreshold = 8    // damage threshold to trigger screen shake
 )
 
 type animTickMsg time.Time
@@ -40,6 +44,7 @@ const (
 	screenGameOver
 	screenVictory
 	screenTargeting
+	screenLevelUp
 )
 
 type model struct {
@@ -53,8 +58,11 @@ type model struct {
 	camInitialized bool     // whether camera position has been initialized
 	animTicks      int      // remaining animation ticks for current move step
 	flashTicks     int      // screen hit flash ticks
+	shakeDuration  int      // remaining screen shake ticks
+	shakeIntensity float64  // screen shake intensity (pixels)
 	screen         screenMode
 	targetCursor   Position
+	levelUpCursor  int // selected skill index in level up screen
 }
 
 // Default map dimensions for the larger dungeon.
@@ -143,6 +151,18 @@ func (m model) getCamPos() (float64, float64) {
 	return m.camX, m.camY
 }
 
+// getShakenCamPos returns the camera position with screen shake applied.
+func (m model) getShakenCamPos() (float64, float64) {
+	camX, camY := m.getCamPos()
+	if m.shakeDuration <= 0 {
+		return camX, camY
+	}
+	// Apply random shake offset within intensity radius
+	angle := rand.Float64() * 2 * math.Pi
+	radius := m.shakeIntensity * rand.Float64()
+	return camX + radius*math.Cos(angle), camY + radius*math.Sin(angle)
+}
+
 func (m model) isAnimating() bool {
 	if !m.camInitialized {
 		return false
@@ -192,8 +212,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.flashTicks > 0 {
 			m.flashTicks--
 		}
+		if m.shakeDuration > 0 {
+			m.shakeDuration--
+			m.shakeIntensity *= shakeDecay
+			if m.shakeDuration == 0 {
+				m.shakeIntensity = 0
+			}
+		}
 
-		if m.isAnimating() || m.flashTicks > 0 {
+		if m.isAnimating() || m.flashTicks > 0 || m.shakeDuration > 0 {
 			return m, tickCmd()
 		}
 		return m, nil
@@ -251,6 +278,39 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.flashTicks = 4
 				}
 				return m, tickCmd()
+			}
+			return m, nil
+		}
+
+		if m.screen == screenLevelUp {
+			available := m.state.Player.AvailableSkills()
+			switch k {
+			case "up", "w", "k":
+				if m.levelUpCursor > 0 {
+					m.levelUpCursor--
+				}
+			case "down", "s", "j":
+				if m.levelUpCursor < len(available)-1 {
+					m.levelUpCursor++
+				}
+			case "enter", " ":
+				if len(available) > 0 && m.levelUpCursor < len(available) {
+					m.state = m.state.LearnSkill(available[m.levelUpCursor].ID)
+					if m.state.Player.SkillPoints > 0 {
+						available = m.state.Player.AvailableSkills()
+						if m.levelUpCursor >= len(available) {
+							m.levelUpCursor = len(available) - 1
+						}
+					} else {
+						m.screen = screenPlaying
+						m.levelUpCursor = 0
+					}
+				}
+			case "esc":
+				if m.state.Player.SkillPoints == 0 {
+					m.screen = screenPlaying
+					m.levelUpCursor = 0
+				}
 			}
 			return m, nil
 		}
@@ -318,9 +378,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			oldDepth := m.state.Depth
 			oldHealth := m.state.Player.Health
+			oldSkillPoints := m.state.Player.SkillPoints
 			m.state = m.state.Step(act)
-			if m.state.Player.Health < oldHealth {
+			damageTaken := oldHealth - m.state.Player.Health
+			if damageTaken > 0 {
 				m.flashTicks = 4
+				if damageTaken >= heavyHitThreshold {
+					m.shakeIntensity = 3.0
+					m.shakeDuration = maxShakeFrames
+				}
+			}
+			// Check for level up (new skill points gained)
+			if m.state.Player.SkillPoints > oldSkillPoints {
+				m.screen = screenLevelUp
+				m.levelUpCursor = 0
 			}
 			if m.state.Depth != oldDepth {
 				m.camX = float64(m.state.Player.Pos.X)
@@ -482,15 +553,15 @@ func getRenderCache(pal Palette, gly GlyphSet) *renderCache {
 		Floor:         lipgloss.NewStyle().Foreground(pal.FloorLit).Render(gly.Floor),
 		Wall:          lipgloss.NewStyle().Foreground(pal.WallLit).Render(gly.Wall),
 		Stairs:        lipgloss.NewStyle().Foreground(pal.Stairs).Bold(true).Render(gly.StairsDown),
-		Lava:          lipgloss.NewStyle().Foreground(pal.Lava).Bold(true).Render(gly.Lava),
-		Water:         lipgloss.NewStyle().Foreground(pal.Water).Bold(true).Render(gly.Water),
+		Lava:          lipgloss.NewStyle().Foreground(pal.Lava).Background(pal.LavaBg).Bold(true).Render(gly.Lava),
+		Water:         lipgloss.NewStyle().Foreground(pal.Water).Background(pal.WaterBg).Bold(true).Render(gly.Water),
 		DoorClosed:    lipgloss.NewStyle().Foreground(pal.Door).Render(gly.DoorClosed),
 		DoorOpen:      lipgloss.NewStyle().Foreground(pal.Door).Render(gly.DoorOpen),
 		DimFloor:      lipgloss.NewStyle().Foreground(pal.FloorDim).Render(gly.Floor),
 		DimWall:       lipgloss.NewStyle().Foreground(pal.WallDim).Render(gly.Wall),
 		DimStairs:     lipgloss.NewStyle().Foreground(pal.WallDim).Render(gly.StairsDown),
-		DimLava:       lipgloss.NewStyle().Foreground(pal.WallDim).Render(gly.Lava),
-		DimWater:      lipgloss.NewStyle().Foreground(pal.WallDim).Render(gly.Water),
+		DimLava:       lipgloss.NewStyle().Foreground(pal.WallDim).Background(pal.LavaBg).Render(gly.Lava),
+		DimWater:      lipgloss.NewStyle().Foreground(pal.WallDim).Background(pal.WaterBg).Render(gly.Water),
 		DimDoorClosed: lipgloss.NewStyle().Foreground(pal.WallDim).Render(gly.DoorClosed),
 		DimDoorOpen:   lipgloss.NewStyle().Foreground(pal.WallDim).Render(gly.DoorOpen),
 		TargetReticle: lipgloss.NewStyle().Foreground(pal.HUDWarning).Bold(true).Render("X"),
@@ -581,7 +652,7 @@ func (m model) View() string {
 	if viewH <= 0 {
 		viewH = m.state.Map.Height
 	}
-	camX, camY := m.getCamPos()
+	camX, camY := m.getShakenCamPos()
 	x0, y0, x1, y1 := viewportCenter(camX, camY, m.state.Map.Width, m.state.Map.Height, viewW, viewH)
 
 	entityMap := make(map[Position]string, len(m.state.Entities))
@@ -620,6 +691,20 @@ func (m model) View() string {
 		}
 	}
 
+	// Build particle map for rendering (particles render on top of everything)
+	particleMap := make(map[Position]string, len(m.state.Particles))
+	for _, p := range m.state.Particles {
+		// Fade color based on remaining lifetime
+		fade := float64(p.Lifetime) / float64(p.MaxLife)
+		color := p.Color
+		if fade < 0.5 {
+			// Darken as it fades - simple approach
+			color = "#884400" // fallback to ember color
+		}
+		style := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Bold(true)
+		particleMap[p.Pos] = style.Render(p.Glyph)
+	}
+
 	hasFOV := m.state.Map.Visible != nil && m.state.Map.Explored != nil
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
@@ -636,6 +721,9 @@ func (m model) View() string {
 				// Currently in line-of-sight — full brightness.
 				if pos == m.state.Player.Pos {
 					sb.WriteString(cache.Player)
+				} else if renderedParticle, found := particleMap[pos]; found {
+					// Particles render on top of entities/items/tiles
+					sb.WriteString(renderedParticle)
 				} else if renderedEntity, found := entityMap[pos]; found {
 					sb.WriteString(renderedEntity)
 				} else if renderedItem, found := itemMap[pos]; found {

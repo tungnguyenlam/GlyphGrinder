@@ -208,15 +208,18 @@ func TestBumpToAttackKillsMonster(t *testing.T) {
 		t.Errorf("expected 0 entities remaining, got %d", len(newState.Entities))
 	}
 
-	// Log should record hit and kill
-	if len(newState.Log) != 2 {
-		t.Fatalf("expected 2 log entries, got %d", len(newState.Log))
+	// Log should record hit, kill, and XP gain
+	if len(newState.Log) != 3 {
+		t.Fatalf("expected 3 log entries, got %d: %v", len(newState.Log), newState.Log)
 	}
 	if got, want := newState.Log[0], "Player hits Goblin for 10 damage."; got != want {
 		t.Errorf("log[0] = %q, want %q", got, want)
 	}
 	if got, want := newState.Log[1], "Goblin dies."; got != want {
 		t.Errorf("log[1] = %q, want %q", got, want)
+	}
+	if got, want := newState.Log[2], "You gain 10 XP."; got != want {
+		t.Errorf("log[2] = %q, want %q", got, want)
 	}
 }
 
@@ -1217,5 +1220,115 @@ func TestClassArchetypesInitialization(t *testing.T) {
 	stMage := NewGameWithSeedDepthAndClass(60, 30, 12345, 1, ClassMage)
 	if stMage.Player.Health != 80 || len(stMage.Player.Inventory) != 2 || stMage.Player.Name != "Mage" {
 		t.Errorf("mage state mismatch: %+v", stMage.Player)
+	}
+}
+
+func TestFireballSpawnsParticles(t *testing.T) {
+	st := NewGameWithSeed(20, 10, 12345)
+	// Give player a fireball scroll
+	st.Player.Inventory = []Item{NewFireballScroll(1, Position{X: -1, Y: -1})}
+	st.Player.Pos = Position{X: 10, Y: 5}
+
+	// Add some monsters in fireball radius
+	st.Entities = []Entity{
+		NewGoblin(1, Position{X: 11, Y: 5}), // adjacent - will be hit
+		NewOrc(2, Position{X: 13, Y: 5}),    // within radius 3 - will be hit
+		NewTroll(3, Position{X: 15, Y: 8}),  // outside radius - safe
+	}
+
+	stAfter := st.Step(ActionUseItem)
+
+	// Fireball should spawn particles
+	if len(stAfter.Particles) == 0 {
+		t.Fatal("expected particles after casting Fireball, got none")
+	}
+	// Should have center particles + ring particles (12 ring positions + 4 center = ~16)
+	// Some may be on walls/out of bounds or on walls, so expect at least 8
+	if len(stAfter.Particles) < 8 {
+		t.Errorf("expected at least 10 particles, got %d", len(stAfter.Particles))
+	}
+	// All particles should have fire colors
+	fireColors := map[string]bool{"#FF4500": true, "#FF6600": true, "#FF8800": true, "#FFAA00": true, "#FFCC00": true, "#FFFF00": true}
+	for _, p := range stAfter.Particles {
+		if !fireColors[p.Color] {
+			t.Errorf("particle has non-fire color: %s", p.Color)
+		}
+		if p.Lifetime <= 0 || p.MaxLife <= 0 {
+			t.Errorf("particle has invalid lifetime: %+v", p)
+		}
+	}
+}
+
+func TestTeleportSpawnsParticles(t *testing.T) {
+	st := NewGameWithSeed(20, 10, 12345)
+	oldPos := st.Player.Pos
+	st.Player.Inventory = []Item{NewTeleportScroll(1, Position{X: -1, Y: -1})}
+
+	stAfter := st.Step(ActionUseItem)
+
+	// Teleport should spawn particles at both old and new position
+	if len(stAfter.Particles) == 0 {
+		t.Fatal("expected particles after casting Teleport, got none")
+	}
+	if stAfter.Player.Pos == oldPos {
+		t.Fatal("expected player position to change after teleport")
+	}
+	// Should have particles at both positions (8 around each + 3 at each = ~22)
+	if len(stAfter.Particles) < 15 {
+		t.Errorf("expected at least 15 particles, got %d", len(stAfter.Particles))
+	}
+	// All particles should have teleport colors
+	teleportColors := map[string]bool{"#E040FB": true, "#AA00FF": true, "#6600CC": true, "#FF00FF": true, "#8800FF": true}
+	for _, p := range stAfter.Particles {
+		if !teleportColors[p.Color] {
+			t.Errorf("particle has non-teleport color: %s", p.Color)
+		}
+	}
+}
+
+func TestParticlesDecayAndExpire(t *testing.T) {
+	st := GameState{
+		Map: GameMap{
+			Width:  20,
+			Height: 10,
+			Tiles:  make([][]TileType, 10),
+		},
+		Player: Entity{
+			ID: 0, Name: "Player", IsPlayer: true, Pos: Position{X: 10, Y: 5},
+			Health: 100, MaxHealth: 100, Damage: 10,
+		},
+		Particles: []Particle{
+			{Pos: Position{X: 10, Y: 5}, Glyph: "░", Color: "#FF4500", Lifetime: 1, MaxLife: 1},
+			{Pos: Position{X: 11, Y: 5}, Glyph: "▒", Color: "#FF6600", Lifetime: 2, MaxLife: 2},
+			{Pos: Position{X: 12, Y: 5}, Glyph: "▓", Color: "#FF8800", Lifetime: 3, MaxLife: 3},
+		},
+	}
+	for y := range st.Map.Tiles {
+		st.Map.Tiles[y] = make([]TileType, 20)
+		for x := range st.Map.Tiles[y] {
+			if x == 0 || x == 19 || y == 0 || y == 9 {
+				st.Map.Tiles[y][x] = TileWall
+			} else {
+				st.Map.Tiles[y][x] = TileFloor
+			}
+		}
+	}
+
+	// First step - particles with lifetime 1 should expire
+	st = st.Step(ActionMoveUp)
+	if len(st.Particles) != 2 {
+		t.Errorf("after 1 step, expected 2 particles (lifetime 2 and 3), got %d", len(st.Particles))
+	}
+
+	// Second step - particles with lifetime 2 should expire
+	st = st.Step(ActionMoveUp)
+	if len(st.Particles) != 1 {
+		t.Errorf("after 2 steps, expected 1 particle (lifetime 3), got %d", len(st.Particles))
+	}
+
+	// Third step - last particle should expire
+	st = st.Step(ActionMoveUp)
+	if len(st.Particles) != 0 {
+		t.Errorf("after 3 steps, expected 0 particles, got %d", len(st.Particles))
 	}
 }

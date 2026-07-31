@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-07-27
+**Last updated:** 2026-07-31
 
 ## Current milestone
 
@@ -14,30 +14,37 @@ easy for the next agent to extend without rediscovering finished work.
 
 ## Exact next action
 
-**Golden-frame regression harness (parking-lot engineering item).**
+**Pick next item from parking lot or declare maintenance complete.**
 
-1. Add a small helper (e.g. in `tui_test.go` or a new `golden_test.go`) that
-   builds a fixed-seed model, forces ASCII glyphs + a stable color profile, and
-   writes/compares `View()` output against a checked-in golden file under
-   `testdata/`.
-2. Start with one golden: title screen, and one in-game frame (seed `42`, depth
-   1, Warrior, after a fixed key sequence). Use an update flag
-   (`-update-golden`) only in that test file, not a new dependency.
-3. Run `./scripts/verify.sh` and record the result below.
-
-Why next: protects View/palette/glyph regressions without a TTY; parking lot
-still lists this as open engineering work after M7.
+Remaining parking lot items: sound (likely non-goal), hunger clock, skill tree
+expansion, persistent meta-progression (needs ADR), more hazard/item interaction
+coverage (lava + regen race, multi-weapon inventory edge cases). The project is
+in solid shape — all milestones complete, tree green, no known bugs. Next agent
+can write coverage tests from the engineering section of `parking-lot.md` or
+stop here.
 
 ## Recently completed (this session)
 
-- [x] **Bugfix: dropping a weapon no longer keeps its DamageBonus.**
-  `ActionDropItem` now subtracts `DamageBonus` when the dropped item is a
-  weapon (clamped at 0). Regression tests:
-  `TestDropWeaponRemovesDamageBonus`, `TestWarriorDropStartingWeapon`.
-  Without the fix, Warriors (and anyone who drop+re-picked a dagger) stacked
-  permanent damage.
-- [x] **Parking lot scrub.** Removed M1–M7 items that already shipped so the
-  lot is only uncommitted ideas again.
+- [x] **Bugfix: gofmt + go vet failures.** Previous session left `game.go` and
+  `main.go` not gofmt-clean. Also found and fixed two duplicate function
+  declarations: `xpForLevel` (duplicate at end of file with a different formula,
+  kept the first `100 * level * level` version near its caller `gainXP`) and
+  `AvailableSkills` (identical copy at end of file). These prevented
+  compilation.
+- [x] **Bugfix: `TestBumpToAttackKillsMonster` stale assertion.** The test
+  expected 2 log entries but the XP system (added later) now also logs "You gain
+  10 XP." on kill. Updated to expect 3 log entries.
+- [x] **Per-tile background colors for lava and water.** Added `LavaBg`
+  (`#3D1500` dark red-orange) and `WaterBg` (`#001A2E` dark deep blue) to the
+  `Palette` struct. Both lit and dimmed tile styles now include
+  `.Background()`. Regression test `TestTileBackgroundColors` verifies all four
+  variants (lit/dim × lava/water) contain ANSI `48;2;` background escapes and
+  that floor/wall/door tiles do not. Golden frames regenerated.
+- [x] **Palette token test coverage.** Added missing tokens (Scroll, Door, Lava,
+  LavaBg, Water, WaterBg) to `TestDefaultPaletteTokens` in `colors_test.go`.
+- [x] **Parking lot scrub.** Removed stale entries for screen shake, particle
+  effects, golden-frame testing (all shipped last session), and per-tile
+  background colors (shipped this session).
 
 ## Milestone plan
 
@@ -64,9 +71,10 @@ None. No decision is waiting on the user.
 ## Last verification
 
 ```
-./scripts/verify.sh   —  2026-07-27  —  VERIFY OK
+./scripts/verify.sh   —  2026-07-31  —  VERIFY OK
 ```
 
 gofmt clean, `go vet` clean, builds, headless smoke frame renders, full test
-suite pass (including `TestDropWeaponRemovesDamageBonus` and
-`TestWarriorDropStartingWeapon`), `go.mod` tidy.
+suite pass (including `TestTileBackgroundColors`, `TestBumpToAttackKillsMonster`
+with XP assertion, `TestDefaultPaletteTokens` with all 22 tokens), `go.mod`
+tidy.

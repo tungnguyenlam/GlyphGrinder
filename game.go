@@ -81,6 +81,134 @@ const (
 	ClassMage
 )
 
+// SkillID identifies a specific skill/talent in the skill tree.
+type SkillID uint8
+
+const (
+	// Warrior skills
+	SkillHeavyStrike SkillID = iota
+	SkillIronSkin
+	SkillCleave
+	SkillBattleRage
+	SkillUnstoppable
+
+	// Rogue skills
+	SkillBackstab
+	SkillEvasion
+	SkillPoisonBlade
+	SkillShadowStep
+	SkillAssassinate
+
+	// Mage skills
+	SkillFireBolt
+	SkillManaShield
+	SkillArcaneMastery
+	SkillTeleportMastery
+	SkillMeteor
+)
+
+// Skill represents a learnable talent/ability.
+type Skill struct {
+	ID          SkillID
+	Name        string
+	Description string
+	Class       ClassType
+	MaxRank     int
+	Prereqs     []SkillID
+}
+
+// SkillTree returns all available skills for a class.
+func SkillTree(class ClassType) []Skill {
+	skills := []Skill{
+		// Warrior skills
+		{ID: SkillHeavyStrike, Name: "Heavy Strike", Description: "Deal +50% damage on hit", Class: ClassWarrior, MaxRank: 3, Prereqs: nil},
+		{ID: SkillIronSkin, Name: "Iron Skin", Description: "+10 Max HP per rank", Class: ClassWarrior, MaxRank: 5, Prereqs: nil},
+		{ID: SkillCleave, Name: "Cleave", Description: "Attacks hit adjacent enemies", Class: ClassWarrior, MaxRank: 1, Prereqs: []SkillID{SkillHeavyStrike}},
+		{ID: SkillBattleRage, Name: "Battle Rage", Description: "+2 Damage per missing 25% HP", Class: ClassWarrior, MaxRank: 3, Prereqs: []SkillID{SkillIronSkin}},
+		{ID: SkillUnstoppable, Name: "Unstoppable", Description: "Immune to Confusion, +25% HP", Class: ClassWarrior, MaxRank: 1, Prereqs: []SkillID{SkillBattleRage, SkillCleave}},
+
+		// Rogue skills
+		{ID: SkillBackstab, Name: "Backstab", Description: "+100% damage when attacking from stealth/flank", Class: ClassRogue, MaxRank: 3, Prereqs: nil},
+		{ID: SkillEvasion, Name: "Evasion", Description: "15% chance to dodge attacks per rank", Class: ClassRogue, MaxRank: 3, Prereqs: nil},
+		{ID: SkillPoisonBlade, Name: "Poison Blade", Description: "Attacks apply Poison (3 dmg/turn, 3 turns)", Class: ClassRogue, MaxRank: 1, Prereqs: []SkillID{SkillBackstab}},
+		{ID: SkillShadowStep, Name: "Shadow Step", Description: "Teleport swap with enemy in range 3", Class: ClassRogue, MaxRank: 1, Prereqs: []SkillID{SkillEvasion}},
+		{ID: SkillAssassinate, Name: "Assassinate", Description: "Instant kill below 20% HP", Class: ClassRogue, MaxRank: 1, Prereqs: []SkillID{SkillPoisonBlade, SkillShadowStep}},
+
+		// Mage skills
+		{ID: SkillFireBolt, Name: "Fire Bolt", Description: "Ranged attack (range 5, 15 dmg)", Class: ClassMage, MaxRank: 3, Prereqs: nil},
+		{ID: SkillManaShield, Name: "Mana Shield", Description: "Absorb damage with MaxHealth instead of HP", Class: ClassMage, MaxRank: 3, Prereqs: nil},
+		{ID: SkillArcaneMastery, Name: "Arcane Mastery", Description: "Fireball scrolls deal +50% damage", Class: ClassMage, MaxRank: 3, Prereqs: []SkillID{SkillFireBolt}},
+		{ID: SkillTeleportMastery, Name: "Teleport Mastery", Description: "Teleport scrolls don't consume the scroll", Class: ClassMage, MaxRank: 1, Prereqs: []SkillID{SkillManaShield}},
+		{ID: SkillMeteor, Name: "Meteor", Description: "Fireball hits all enemies on floor", Class: ClassMage, MaxRank: 1, Prereqs: []SkillID{SkillArcaneMastery, SkillTeleportMastery}},
+	}
+
+	var classSkills []Skill
+	for _, s := range skills {
+		if s.Class == class {
+			classSkills = append(classSkills, s)
+		}
+	}
+	return classSkills
+}
+
+// SkillRank returns the current rank of a skill for an entity.
+func (e Entity) SkillRank(skillID SkillID) int {
+	for _, s := range e.Skills {
+		if s == skillID {
+			return 1
+		}
+	}
+	return 0
+}
+
+// HasSkill checks if entity has a skill.
+func (e Entity) HasSkill(skillID SkillID) bool {
+	for _, s := range e.Skills {
+		if s == skillID {
+			return true
+		}
+	}
+	return false
+}
+
+// CanLearnSkill checks if entity can learn a skill (prereqs met, not maxed).
+func (e Entity) CanLearnSkill(skillID SkillID) bool {
+	if e.Class == ClassWarrior || e.Class == ClassRogue || e.Class == ClassMage {
+		// Only player can learn skills
+		if !e.IsPlayer {
+			return false
+		}
+	}
+	for _, s := range e.Skills {
+		if s == skillID {
+			return false // already learned
+		}
+	}
+	// Check prerequisites
+	for _, skill := range SkillTree(e.Class) {
+		if skill.ID == skillID {
+			for _, prereq := range skill.Prereqs {
+				if !e.HasSkill(prereq) {
+					return false
+				}
+			}
+			return true
+		}
+	}
+	return false
+}
+
+// AvailableSkills returns skills the player can currently learn.
+func (e Entity) AvailableSkills() []Skill {
+	var available []Skill
+	for _, skill := range SkillTree(e.Class) {
+		if e.CanLearnSkill(skill.ID) {
+			available = append(available, skill)
+		}
+	}
+	return available
+}
+
 // ActiveStatus represents an ongoing buff or debuff on an entity.
 type ActiveStatus struct {
 	Type     StatusType
@@ -88,22 +216,35 @@ type ActiveStatus struct {
 	Power    int // magnitude (damage, heal, etc.)
 }
 
+// Particle represents a temporary visual effect (e.g., fireball explosion, teleport flash).
+type Particle struct {
+	Pos      Position
+	Glyph    string
+	Color    string
+	Lifetime int // remaining frames/ticks
+	MaxLife  int
+}
+
 // Entity represents any movable actor (Player, Monster).
 type Entity struct {
-	ID        int
-	Name      string
-	Class     ClassType
-	Pos       Position
-	IsPlayer  bool
-	Rune      string
-	Color     string
-	Health    int
-	MaxHealth int
-	Damage    int
-	IsRanged  bool
-	Range     int
-	Inventory []Item
-	Statuses  []ActiveStatus
+	ID          int
+	Name        string
+	Class       ClassType
+	Pos         Position
+	IsPlayer    bool
+	Rune        string
+	Color       string
+	Health      int
+	MaxHealth   int
+	Damage      int
+	IsRanged    bool
+	Range       int
+	Inventory   []Item
+	Statuses    []ActiveStatus
+	Experience  int
+	Level       int
+	SkillPoints int
+	Skills      []SkillID
 }
 
 // Action represents an intent or action performed by the player on a turn.
@@ -141,6 +282,7 @@ type GameState struct {
 	Player      Entity
 	Entities    []Entity
 	Items       []Item
+	Particles   []Particle
 	Log         []string
 	ActionLog   []Action
 	IsVictory   bool
@@ -364,6 +506,7 @@ func (s GameState) Step(act Action) GameState {
 						if e.Health <= 0 {
 							s.Kills++
 							s.Log = append(s.Log, fmt.Sprintf("The %s is engulfed in flames and dies!", e.Name))
+							s = s.gainXP(monsterXP(e.Name))
 						} else {
 							s.Log = append(s.Log, fmt.Sprintf("The %s is scorched by fireball for %d damage.", e.Name, fireballDamage))
 							remainingEntities = append(remainingEntities, e)
@@ -373,12 +516,16 @@ func (s GameState) Step(act Action) GameState {
 					}
 				}
 				s.Entities = remainingEntities
+
+				s.spawnFireballParticles(s.Player.Pos, fireballRadius)
+
 				if hitCount == 0 {
 					s.Log = append(s.Log, "You read the Scroll of Fireball! Flame bursts into the empty air.")
 				} else {
 					s.Log = append(s.Log, "You read the Scroll of Fireball! A fiery blast consumes surrounding enemies.")
 				}
 			} else if item.ScrollKind == ScrollTeleport {
+				oldPos := s.Player.Pos
 				var candidates []Position
 				for y := 1; y < s.Map.Height-1; y++ {
 					for x := 1; x < s.Map.Width-1; x++ {
@@ -404,6 +551,7 @@ func (s GameState) Step(act Action) GameState {
 					}
 					s.Player.Pos = candidates[targetPosIdx]
 				}
+				s.spawnTeleportParticles(oldPos, s.Player.Pos)
 				s.Log = append(s.Log, "You read the Scroll of Teleportation and vanish!")
 			}
 		}
@@ -531,6 +679,7 @@ func (s GameState) Step(act Action) GameState {
 		if target.Health <= 0 {
 			s.Kills++
 			s.Log = append(s.Log, fmt.Sprintf("%s dies.", monsterName))
+			s = s.gainXP(monsterXP(target.Name))
 		}
 
 		s.Entities = newEntities
@@ -688,6 +837,7 @@ func (s *GameState) runMonsterTurns() {
 	}
 
 	s.processPlayerStatuses()
+	s.processParticles()
 }
 
 func (s *GameState) processPlayerStatuses() {
@@ -718,6 +868,174 @@ func (s *GameState) processPlayerStatuses() {
 		}
 	}
 	s.Player.Statuses = remaining
+}
+
+func (s *GameState) processParticles() {
+	if len(s.Particles) == 0 {
+		return
+	}
+	var remaining []Particle
+	for _, p := range s.Particles {
+		p.Lifetime--
+		if p.Lifetime > 0 {
+			remaining = append(remaining, p)
+		}
+	}
+	s.Particles = remaining
+}
+
+// spawnFireballParticles creates a ring of ember particles around the fireball center.
+func (s *GameState) spawnFireballParticles(center Position, radius int) {
+	fireColors := []string{"#FF4500", "#FF6600", "#FF8800", "#FFAA00", "#FFCC00", "#FFFF00"}
+	particleGlyphs := []string{"░", "▒", "▓", "█", "▄", "▀", "▌", "▐"}
+
+	for angle := 0; angle < 360; angle += 30 {
+		r := float64(radius) * 0.8
+		x := int(float64(center.X) + r*mathCos(angle))
+		y := int(float64(center.Y) + r*mathSin(angle))
+		if x > 0 && x < s.Map.Width-1 && y > 0 && y < s.Map.Height-1 {
+			if s.Map.Tiles[y][x] == TileFloor {
+				color := fireColors[rand.Intn(len(fireColors))]
+				glyph := particleGlyphs[rand.Intn(len(particleGlyphs))]
+				s.Particles = append(s.Particles, Particle{
+					Pos:      Position{X: x, Y: y},
+					Glyph:    glyph,
+					Color:    color,
+					Lifetime: 8,
+					MaxLife:  8,
+				})
+			}
+		}
+	}
+
+	// Also spawn some particles at the center
+	for i := 0; i < 4; i++ {
+		color := fireColors[rand.Intn(len(fireColors))]
+		glyph := particleGlyphs[rand.Intn(len(particleGlyphs))]
+		s.Particles = append(s.Particles, Particle{
+			Pos:      center,
+			Glyph:    glyph,
+			Color:    color,
+			Lifetime: 6,
+			MaxLife:  6,
+		})
+	}
+}
+
+// spawnTeleportParticles creates particles at the old and new positions.
+func (s *GameState) spawnTeleportParticles(oldPos, newPos Position) {
+	teleportColors := []string{"#E040FB", "#AA00FF", "#6600CC", "#FF00FF", "#8800FF"}
+	particleGlyphs := []string{"✦", "✧", "★", "☆", "✶", "✷", "✸", "✹"}
+
+	for _, pos := range []Position{oldPos, newPos} {
+		for i := 0; i < 8; i++ {
+			angle := rand.Intn(360)
+			r := 1.0 + rand.Float64()*2.0
+			x := int(float64(pos.X) + r*mathCos(angle))
+			y := int(float64(pos.Y) + r*mathSin(angle))
+			if x > 0 && x < s.Map.Width-1 && y > 0 && y < s.Map.Height-1 {
+				if s.Map.Tiles[y][x] == TileFloor {
+					color := teleportColors[rand.Intn(len(teleportColors))]
+					glyph := particleGlyphs[rand.Intn(len(particleGlyphs))]
+					s.Particles = append(s.Particles, Particle{
+						Pos:      Position{X: x, Y: y},
+						Glyph:    glyph,
+						Color:    color,
+						Lifetime: 10,
+						MaxLife:  10,
+					})
+				}
+			}
+		}
+		// Also spawn at exact position
+		for i := 0; i < 3; i++ {
+			color := teleportColors[rand.Intn(len(teleportColors))]
+			glyph := particleGlyphs[rand.Intn(len(particleGlyphs))]
+			s.Particles = append(s.Particles, Particle{
+				Pos:      pos,
+				Glyph:    glyph,
+				Color:    color,
+				Lifetime: 8,
+				MaxLife:  8,
+			})
+		}
+	}
+}
+
+func mathCos(angle int) float64 {
+	switch angle % 360 {
+	case 0:
+		return 1.0
+	case 30:
+		return 0.8660254
+	case 45:
+		return 0.7071068
+	case 60:
+		return 0.5
+	case 90:
+		return 0.0
+	case 120:
+		return -0.5
+	case 135:
+		return -0.7071068
+	case 150:
+		return -0.8660254
+	case 180:
+		return -1.0
+	case 210:
+		return -0.8660254
+	case 225:
+		return -0.7071068
+	case 240:
+		return -0.5
+	case 270:
+		return 0.0
+	case 300:
+		return 0.5
+	case 315:
+		return 0.7071068
+	case 330:
+		return 0.8660254
+	}
+	return 0.0
+}
+
+func mathSin(angle int) float64 {
+	switch angle % 360 {
+	case 0:
+		return 0.0
+	case 30:
+		return 0.5
+	case 45:
+		return 0.7071068
+	case 60:
+		return 0.8660254
+	case 90:
+		return 1.0
+	case 120:
+		return 0.8660254
+	case 135:
+		return 0.7071068
+	case 150:
+		return 0.5
+	case 180:
+		return 0.0
+	case 210:
+		return -0.5
+	case 225:
+		return -0.7071068
+	case 240:
+		return -0.8660254
+	case 270:
+		return -1.0
+	case 300:
+		return -0.8660254
+	case 315:
+		return -0.7071068
+	case 330:
+		return -0.5
+	}
+	return 0.0
 }
 
 func abs(n int) int {
@@ -1303,15 +1621,19 @@ func NewGameWithSeedAndDepth(width, height int, seed int64, depth int) GameState
 		Map:   gameMap,
 		Log:   logMsg,
 		Player: Entity{
-			ID:        0,
-			Name:      "Player",
-			IsPlayer:  true,
-			Pos:       spawnPos,
-			Rune:      "@",
-			Color:     "#00FF00",
-			Health:    100,
-			MaxHealth: 100,
-			Damage:    10,
+			ID:          0,
+			Name:        "Player",
+			IsPlayer:    true,
+			Pos:         spawnPos,
+			Rune:        "@",
+			Color:       "#00FF00",
+			Health:      100,
+			MaxHealth:   100,
+			Damage:      10,
+			Level:       1,
+			SkillPoints: 0,
+			Experience:  0,
+			Skills:      []SkillID{},
 		},
 		Entities: entities,
 		Items:    items,
@@ -1366,4 +1688,92 @@ func NewGameWithSeedDepthAndClass(width, height int, seed int64, depth int, clas
 // NewGameWithClass initializes a game state with a random seed and chosen class.
 func NewGameWithClass(width, height int, class ClassType) GameState {
 	return NewGameWithSeedDepthAndClass(width, height, time.Now().UnixNano(), 1, class)
+}
+
+// monsterXP returns XP awarded for killing a monster by name.
+func monsterXP(name string) int {
+	switch name {
+	case "Goblin":
+		return 10
+	case "Orc":
+		return 25
+	case "Troll":
+		return 50
+	case "Archer":
+		return 30
+	default:
+		return 10
+	}
+}
+
+// xpForLevel returns the total XP required to reach a given level.
+func xpForLevel(level int) int {
+	// Exponential growth: 100 * level^2
+	return 100 * level * level
+}
+
+// gainXP adds XP to the player and handles level ups.
+func (s GameState) gainXP(amount int) GameState {
+	if !s.Player.IsPlayer {
+		return s
+	}
+	s.Player.Experience += amount
+	s.Log = append(s.Log, fmt.Sprintf("You gain %d XP.", amount))
+
+	// Check for level up
+	for s.Player.Experience >= xpForLevel(s.Player.Level+1) {
+		s = s.levelUp()
+	}
+	return s
+}
+
+// levelUp increases player level, stats, and grants skill points.
+func (s GameState) levelUp() GameState {
+	s.Player.Level++
+	s.Player.MaxHealth += 10
+	s.Player.Health = s.Player.MaxHealth // Full heal on level up
+	s.Player.Damage += 2
+	s.Player.SkillPoints++
+	s.Log = append(s.Log, fmt.Sprintf("*** LEVEL UP! You are now level %d! ***", s.Player.Level))
+	s.Log = append(s.Log, fmt.Sprintf("Max HP: %d, Damage: %d, Skill Points: %d", s.Player.MaxHealth, s.Player.Damage, s.Player.SkillPoints))
+	return s
+}
+
+// LearnSkill lets the player learn a new skill if they have skill points and prerequisites.
+func (s GameState) LearnSkill(skillID SkillID) GameState {
+	if !s.Player.IsPlayer {
+		return s
+	}
+	if s.Player.SkillPoints <= 0 {
+		s.Log = append(s.Log, "You have no skill points to spend.")
+		return s
+	}
+	if !s.Player.CanLearnSkill(skillID) {
+		s.Log = append(s.Log, "You cannot learn that skill yet.")
+		return s
+	}
+	s.Player.Skills = append(s.Player.Skills, skillID)
+	s.Player.SkillPoints--
+	s.Log = append(s.Log, fmt.Sprintf("You learned %s!", skillName(skillID)))
+	return s
+}
+
+// skillName returns the display name for a skill ID.
+func skillName(id SkillID) string {
+	for _, s := range SkillTree(ClassWarrior) {
+		if s.ID == id {
+			return s.Name
+		}
+	}
+	for _, s := range SkillTree(ClassRogue) {
+		if s.ID == id {
+			return s.Name
+		}
+	}
+	for _, s := range SkillTree(ClassMage) {
+		if s.ID == id {
+			return s.Name
+		}
+	}
+	return "Unknown Skill"
 }

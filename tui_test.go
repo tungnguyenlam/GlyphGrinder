@@ -36,9 +36,13 @@ func playerAt(t *testing.T, lines []string, ox, oy int) Position {
 	t.Helper()
 	for lineIdx := 1; lineIdx < len(lines); lineIdx++ {
 		plain := stripANSI(lines[lineIdx])
-		x := strings.IndexRune(plain, '@')
-		if x < 0 {
-			x = strings.IndexRune(plain, '󰋋')
+		runes := []rune(plain)
+		x := -1
+		for i, r := range runes {
+			if r == '@' || r == '󰋋' {
+				x = i
+				break
+			}
 		}
 		if x >= 0 {
 			return Position{X: x + ox, Y: (lineIdx - 1) + oy}
@@ -901,6 +905,138 @@ func TestInputResponsivenessDuringTicks(t *testing.T) {
 	}
 }
 
+func TestScreenShakeOnHeavyHit(t *testing.T) {
+	tickInterval = 0
+	defer func() { tickInterval = 0 }()
+
+	// Create a model with a strong monster that deals heavy damage
+	m := model{
+		state: GameState{
+			Map: GameMap{
+				Width:  10,
+				Height: 10,
+				Tiles: [][]TileType{
+					{TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall},
+				},
+			},
+			Player: Entity{
+				ID:        0,
+				Name:      "Player",
+				IsPlayer:  true,
+				Pos:       Position{X: 1, Y: 1},
+				Rune:      "@",
+				Color:     "#00FF00",
+				Health:    100,
+				MaxHealth: 100,
+				Damage:    10,
+			},
+			Entities: []Entity{
+				{ID: 1, Name: "Ogre", IsPlayer: false, Pos: Position{X: 1, Y: 2}, Rune: "O", Color: "#FF0000", Health: 30, MaxHealth: 30, Damage: 15}, // 15 damage > heavyHitThreshold (8)
+			},
+		},
+		width:  20,
+		height: 16,
+	}
+
+	// Player bumps into the Ogre (down key) - player attacks, then Ogre counter-attacks for 15 damage
+	nextMdl, cmd := m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m = nextMdl.(model)
+
+	if cmd == nil {
+		t.Fatal("Update(moveKey) should return a tick command when animating/shaking")
+	}
+
+	// Verify shake was triggered immediately after the key press (before any ticks)
+	if m.shakeDuration != maxShakeFrames {
+		t.Errorf("expected shakeDuration = %d after heavy hit, got %d", maxShakeFrames, m.shakeDuration)
+	}
+	if m.shakeIntensity != 3.0 {
+		t.Errorf("expected shakeIntensity = 3.0 after heavy hit, got %f", m.shakeIntensity)
+	}
+
+	// Verify shake decays over ticks
+	frames := 0
+	for m.shakeDuration > 0 && frames < 20 {
+		frames++
+		nextM, _ := m.Update(animTickMsg(time.Now()))
+		m = nextM.(model)
+	}
+	if m.shakeDuration != 0 {
+		t.Errorf("expected shakeDuration to decay to 0, got %d", m.shakeDuration)
+	}
+	if m.shakeIntensity != 0 {
+		t.Errorf("expected shakeIntensity to decay to 0, got %f", m.shakeIntensity)
+	}
+}
+
+func TestNoScreenShakeOnLightHit(t *testing.T) {
+	tickInterval = 0
+	defer func() { tickInterval = 0 }()
+
+	// Create a model with a weak monster that deals light damage
+	m := model{
+		state: GameState{
+			Map: GameMap{
+				Width:  10,
+				Height: 10,
+				Tiles: [][]TileType{
+					{TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileFloor, TileWall},
+					{TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall, TileWall},
+				},
+			},
+			Player: Entity{
+				ID:        0,
+				Name:      "Player",
+				IsPlayer:  true,
+				Pos:       Position{X: 1, Y: 1},
+				Rune:      "@",
+				Color:     "#00FF00",
+				Health:    100,
+				MaxHealth: 100,
+				Damage:    10,
+			},
+			Entities: []Entity{
+				{ID: 1, Name: "Rat", IsPlayer: false, Pos: Position{X: 1, Y: 2}, Rune: "r", Color: "#888888", Health: 5, MaxHealth: 5, Damage: 3}, // 3 damage < heavyHitThreshold (8)
+			},
+		},
+		width:  20,
+		height: 16,
+	}
+
+	// Player bumps into the Rat (down key) - player attacks, then Rat counter-attacks for 3 damage
+	nextMdl, cmd := m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m = nextMdl.(model)
+
+	if cmd == nil {
+		t.Fatal("Update(moveKey) should return a tick command")
+	}
+
+	// Verify shake was NOT triggered for light hit
+	if m.shakeDuration > 0 {
+		t.Errorf("expected shakeDuration = 0 for light hit, got %d", m.shakeDuration)
+	}
+	if m.shakeIntensity > 0 {
+		t.Errorf("expected shakeIntensity = 0 for light hit, got %f", m.shakeIntensity)
+	}
+}
+
 func TestHUDDisplaysDepth(t *testing.T) {
 	m := initialModelWithSeed(12345)
 	d := tuitest.New(t, m)
@@ -1315,5 +1451,51 @@ func TestTargetingModeTUI(t *testing.T) {
 	viewCancelled := stripANSI(d.View())
 	if strings.Contains(viewCancelled, "TARGETING MODE") {
 		t.Errorf("expected TARGETING MODE to exit after pressing esc")
+	}
+}
+
+// TestTileBackgroundColors verifies that lava and water tiles have background
+// color escape sequences in their rendered strings. The ANSI TrueColor
+// background marker is "48;2;" followed by R;G;B values.
+func TestTileBackgroundColors(t *testing.T) {
+	withStableRender(t)
+
+	pal := DefaultPalette()
+	gly := ASCIIGlyphs()
+	cache := getRenderCache(pal, gly)
+
+	// "48;2;" is the ANSI escape introducer for 24-bit background color.
+	bgMarker := "48;2;"
+
+	tests := []struct {
+		name   string
+		styled string
+	}{
+		{"Lava (lit)", cache.Lava},
+		{"Water (lit)", cache.Water},
+		{"Lava (dim)", cache.DimLava},
+		{"Water (dim)", cache.DimWater},
+	}
+	for _, tc := range tests {
+		if !strings.Contains(tc.styled, bgMarker) {
+			t.Errorf("%s: expected background color escape (%s) in styled string %q",
+				tc.name, bgMarker, tc.styled)
+		}
+	}
+
+	// Tiles without backgrounds should NOT have the marker.
+	noBackground := []struct {
+		name   string
+		styled string
+	}{
+		{"Floor", cache.Floor},
+		{"Wall", cache.Wall},
+		{"DoorClosed", cache.DoorClosed},
+	}
+	for _, tc := range noBackground {
+		if strings.Contains(tc.styled, bgMarker) {
+			t.Errorf("%s: unexpected background color escape in styled string %q",
+				tc.name, tc.styled)
+		}
 	}
 }
