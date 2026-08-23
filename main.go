@@ -527,7 +527,7 @@ func main() {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	p := tea.NewProgram(initialModel(rng), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
-		fmt.Printf("Error: %v", err)
+		fmt.Fprintf(os.Stderr, "glyphgrinder: %v\n", err)
 		os.Exit(1)
 	}
 }

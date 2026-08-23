@@ -63,6 +63,14 @@ cannot be truthfully simulated by the headless agent environment.
 ./scripts/verify.sh   —  2026-08-23  —  VERIFY OK
 ```
 
+Honest-failure batch (2026-08-23): `verify.sh` no longer claims
+`all files gofmt-clean` when `gofmt` is missing or errors — it checks `go` and
+`gofmt` exist up front and trusts `gofmt`'s exit status. Proven by running the
+script with an empty toolchain PATH (fails naming `go`), a `go`-only PATH
+(fails naming `gofmt`), and a syntax-error probe file (fails with the parse
+error; previously passed vacuously). Startup errors now go to stderr with a
+trailing newline.
+
 M3.5 three-depth victory flow: pre-final descent, final-stair escape without
 regeneration, frozen won state, visible goal/victory UI, and one-key fresh-run
 restart pass at state and headless levels.
