@@ -7,60 +7,54 @@ Update it continuously — as soon as a sub-task lands or the plan changes.
 
 ## Current milestone
 
-**M1 — Playable core loop.** Turn the current fixed 20x10 walled room into a
-small but real roguelike level: a generated dungeon, at least one monster that
-takes a turn, and bump-to-attack combat that can kill and be killed.
+**M2 — It looks like the pitch.** Turn the now-playable roguelike into a
+terminal presentation with visibility, depth, motion, and camera behavior that
+serves the “that’s a terminal?” goal without sacrificing deterministic rules.
 
-Serves `GOAL.md` directly: right now there is nothing to play, and the vision's
-"real roguelike underneath the polish" has no polish worth adding until the
-loop exists. Visual work (animation, lighting, Nerd Font glyph sets) is
-deliberately deferred to M2 — park ideas in `parking-lot.md`.
+Serves `GOAL.md` directly: M1 supplied the real roguelike underneath; M2 now
+targets the dungeon lighting, remembered space, smooth movement, recognizable
+glyphs, and terminal-aware framing promised by the vision.
 
 ## Exact next action
 
-**Finish the playable loop with health/log UI, death, and restart.**
+**Add field of view and exploration memory.**
 
-- Mark the state game-over when monster damage reduces player health to zero,
-  append a death message, and stop further world turns.
-- Render a health bar and recent combat log beside the dungeon; show an
-  unmistakable game-over prompt with `r` as the one-key restart.
-- Restart through the retained RNG so the new run gets a fresh generated state.
-  Cover death freezing, visible UI state, and restart through game-state and
-  headless tests.
+- Track visible and explored cells in game state, initialized at generation and
+  refreshed only when the player changes position; `View` remains pure.
+- Use a small radius and wall-blocked line of sight so nearby walls are visible,
+  tiles behind them are hidden, and previously seen cells remain remembered.
+- Render unseen cells blank, remembered cells dim, and visible cells normally;
+  hide monsters outside current visibility.
+- Add state tests for occlusion, movement refresh, and memory plus headless
+  tests for hidden/remembered rendering.
 
-Why next: all underlying map, actor, combat, and enemy-turn rules exist; this is
-the remaining feedback/recovery layer required to make them a complete loop.
+Why next: visibility is the largest missing piece of the north-star dungeon
+look and establishes the state/rendering seam that the palette will style next.
 
 ## Milestone plan
 
-- [x] **M1.1** Factor movement into `tryMove(dx, dy)` — *completed 2026-07-27*.
-- [x] **M1.2** Move turn resolution out of the key switch: `Update` handles
-      input, a `Step(action Action)` method on `GameState` advances the world
-      one turn. Needed before monsters can act. — *completed 2026-08-23*.
-- [x] **M1.3** Map generation — rooms plus corridors into `GameMap`, seeded
-      from an explicit RNG stored in the model so tests are deterministic
-      (ADR-0003). Replace the hard-coded 20x10 room in `initialModel`. —
-      *completed 2026-08-23*.
-- [x] **M1.4** Populate `GameState.Entities` with monsters at generation time
-      and render them in `View`. — *completed 2026-08-23*.
-- [x] **M1.5** Bump-to-attack: moving into an occupied tile deals
-      `Entity.Damage`, reduces `Health`, removes the entity at zero, and
-      appends a line to `GameState.Log`. — *completed 2026-08-23*.
-- [x] **M1.6** Monster turns: each monster steps toward the player after the
-      player's turn resolves. — *completed 2026-08-23*.
-- [ ] **M1.7** Render the log and a health bar alongside the map; handle player
-      death with a game-over state and restart on one keypress.
+- [ ] **M2.1** Field of view and exploration memory with wall occlusion;
+      invisible monsters stay hidden and explored terrain renders dimly.
+- [ ] **M2.2** Replace ad hoc colors with a cohesive truecolor terrain/entity
+      palette that degrades through Lip Gloss color profiles.
+- [ ] **M2.3** Add a resize-aware viewport and player-following camera, then
+      grow generated maps beyond the initial 20x10 frame.
+- [ ] **M2.4** Add recognizable terrain/entity glyph profiles with a dependable
+      ASCII fallback.
+- [ ] **M2.5** Animate player and monster movement from tick messages without
+      moving rule resolution into `View`.
 
-## Acceptance criteria for M1
+## Acceptance criteria for M2
 
-- Launching produces a different dungeon each run; the same seed produces the
-  same dungeon.
-- The player can walk into a monster, damage it, kill it, and see it in the log.
-- A monster can kill the player, and the game says so instead of hanging.
-- `GameState.Entities` and `GameState.Log` are both read and written by real
-  gameplay code.
-- Every rule above is covered by a `internal/tuitest`-driven test; no test
-  requires a TTY.
+- The dungeon distinguishes visible, remembered, and unexplored space; unseen
+  monsters do not render.
+- Terrain and actors use a coherent color/glyph system with a documented ASCII
+  fallback path.
+- A dungeon larger than the terminal is navigable through a resize-aware camera
+  that follows the player.
+- Player and monster steps animate through modelled tick state while input and
+  rule resolution remain deterministic and `View` stays pure.
+- Every behavior above has headless coverage; no test requires a TTY.
 - `./scripts/verify.sh` passes.
 
 ## Blockers
@@ -73,5 +67,6 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-08-23  —  VERIFY OK
 ```
 
-M1.6 deterministic monster pursuit and attacks: gofmt clean, `go vet` clean,
-builds, headless smoke frame renders, all tests pass, `go.mod` tidy.
+M1.7 health/log UI, death state, and restart (completing M1): gofmt clean,
+`go vet` clean, builds, headless smoke frame renders, all tests pass, `go.mod`
+tidy.

@@ -3,11 +3,7 @@
 Committed future work, in order. A milestone moves from here into
 `active.md` when it starts. Nothing here is a promise about *when*.
 
-## M1 — Playable core loop *(in progress — see [active.md](active.md))*
-
-Generated dungeon, monsters, bump-to-attack combat, death and restart.
-
-## M2 — It looks like the pitch
+## M2 — It looks like the pitch *(in progress — see [active.md](active.md))*
 
 The point at which the README's claim stops being aspirational.
 

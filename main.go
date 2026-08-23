@@ -31,6 +31,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
+		case "r":
+			if m.state.GameOver {
+				m.state = NewGame(m.state.Map.Width, m.state.Map.Height, m.rng)
+			}
+			return m, nil
 		case "up", "w":
 			action = ActionMoveUp
 		case "down", "s":
@@ -83,6 +88,37 @@ func (m model) View() string {
 		}
 	}
 
+	return lipgloss.JoinHorizontal(lipgloss.Top, sb.String(), "  ", renderSidebar(m.state))
+}
+
+func renderSidebar(state GameState) string {
+	const (
+		healthBarWidth  = 10
+		visibleLogLines = 4
+	)
+	filled := 0
+	if state.Player.MaxHealth > 0 {
+		filled = state.Player.Health * healthBarWidth / state.Player.MaxHealth
+	}
+	filled = max(0, min(healthBarWidth, filled))
+
+	var sb strings.Builder
+	fmt.Fprintf(
+		&sb,
+		"HP [%s%s] %d/%d\nLog:",
+		strings.Repeat("#", filled),
+		strings.Repeat(".", healthBarWidth-filled),
+		state.Player.Health,
+		state.Player.MaxHealth,
+	)
+	logStart := max(0, len(state.Log)-visibleLogLines)
+	for _, entry := range state.Log[logStart:] {
+		sb.WriteByte('\n')
+		sb.WriteString(entry)
+	}
+	if state.GameOver {
+		sb.WriteString("\nGAME OVER\nPress r to restart")
+	}
 	return sb.String()
 }
 

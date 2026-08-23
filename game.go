@@ -74,10 +74,15 @@ type GameState struct {
 	Player   Entity
 	Entities []Entity
 	Log      []string
+	GameOver bool
 }
 
 // Step resolves a player action and returns the resulting game state.
 func (g GameState) Step(action Action) GameState {
+	if g.GameOver {
+		return g
+	}
+
 	dx, dy := 0, 0
 	switch action {
 	case ActionMoveUp:
@@ -136,6 +141,8 @@ func (g GameState) resolveMonsterTurns() GameState {
 			g.Player.Health = max(0, g.Player.Health-monster.Damage)
 			g.Log = appendLog(g.Log, fmt.Sprintf("Monster %d hits you for %d damage.", monster.ID, monster.Damage))
 			if g.Player.Health == 0 {
+				g.GameOver = true
+				g.Log = appendLog(g.Log, "You die.")
 				break
 			}
 			continue

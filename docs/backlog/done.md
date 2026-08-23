@@ -4,6 +4,25 @@ Completed milestones, newest first. This is the project's memory of what has
 already been built and tried — check here before "discovering" that something
 is missing.
 
+## 2026-08-23 — M1: Playable core loop
+
+Turned the fixed-room prototype into a complete, restartable roguelike loop.
+
+- Added deterministic seeded room-and-corridor generation with connected
+  floors, a retained production RNG, and randomized run startup.
+- Populated each dungeon with three visible monsters carrying stable IDs and
+  combat stats.
+- Added bump-to-attack damage and killing, deterministic monster pursuit and
+  retaliation, actor collision rules, combat logging, and value-state slice
+  isolation.
+- Added health/log UI beside the map, explicit death/game-over state, frozen
+  post-death turns, and one-key restart on `r`.
+- Reworked state and headless tests around fixed seeds and generated geometry;
+  coverage includes generation, rendering, player/monster combat, death, and
+  restart without a TTY.
+
+Verified: `./scripts/verify.sh` — VERIFY OK.
+
 ## 2026-07-26 — M0: Agent-centric scaffolding
 
 Set the repo up so agents can pick up work across sessions without

@@ -58,8 +58,15 @@ func TestViewRendersFullGrid(t *testing.T) {
 		t.Fatalf("view has %d rows, want %d", got, want)
 	}
 	for y, line := range lines {
-		if got, want := len([]rune(stripANSI(line))), state.Map.Width; got != want {
-			t.Errorf("row %d has %d cells, want %d", y, got, want)
+		plain := []rune(stripANSI(line))
+		if got, wantAtLeast := len(plain), state.Map.Width; got < wantAtLeast {
+			t.Errorf("row %d has %d cells, want at least %d map cells", y, got, wantAtLeast)
+			continue
+		}
+		for x, cell := range plain[:state.Map.Width] {
+			if !strings.ContainsRune("#.@g", cell) {
+				t.Errorf("map cell (%d,%d) = %q, want a dungeon glyph", x, y, cell)
+			}
 		}
 	}
 	if got, want := playerAt(t, lines), state.Player.Pos; got != want {
@@ -77,6 +84,21 @@ func TestViewRendersMonstersAtStatePositions(t *testing.T) {
 		if got := string(plain[monster.Pos.X]); got != monster.Rune {
 			t.Errorf("monster %d rendered as %q at %+v, want %q", monster.ID, got, monster.Pos, monster.Rune)
 		}
+	}
+}
+
+func TestViewRendersHealthAndRecentLog(t *testing.T) {
+	state := openTestState()
+	state.Player.Health = 65
+	state.Log = append(state.Log, "A test event.")
+	d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed))})
+	plain := stripANSI(d.View())
+
+	if !strings.Contains(plain, "HP [######....] 65/100") {
+		t.Errorf("view does not contain health bar:\n%s", plain)
+	}
+	if !strings.Contains(plain, "A test event.") {
+		t.Errorf("view does not contain recent log entry:\n%s", plain)
 	}
 }
 
@@ -171,6 +193,37 @@ func TestMonsterAttackSurvivesUpdateRoundTrip(t *testing.T) {
 	}
 	if gotLog, want := got.Log, "Monster 1 hits you for 5 damage."; len(gotLog) != 2 || gotLog[1] != want {
 		t.Errorf("log after key = %q, want final entry %q", gotLog, want)
+	}
+}
+
+func TestGameOverAndRestartSurviveUpdateRoundTrip(t *testing.T) {
+	state := openTestState()
+	state.Player.Pos = Position{X: 3, Y: 3}
+	state.Player.Health = 5
+	state.Map.Tiles[3][4] = TileWall
+	state.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
+	d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed))})
+
+	d.Key("right")
+	dead := d.Model().(model).state
+	if !dead.GameOver {
+		t.Fatal("lethal input did not produce game over")
+	}
+	plain := stripANSI(d.View())
+	if !strings.Contains(plain, "GAME OVER") || !strings.Contains(plain, "Press r to restart") {
+		t.Errorf("game-over view is missing restart prompt:\n%s", plain)
+	}
+
+	d.Key("r")
+	restarted := d.Model().(model).state
+	if restarted.GameOver {
+		t.Fatal("restart left game in game-over state")
+	}
+	if restarted.Player.Health != restarted.Player.MaxHealth {
+		t.Errorf("restarted health = %d/%d, want full", restarted.Player.Health, restarted.Player.MaxHealth)
+	}
+	if len(restarted.Entities) == 0 {
+		t.Error("restarted dungeon has no monsters")
 	}
 }
 

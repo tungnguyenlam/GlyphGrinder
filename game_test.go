@@ -345,6 +345,29 @@ func TestMonsterTurnsResolveInStableIDOrder(t *testing.T) {
 	}
 }
 
+func TestMonsterAttackEndsRunAndFreezesState(t *testing.T) {
+	g := openTestState()
+	g.Player.Pos = Position{X: 3, Y: 3}
+	g.Player.Health = 5
+	g.Map.Tiles[3][4] = TileWall
+	g.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
+
+	dead := g.Step(ActionMoveRight)
+
+	if !dead.GameOver {
+		t.Fatal("lethal monster attack did not mark game over")
+	}
+	if dead.Player.Health != 0 {
+		t.Errorf("player health = %d, want 0", dead.Player.Health)
+	}
+	if got, want := dead.Log[len(dead.Log)-1], "You die."; got != want {
+		t.Errorf("final log entry = %q, want %q", got, want)
+	}
+	if after := dead.Step(ActionMoveLeft); !reflect.DeepEqual(after, dead) {
+		t.Errorf("game-over state changed on another turn:\ngot  %+v\nwant %+v", after, dead)
+	}
+}
+
 func combatTestState(targetHealth int) GameState {
 	g := newTestGame(11)
 	g.Entities = []Entity{
