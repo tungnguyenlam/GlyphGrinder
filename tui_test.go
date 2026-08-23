@@ -64,7 +64,7 @@ func TestViewRendersFullGrid(t *testing.T) {
 			continue
 		}
 		for x, cell := range plain[:state.Map.Width] {
-			if !strings.ContainsRune("#.@g", cell) {
+			if !strings.ContainsRune(" #.@g", cell) {
 				t.Errorf("map cell (%d,%d) = %q, want a dungeon glyph", x, y, cell)
 			}
 		}
@@ -74,17 +74,54 @@ func TestViewRendersFullGrid(t *testing.T) {
 	}
 }
 
-func TestViewRendersMonstersAtStatePositions(t *testing.T) {
+func TestViewRendersOnlyVisibleMonsters(t *testing.T) {
 	d := tuitest.New(t, newTUITestModel())
 	state := d.Model().(model).state
 	lines := d.Lines()
 
 	for _, monster := range state.Entities {
 		plain := []rune(stripANSI(lines[monster.Pos.Y]))
-		if got := string(plain[monster.Pos.X]); got != monster.Rune {
-			t.Errorf("monster %d rendered as %q at %+v, want %q", monster.ID, got, monster.Pos, monster.Rune)
+		got := string(plain[monster.Pos.X])
+		if state.Map.Visible[monster.Pos.Y][monster.Pos.X] && got != monster.Rune {
+			t.Errorf("visible monster %d rendered as %q at %+v, want %q", monster.ID, got, monster.Pos, monster.Rune)
+		}
+		if !state.Map.Visible[monster.Pos.Y][monster.Pos.X] && got == monster.Rune {
+			t.Errorf("hidden monster %d rendered at %+v", monster.ID, monster.Pos)
 		}
 	}
+}
+
+func TestViewDistinguishesHiddenAndRememberedTiles(t *testing.T) {
+	state := openTestStateSized(11, 7)
+	state.Player.Pos = Position{X: 2, Y: 3}
+	state.Map.Tiles[3][3] = TileWall
+	state.Entities = []Entity{testMonster(1, Position{X: 4, Y: 3})}
+	state.Map.Visible = nil
+	state.Map.Explored = nil
+	state = state.refreshVisibility()
+	remembered := Position{X: 9, Y: 3}
+	state.Map.Explored[remembered.Y][remembered.X] = true
+	d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed))})
+	lines := d.Lines()
+
+	if got := renderedCell(t, lines, Position{X: 4, Y: 3}); got != " " {
+		t.Errorf("unseen monster tile rendered as %q, want blank", got)
+	}
+	if got := renderedCell(t, lines, remembered); got != "." {
+		t.Errorf("remembered floor rendered as %q, want dim floor glyph", got)
+	}
+}
+
+func renderedCell(t *testing.T, lines []string, pos Position) string {
+	t.Helper()
+	if pos.Y < 0 || pos.Y >= len(lines) {
+		t.Fatalf("row %d outside rendered view", pos.Y)
+	}
+	plain := []rune(stripANSI(lines[pos.Y]))
+	if pos.X < 0 || pos.X >= len(plain) {
+		t.Fatalf("column %d outside rendered row %d", pos.X, pos.Y)
+	}
+	return string(plain[pos.X])
 }
 
 func TestViewRendersHealthAndRecentLog(t *testing.T) {

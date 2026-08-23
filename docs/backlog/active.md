@@ -17,24 +17,25 @@ glyphs, and terminal-aware framing promised by the vision.
 
 ## Exact next action
 
-**Add field of view and exploration memory.**
+**Replace ad hoc colors with a semantic dungeon palette.**
 
-- Track visible and explored cells in game state, initialized at generation and
-  refreshed only when the player changes position; `View` remains pure.
-- Use a small radius and wall-blocked line of sight so nearby walls are visible,
-  tiles behind them are hidden, and previously seen cells remain remembered.
-- Render unseen cells blank, remembered cells dim, and visible cells normally;
-  hide monsters outside current visibility.
-- Add state tests for occlusion, movement refresh, and memory plus headless
-  tests for hidden/remembered rendering.
+- Define one semantic palette for lit stone/floor, remembered terrain, player,
+  monsters, health, log text, and danger/game-over UI instead of scattered
+  literals.
+- Apply foreground/background depth consistently while relying on Lip Gloss's
+  terminal color-profile conversion for graceful degradation.
+- Keep colors out of rule decisions and preserve plain-text glyph output; add
+  focused rendering tests for semantic style distinctions without snapshotting
+  entire ANSI frames.
 
-Why next: visibility is the largest missing piece of the north-star dungeon
-look and establishes the state/rendering seam that the palette will style next.
+Why next: M2.1 now exposes lit and remembered states, but their current greys
+and actor colors are still disconnected literals rather than a designed ramp.
 
 ## Milestone plan
 
-- [ ] **M2.1** Field of view and exploration memory with wall occlusion;
-      invisible monsters stay hidden and explored terrain renders dimly.
+- [x] **M2.1** Field of view and exploration memory with wall occlusion;
+      invisible monsters stay hidden and explored terrain renders dimly. —
+      *completed 2026-08-23*.
 - [ ] **M2.2** Replace ad hoc colors with a cohesive truecolor terrain/entity
       palette that degrades through Lip Gloss color profiles.
 - [ ] **M2.3** Add a resize-aware viewport and player-following camera, then
@@ -67,6 +68,5 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-08-23  —  VERIFY OK
 ```
 
-M1.7 health/log UI, death state, and restart (completing M1): gofmt clean,
-`go vet` clean, builds, headless smoke frame renders, all tests pass, `go.mod`
-tidy.
+M2.1 field of view and exploration memory: gofmt clean, `go vet` clean, builds,
+headless smoke frame renders, all tests pass, `go.mod` tidy.

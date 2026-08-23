@@ -33,9 +33,11 @@ const (
 
 // GameMap holds the grid.
 type GameMap struct {
-	Width  int
-	Height int
-	Tiles  [][]TileType
+	Width    int
+	Height   int
+	Tiles    [][]TileType
+	Visible  [][]bool
+	Explored [][]bool
 }
 
 type room struct {
@@ -97,7 +99,11 @@ func (g GameState) Step(action Action) GameState {
 		return g
 	}
 
+	previousPlayerPos := g.Player.Pos
 	g = g.resolvePlayerMove(dx, dy)
+	if g.Player.Pos != previousPlayerPos {
+		g = g.refreshVisibility()
+	}
 	return g.resolveMonsterTurns()
 }
 
@@ -238,12 +244,83 @@ func appendLog(log []string, message string) []string {
 	return append(next, message)
 }
 
+const visibilityRadius = 6
+
+func (g GameState) refreshVisibility() GameState {
+	visible := makeBoolGrid(g.Map.Width, g.Map.Height)
+	explored := cloneBoolGrid(g.Map.Explored, g.Map.Width, g.Map.Height)
+	radiusSquared := visibilityRadius * visibilityRadius
+
+	for y := max(0, g.Player.Pos.Y-visibilityRadius); y <= min(g.Map.Height-1, g.Player.Pos.Y+visibilityRadius); y++ {
+		for x := max(0, g.Player.Pos.X-visibilityRadius); x <= min(g.Map.Width-1, g.Player.Pos.X+visibilityRadius); x++ {
+			dx := x - g.Player.Pos.X
+			dy := y - g.Player.Pos.Y
+			if dx*dx+dy*dy > radiusSquared {
+				continue
+			}
+			if !hasLineOfSight(g.Map, g.Player.Pos, Position{X: x, Y: y}) {
+				continue
+			}
+			visible[y][x] = true
+			explored[y][x] = true
+		}
+	}
+
+	g.Map.Visible = visible
+	g.Map.Explored = explored
+	return g
+}
+
+func makeBoolGrid(width, height int) [][]bool {
+	grid := make([][]bool, height)
+	for y := range grid {
+		grid[y] = make([]bool, width)
+	}
+	return grid
+}
+
+func cloneBoolGrid(source [][]bool, width, height int) [][]bool {
+	clone := makeBoolGrid(width, height)
+	for y := 0; y < min(height, len(source)); y++ {
+		copy(clone[y], source[y])
+	}
+	return clone
+}
+
+func hasLineOfSight(m GameMap, from, to Position) bool {
+	x, y := from.X, from.Y
+	dx := abs(to.X - from.X)
+	dy := abs(to.Y - from.Y)
+	sx := sign(to.X - from.X)
+	sy := sign(to.Y - from.Y)
+	err := dx - dy
+
+	for {
+		if x == to.X && y == to.Y {
+			return true
+		}
+		if (Position{X: x, Y: y}) != from && m.Tiles[y][x] == TileWall {
+			return false
+		}
+
+		twiceError := 2 * err
+		if twiceError > -dy {
+			err -= dy
+			x += sx
+		}
+		if twiceError < dx {
+			err += dx
+			y += sy
+		}
+	}
+}
+
 // NewGame generates a dungeon using rng and places the player in its first room.
 func NewGame(width, height int, rng *rand.Rand) GameState {
 	gameMap, rooms := generateDungeon(width, height, rng)
 	playerPos := rooms[0].center()
 
-	return GameState{
+	g := GameState{
 		Map:      gameMap,
 		Entities: placeMonsters(gameMap, playerPos, rng),
 		Player: Entity{
@@ -256,6 +333,7 @@ func NewGame(width, height int, rng *rand.Rand) GameState {
 			Damage:    10,
 		},
 	}
+	return g.refreshVisibility()
 }
 
 func placeMonsters(m GameMap, playerPos Position, rng *rand.Rand) []Entity {

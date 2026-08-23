@@ -61,6 +61,10 @@ func (m model) View() string {
 	floor := floorStyle.Render(".")
 	wallStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
 	wall := wallStyle.Render("#")
+	memoryFloorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#222222"))
+	memoryFloor := memoryFloorStyle.Render(".")
+	memoryWallStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#333333"))
+	memoryWall := memoryWallStyle.Render("#")
 	entityGlyphs := make(map[Position]string, len(m.state.Entities))
 	for _, entity := range m.state.Entities {
 		style := lipgloss.NewStyle().Foreground(lipgloss.Color(entity.Color)).Bold(true)
@@ -70,10 +74,18 @@ func (m model) View() string {
 	var sb strings.Builder
 	for y := 0; y < m.state.Map.Height; y++ {
 		for x := 0; x < m.state.Map.Width; x++ {
-			if x == m.state.Player.Pos.X && y == m.state.Player.Pos.Y {
+			visible := m.state.Map.Visible[y][x]
+			explored := m.state.Map.Explored[y][x]
+			if !explored {
+				sb.WriteByte(' ')
+			} else if x == m.state.Player.Pos.X && y == m.state.Player.Pos.Y {
 				sb.WriteString(player)
-			} else if entity, ok := entityGlyphs[Position{X: x, Y: y}]; ok {
+			} else if entity, ok := entityGlyphs[Position{X: x, Y: y}]; visible && ok {
 				sb.WriteString(entity)
+			} else if !visible && m.state.Map.Tiles[y][x] == TileWall {
+				sb.WriteString(memoryWall)
+			} else if !visible {
+				sb.WriteString(memoryFloor)
 			} else {
 				// Render floor tiles or walls based on the map state
 				if m.state.Map.Tiles[y][x] == TileWall {

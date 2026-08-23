@@ -119,6 +119,70 @@ func TestDifferentSeedsVaryDungeon(t *testing.T) {
 	}
 }
 
+func TestVisibilityStopsBehindWalls(t *testing.T) {
+	g := openTestState()
+	g.Player.Pos = Position{X: 3, Y: 3}
+	g.Map.Tiles[2][3] = TileWall
+	g.Map.Visible = nil
+	g.Map.Explored = nil
+	g = g.refreshVisibility()
+
+	if !g.Map.Visible[2][3] {
+		t.Error("blocking wall should itself be visible")
+	}
+	if g.Map.Visible[1][3] {
+		t.Error("tile directly behind wall should not be visible")
+	}
+	if g.Map.Explored[1][3] {
+		t.Error("never-seen tile behind wall should not be explored")
+	}
+}
+
+func TestVisibilityRefreshPreservesExplorationMemory(t *testing.T) {
+	g := openTestStateSized(17, 7)
+	g.Player.Pos = Position{X: 2, Y: 3}
+	g.Map.Visible = nil
+	g.Map.Explored = nil
+	g = g.refreshVisibility()
+	remembered := Position{X: 2, Y: 2}
+	priorExplored := g.Map.Explored
+
+	g.Player.Pos = Position{X: 14, Y: 3}
+	got := g.refreshVisibility()
+
+	if got.Map.Visible[remembered.Y][remembered.X] {
+		t.Error("old tile remained visible outside the new radius")
+	}
+	if !got.Map.Explored[remembered.Y][remembered.X] {
+		t.Error("old visible tile was not remembered as explored")
+	}
+	if priorExplored[3][14] {
+		t.Error("visibility refresh mutated prior exploration backing grid")
+	}
+}
+
+func TestStepRefreshesVisibilityAfterPlayerMoves(t *testing.T) {
+	g := openTestStateSized(12, 7)
+	g.Player.Pos = Position{X: 2, Y: 3}
+	g.Entities = nil
+	g.Map.Visible = nil
+	g.Map.Explored = nil
+	g = g.refreshVisibility()
+	newlyVisible := Position{X: 9, Y: 3}
+	if g.Map.Visible[newlyVisible.Y][newlyVisible.X] {
+		t.Fatal("fixture tile is already visible before movement")
+	}
+
+	got := g.Step(ActionMoveRight)
+
+	if !got.Map.Visible[newlyVisible.Y][newlyVisible.X] {
+		t.Error("player movement did not refresh visibility")
+	}
+	if g.Map.Visible[newlyVisible.Y][newlyVisible.X] {
+		t.Error("Step mutated the prior state's visibility grid")
+	}
+}
+
 func reachableFloors(m GameMap, start Position) map[Position]struct{} {
 	reachable := map[Position]struct{}{start: {}}
 	queue := []Position{start}
@@ -394,7 +458,10 @@ func combatTestState(targetHealth int) GameState {
 }
 
 func openTestState() GameState {
-	const width, height = 7, 7
+	return openTestStateSized(7, 7)
+}
+
+func openTestStateSized(width, height int) GameState {
 	tiles := make([][]TileType, height)
 	for y := range tiles {
 		tiles[y] = make([]TileType, width)
@@ -406,10 +473,11 @@ func openTestState() GameState {
 	}
 	log := make([]string, 1, 3)
 	log[0] = "The fight begins."
-	return GameState{
+	g := GameState{
 		Map: GameMap{Width: width, Height: height, Tiles: tiles},
 		Player: Entity{
 			IsPlayer:  true,
+			Pos:       Position{X: width / 2, Y: height / 2},
 			Rune:      "@",
 			Health:    100,
 			MaxHealth: 100,
@@ -417,6 +485,7 @@ func openTestState() GameState {
 		},
 		Log: log,
 	}
+	return g.refreshVisibility()
 }
 
 func testMonster(id int, pos Position) Entity {
