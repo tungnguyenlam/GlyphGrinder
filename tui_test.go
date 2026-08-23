@@ -131,6 +131,29 @@ func TestPlayerCannotWalkThroughWalls(t *testing.T) {
 	}
 }
 
+func TestBumpAttackSurvivesUpdateRoundTrip(t *testing.T) {
+	state := combatTestState(20)
+	d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed))})
+
+	d.Key("right")
+	got := d.Model().(model).state
+	if got.Entities[0].Health != 10 {
+		t.Errorf("target health after key = %d, want 10", got.Entities[0].Health)
+	}
+	if got.Player.Pos != state.Player.Pos {
+		t.Errorf("player moved to %+v during attack, want %+v", got.Player.Pos, state.Player.Pos)
+	}
+	if gotLog, want := got.Log, "You hit monster 1 for 10 damage."; len(gotLog) != 2 || gotLog[1] != want {
+		t.Errorf("log after key = %q, want final entry %q", gotLog, want)
+	}
+
+	d.Key("right")
+	got = d.Model().(model).state
+	if len(got.Entities) != 1 || got.Entities[0].ID != 2 {
+		t.Errorf("entities after second key = %+v, want only monster 2", got.Entities)
+	}
+}
+
 func TestQuitKeys(t *testing.T) {
 	for _, key := range []string{"q", "ctrl+c"} {
 		t.Run(key, func(t *testing.T) {

@@ -211,6 +211,75 @@ func TestStepIgnoresNoAction(t *testing.T) {
 	}
 }
 
+func TestStepBumpAttackDamagesMonster(t *testing.T) {
+	g := combatTestState(20)
+	start := g.Player.Pos
+	untargeted := g.Entities[1]
+	priorLogBacking := g.Log[:cap(g.Log)]
+
+	got := g.Step(ActionMoveRight)
+
+	if got.Player.Pos != start {
+		t.Errorf("player moved to %+v during attack, want %+v", got.Player.Pos, start)
+	}
+	if got.Entities[0].Health != 10 {
+		t.Errorf("target health = %d, want 10", got.Entities[0].Health)
+	}
+	if got.Entities[1] != untargeted {
+		t.Errorf("untargeted monster changed: got %+v, want %+v", got.Entities[1], untargeted)
+	}
+	if gotLog, want := got.Log, []string{"The fight begins.", "You hit monster 1 for 10 damage."}; !reflect.DeepEqual(gotLog, want) {
+		t.Errorf("log = %q, want %q", gotLog, want)
+	}
+	if g.Entities[0].Health != 20 {
+		t.Errorf("Step mutated prior state target health to %d, want 20", g.Entities[0].Health)
+	}
+	if priorLogBacking[1] != "" {
+		t.Errorf("Step mutated prior log backing array with %q", priorLogBacking[1])
+	}
+}
+
+func TestStepBumpAttackKillsMonster(t *testing.T) {
+	g := combatTestState(10)
+
+	got := g.Step(ActionMoveRight)
+
+	if len(got.Entities) != 1 || got.Entities[0].ID != 2 {
+		t.Fatalf("entities after kill = %+v, want only monster 2", got.Entities)
+	}
+	if gotLog, want := got.Log, []string{"The fight begins.", "You kill monster 1."}; !reflect.DeepEqual(gotLog, want) {
+		t.Errorf("log = %q, want %q", gotLog, want)
+	}
+	if len(g.Entities) != 2 || g.Entities[0].Health != 10 {
+		t.Errorf("Step mutated prior entities: %+v", g.Entities)
+	}
+}
+
+func combatTestState(targetHealth int) GameState {
+	g := newTestGame(11)
+	g.Entities = []Entity{
+		{
+			ID:        1,
+			Pos:       Position{X: g.Player.Pos.X + 1, Y: g.Player.Pos.Y},
+			Rune:      "g",
+			Health:    targetHealth,
+			MaxHealth: 20,
+			Damage:    5,
+		},
+		{
+			ID:        2,
+			Pos:       Position{X: g.Player.Pos.X - 1, Y: g.Player.Pos.Y},
+			Rune:      "g",
+			Health:    20,
+			MaxHealth: 20,
+			Damage:    5,
+		},
+	}
+	g.Log = make([]string, 1, 3)
+	g.Log[0] = "The fight begins."
+	return g
+}
+
 func floorBesideWall(t *testing.T, m GameMap) (Position, Action) {
 	t.Helper()
 	directions := []struct {

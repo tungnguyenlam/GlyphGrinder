@@ -1,6 +1,9 @@
 package main
 
-import "math/rand"
+import (
+	"fmt"
+	"math/rand"
+)
 
 // Position represents a 2D coordinate on the grid.
 type Position struct {
@@ -96,9 +99,35 @@ func (g GameState) Step(action Action) GameState {
 	if g.Map.Tiles[newY][newX] == TileWall {
 		return g
 	}
+	for i, entity := range g.Entities {
+		if entity.Pos == (Position{X: newX, Y: newY}) {
+			return g.attackMonster(i)
+		}
+	}
 
 	g.Player.Pos = Position{X: newX, Y: newY}
 	return g
+}
+
+func (g GameState) attackMonster(index int) GameState {
+	entities := append([]Entity(nil), g.Entities...)
+	entities[index].Health -= g.Player.Damage
+	if entities[index].Health > 0 {
+		g.Entities = entities
+		g.Log = appendLog(g.Log, fmt.Sprintf("You hit monster %d for %d damage.", entities[index].ID, g.Player.Damage))
+		return g
+	}
+
+	defeatedID := entities[index].ID
+	g.Entities = append(entities[:index], entities[index+1:]...)
+	g.Log = appendLog(g.Log, fmt.Sprintf("You kill monster %d.", defeatedID))
+	return g
+}
+
+func appendLog(log []string, message string) []string {
+	next := make([]string, len(log), len(log)+1)
+	copy(next, log)
+	return append(next, message)
 }
 
 // NewGame generates a dungeon using rng and places the player in its first room.

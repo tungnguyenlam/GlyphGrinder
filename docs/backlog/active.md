@@ -18,18 +18,19 @@ deliberately deferred to M2 — park ideas in `parking-lot.md`.
 
 ## Exact next action
 
-**Implement bump-to-attack combat against monsters.**
+**Give every monster a deterministic turn after the player's action.**
 
-- When movement targets a monster, keep the player in place and subtract the
-  player's damage from that monster's health.
-- Remove monsters reduced to zero health and append clear hit/kill messages to
-  `GameState.Log`.
-- Cover damage, killing, non-target preservation, and value-state isolation in
-  game-state tests; add a headless input test proving the combat round trip
-  survives `Update`.
+- After each directional player action, process living monsters in stable ID
+  order: attack when adjacent, otherwise take one unoccupied floor step that
+  reduces Manhattan distance to the player.
+- Prevent monsters from entering walls, the player tile, or each other's tiles;
+  subtract monster damage from player health and append attack messages.
+- Add state tests for pursuit, blocked movement, collision avoidance, attack
+  damage, and prior-state isolation; cover one movement/attack path through the
+  headless driver.
 
-Why next: M1.4 puts visible monsters on reachable tiles with real combat stats;
-bump combat is now the smallest change that turns movement into gameplay.
+Why next: the player can now kill stationary targets; M1 needs enemies that
+threaten the player before health/game-over UI can complete the loop.
 
 ## Milestone plan
 
@@ -43,9 +44,9 @@ bump combat is now the smallest change that turns movement into gameplay.
       *completed 2026-08-23*.
 - [x] **M1.4** Populate `GameState.Entities` with monsters at generation time
       and render them in `View`. — *completed 2026-08-23*.
-- [ ] **M1.5** Bump-to-attack: moving into an occupied tile deals
+- [x] **M1.5** Bump-to-attack: moving into an occupied tile deals
       `Entity.Damage`, reduces `Health`, removes the entity at zero, and
-      appends a line to `GameState.Log`.
+      appends a line to `GameState.Log`. — *completed 2026-08-23*.
 - [ ] **M1.6** Monster turns: each monster steps toward the player after the
       player's turn resolves.
 - [ ] **M1.7** Render the log and a health bar alongside the map; handle player
@@ -73,5 +74,5 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-08-23  —  VERIFY OK
 ```
 
-M1.4 monster population and rendering: gofmt clean, `go vet` clean, builds,
-headless smoke frame renders, all tests pass, `go.mod` tidy.
+M1.5 bump-to-attack combat: gofmt clean, `go vet` clean, builds, headless smoke
+frame renders, all tests pass, `go.mod` tidy.
