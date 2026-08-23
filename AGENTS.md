@@ -10,11 +10,11 @@ follow the Startup Routine. Keep this file concise — durable detail belongs in
 GlyphGrinder is a terminal roguelike written in Go, built on Bubble Tea
 (`github.com/charmbracelet/bubbletea`) and Lip Gloss for styling. It is very
 early: a single `package main` at the repo root holds the whole game — `game.go`
-has the flat `GameState`/`GameMap`/`Entity` model and `NewGame`, and `main.go`
-has the Bubble Tea `model` with `Init`/`Update`/`View`. Right now the game boots
-into a fixed 20x10 walled room where you move an `@` with arrows or WASD and
-quit with `q`; there are no monsters, no combat, no level generation, and no
-animation yet.
+has the flat `GameState`/`GameMap`/`Entity` model, `NewGame`, and turn resolution
+in `GameState.Step`; `main.go` maps Bubble Tea input to game actions and renders
+the result. Right now the game boots into a fixed 20x10 walled room where you
+move an `@` with arrows or WASD and quit with `q`; there are no monsters, no
+combat, no level generation, and no animation yet.
 
 The north star is [GOAL.md](GOAL.md) — read it before planning work, and check
 every task against it.
@@ -81,7 +81,7 @@ Sharp edges found during real work. Prune entries that stop being true.
   `could not open a new TTY: open /dev/tty: device not configured` and exit 1.
   Use `internal/tuitest` instead. Ask the user to run `make run` if a change
   genuinely needs human eyes.
-- **Bounds checks in `Update` are load-bearing but redundant.** `NewGame`
+- **Bounds checks in `GameState.Step` are load-bearing but redundant.** `NewGame`
   always walls the border, so the `Pos.Y > 0`-style checks never fire today.
   They will matter the moment map generation stops guaranteeing a wall ring —
   do not delete them without also guaranteeing the invariant.

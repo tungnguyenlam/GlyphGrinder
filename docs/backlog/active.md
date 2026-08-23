@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-07-26
+**Last updated:** 2026-08-23
 
 ## Current milestone
 
@@ -18,21 +18,29 @@ deliberately deferred to M2 — park ideas in `parking-lot.md`.
 
 ## Exact next action
 
-**Move turn resolution out of the key switch in `main.go`: create `Action` type and `Step(action Action) GameState` method on `GameState` in `game.go`.**
+**Replace the fixed room with deterministic room-and-corridor generation.**
 
-- Define `Action` type in `game.go` (e.g. `ActionNone`, `ActionMoveUp`, `ActionMoveDown`, `ActionMoveLeft`, `ActionMoveRight`).
-- Move movement logic (bounds check and wall check) from `model.tryMove` into `GameState.Step(action Action) GameState`.
-- `model.Update` maps input keys to `Action` and calls `m.state = m.state.Step(act)`.
-- All existing tests in `tui_test.go` must pass unchanged.
+- Add a seeded dungeon generator in `game.go` that starts with walls, carves
+  non-overlapping rectangular rooms, and connects every room with floor
+  corridors while retaining a wall border.
+- Make startup supply an explicit RNG/seed and place the player on a generated
+  floor tile; production startup uses a changing seed while tests use fixed
+  seeds.
+- Add game-state tests proving the same seed produces the same map, generated
+  rooms are mutually reachable from the player, the player starts on floor,
+  and multiple chosen seeds do not all produce the same map.
+- Update the headless view and movement tests to derive their assertions from
+  the seeded map rather than the old fixed room.
 
-Why next: monster turns and combat (M1.5, M1.6) require world state updates to happen in a unified turn resolution phase (`GameState.Step`) after player input is mapped to an action.
+Why next: M1 needs real levels before monsters can be placed, and explicit
+randomness keeps generated worlds deterministic under the headless test driver.
 
 ## Milestone plan
 
 - [x] **M1.1** Factor movement into `tryMove(dx, dy)` — *completed 2026-07-27*.
-- [ ] **M1.2** Move turn resolution out of the key switch: `Update` handles
+- [x] **M1.2** Move turn resolution out of the key switch: `Update` handles
       input, a `Step(action Action)` method on `GameState` advances the world
-      one turn. Needed before monsters can act.
+      one turn. Needed before monsters can act. — *completed 2026-08-23*.
 - [ ] **M1.3** Map generation — rooms plus corridors into `GameMap`, seeded
       from an explicit RNG stored in the model so tests are deterministic
       (ADR-0003). Replace the hard-coded 20x10 room in `initialModel`.
@@ -66,8 +74,8 @@ None. No decision is waiting on the user.
 ## Last verification
 
 ```
-./scripts/verify.sh   —  2026-07-27  —  VERIFY OK
+./scripts/verify.sh   —  2026-08-23  —  VERIFY OK
 ```
 
-gofmt clean, `go vet` clean, builds, headless smoke frame renders, 4 test
-functions (11 cases) pass, `go.mod` tidy.
+gofmt clean, `go vet` clean, builds, headless smoke frame renders, all tests
+pass, `go.mod` tidy.

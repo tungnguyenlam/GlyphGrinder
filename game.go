@@ -14,6 +14,17 @@ const (
 	TileWall
 )
 
+// Action describes one turn requested by the player.
+type Action uint8
+
+const (
+	ActionNone Action = iota
+	ActionMoveUp
+	ActionMoveDown
+	ActionMoveLeft
+	ActionMoveRight
+)
+
 // GameMap holds the grid.
 type GameMap struct {
 	Width  int
@@ -39,6 +50,35 @@ type GameState struct {
 	Player   Entity
 	Entities []Entity
 	Log      []string
+}
+
+// Step resolves a player action and returns the resulting game state.
+func (g GameState) Step(action Action) GameState {
+	dx, dy := 0, 0
+	switch action {
+	case ActionMoveUp:
+		dy = -1
+	case ActionMoveDown:
+		dy = 1
+	case ActionMoveLeft:
+		dx = -1
+	case ActionMoveRight:
+		dx = 1
+	default:
+		return g
+	}
+
+	newX := g.Player.Pos.X + dx
+	newY := g.Player.Pos.Y + dy
+	if newX < 0 || newX >= g.Map.Width || newY < 0 || newY >= g.Map.Height {
+		return g
+	}
+	if g.Map.Tiles[newY][newX] == TileWall {
+		return g
+	}
+
+	g.Player.Pos = Position{X: newX, Y: newY}
+	return g
 }
 
 // NewGame initializes a blank game state.

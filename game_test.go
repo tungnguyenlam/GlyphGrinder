@@ -46,3 +46,56 @@ func TestNewGamePlacesPlayerOnFloor(t *testing.T) {
 		t.Errorf("player starts at %d/%d health, want full", p.Health, p.MaxHealth)
 	}
 }
+
+func TestStepMovesPlayer(t *testing.T) {
+	cases := []struct {
+		name   string
+		action Action
+		want   Position
+	}{
+		{name: "up", action: ActionMoveUp, want: Position{X: 10, Y: 4}},
+		{name: "down", action: ActionMoveDown, want: Position{X: 10, Y: 6}},
+		{name: "left", action: ActionMoveLeft, want: Position{X: 9, Y: 5}},
+		{name: "right", action: ActionMoveRight, want: Position{X: 11, Y: 5}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := NewGame(20, 10).Step(tc.action)
+			if got.Player.Pos != tc.want {
+				t.Errorf("player pos = %+v, want %+v", got.Player.Pos, tc.want)
+			}
+		})
+	}
+}
+
+func TestStepRejectsBlockedMovement(t *testing.T) {
+	t.Run("wall", func(t *testing.T) {
+		g := NewGame(20, 10)
+		g.Player.Pos = Position{X: 1, Y: 1}
+
+		got := g.Step(ActionMoveUp)
+		if got.Player.Pos != g.Player.Pos {
+			t.Errorf("player pos = %+v, want %+v", got.Player.Pos, g.Player.Pos)
+		}
+	})
+
+	t.Run("map bounds", func(t *testing.T) {
+		g := NewGame(20, 10)
+		g.Player.Pos = Position{X: 0, Y: 0}
+
+		got := g.Step(ActionMoveLeft)
+		if got.Player.Pos != g.Player.Pos {
+			t.Errorf("player pos = %+v, want %+v", got.Player.Pos, g.Player.Pos)
+		}
+	})
+}
+
+func TestStepIgnoresNoAction(t *testing.T) {
+	g := NewGame(20, 10)
+
+	got := g.Step(ActionNone)
+	if got.Player.Pos != g.Player.Pos {
+		t.Errorf("player pos = %+v, want %+v", got.Player.Pos, g.Player.Pos)
+	}
+}
