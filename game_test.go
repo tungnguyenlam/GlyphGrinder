@@ -53,15 +53,39 @@ func TestNewGamePlacesPlayerOnFloor(t *testing.T) {
 	}
 }
 
+func TestNewGamePlacesMonstersOnDistinctFloors(t *testing.T) {
+	g := newTestGame(8)
+	if len(g.Entities) == 0 {
+		t.Fatal("new dungeon has no monsters")
+	}
+
+	occupied := map[Position]struct{}{g.Player.Pos: {}}
+	for i, monster := range g.Entities {
+		if got, want := monster.ID, i+1; got != want {
+			t.Errorf("monster %d ID = %d, want %d", i, got, want)
+		}
+		if monster.IsPlayer {
+			t.Errorf("monster %d is marked as player", monster.ID)
+		}
+		if monster.Health <= 0 || monster.Health != monster.MaxHealth || monster.Damage <= 0 {
+			t.Errorf("monster %d has invalid combat stats: %+v", monster.ID, monster)
+		}
+		if g.Map.Tiles[monster.Pos.Y][monster.Pos.X] != TileFloor {
+			t.Errorf("monster %d placed off floor at %+v", monster.ID, monster.Pos)
+		}
+		if _, exists := occupied[monster.Pos]; exists {
+			t.Errorf("monster %d overlaps another actor at %+v", monster.ID, monster.Pos)
+		}
+		occupied[monster.Pos] = struct{}{}
+	}
+}
+
 func TestNewGameIsDeterministicForSeed(t *testing.T) {
 	first := newTestGame(42)
 	second := newTestGame(42)
 
-	if !reflect.DeepEqual(first.Map, second.Map) {
-		t.Fatal("same seed generated different maps")
-	}
-	if first.Player.Pos != second.Player.Pos {
-		t.Fatalf("same seed placed players at %+v and %+v", first.Player.Pos, second.Player.Pos)
+	if !reflect.DeepEqual(first, second) {
+		t.Fatal("same seed generated different game states")
 	}
 }
 

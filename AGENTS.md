@@ -85,9 +85,9 @@ Sharp edges found during real work. Prune entries that stop being true.
   always walls the border, so the `Pos.Y > 0`-style checks never fire today.
   They will matter the moment map generation stops guaranteeing a wall ring —
   do not delete them without also guaranteeing the invariant.
-- **`GameState.Entities` and `GameState.Log` are declared but never read or
-  written**, and `Entity.Health`/`Damage` are set only for the player. Don't
-  assume there is combat or monster code somewhere; there isn't.
+- **`GameState.Log` is declared but never read or written.** Monsters are
+  generated and rendered, but their `Health`/`Damage` are not used yet; there
+  is no combat or monster-turn code until the remaining M1 work lands.
 - **`View` returns styled cells**, so a rendered line's `len()` is not its
   column count. Tests must strip ANSI escapes before asserting positions — see
   `stripANSI` in `tui_test.go`.

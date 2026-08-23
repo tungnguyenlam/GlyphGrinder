@@ -18,16 +18,18 @@ deliberately deferred to M2 — park ideas in `parking-lot.md`.
 
 ## Exact next action
 
-**Populate generated dungeons with monsters and render them.**
+**Implement bump-to-attack combat against monsters.**
 
-- During seeded generation, place at least one monster on a floor tile other
-  than the player's tile, with stable IDs and explicit combat stats.
-- Render monster glyphs over the dungeon floor while keeping `View` pure.
-- Add state tests for deterministic, valid monster placement and a headless
-  test proving the monster is visible at its state position.
+- When movement targets a monster, keep the player in place and subtract the
+  player's damage from that monster's health.
+- Remove monsters reduced to zero health and append clear hit/kill messages to
+  `GameState.Log`.
+- Cover damage, killing, non-target preservation, and value-state isolation in
+  game-state tests; add a headless input test proving the combat round trip
+  survives `Update`.
 
-Why next: M1.3 provides connected floor space and retained seeded randomness;
-M1 now needs actors occupying that space before bump combat can be implemented.
+Why next: M1.4 puts visible monsters on reachable tiles with real combat stats;
+bump combat is now the smallest change that turns movement into gameplay.
 
 ## Milestone plan
 
@@ -39,9 +41,8 @@ M1 now needs actors occupying that space before bump combat can be implemented.
       from an explicit RNG stored in the model so tests are deterministic
       (ADR-0003). Replace the hard-coded 20x10 room in `initialModel`. —
       *completed 2026-08-23*.
-- [ ] **M1.4** Populate `GameState.Entities` with monsters at generation time
-      and render them in `View` (currently `Entities` is never read or
-      written).
+- [x] **M1.4** Populate `GameState.Entities` with monsters at generation time
+      and render them in `View`. — *completed 2026-08-23*.
 - [ ] **M1.5** Bump-to-attack: moving into an occupied tile deals
       `Entity.Damage`, reduces `Health`, removes the entity at zero, and
       appends a line to `GameState.Log`.
@@ -72,5 +73,5 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-08-23  —  VERIFY OK
 ```
 
-M1.3 seeded dungeon generation: gofmt clean, `go vet` clean, builds, headless
-smoke frame renders, all tests pass, `go.mod` tidy.
+M1.4 monster population and rendering: gofmt clean, `go vet` clean, builds,
+headless smoke frame renders, all tests pass, `go.mod` tidy.

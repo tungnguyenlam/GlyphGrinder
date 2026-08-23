@@ -104,12 +104,14 @@ func (g GameState) Step(action Action) GameState {
 // NewGame generates a dungeon using rng and places the player in its first room.
 func NewGame(width, height int, rng *rand.Rand) GameState {
 	gameMap, rooms := generateDungeon(width, height, rng)
+	playerPos := rooms[0].center()
 
 	return GameState{
-		Map: gameMap,
+		Map:      gameMap,
+		Entities: placeMonsters(gameMap, playerPos, rng),
 		Player: Entity{
 			IsPlayer:  true,
-			Pos:       rooms[0].center(),
+			Pos:       playerPos,
 			Rune:      "@",
 			Color:     "#00FF00",
 			Health:    100,
@@ -117,6 +119,36 @@ func NewGame(width, height int, rng *rand.Rand) GameState {
 			Damage:    10,
 		},
 	}
+}
+
+func placeMonsters(m GameMap, playerPos Position, rng *rand.Rand) []Entity {
+	openFloors := make([]Position, 0, m.Width*m.Height)
+	for y := 1; y < m.Height-1; y++ {
+		for x := 1; x < m.Width-1; x++ {
+			pos := Position{X: x, Y: y}
+			if m.Tiles[y][x] == TileFloor && pos != playerPos {
+				openFloors = append(openFloors, pos)
+			}
+		}
+	}
+	rng.Shuffle(len(openFloors), func(i, j int) {
+		openFloors[i], openFloors[j] = openFloors[j], openFloors[i]
+	})
+
+	monsterCount := min(3, len(openFloors))
+	monsters := make([]Entity, monsterCount)
+	for i := range monsters {
+		monsters[i] = Entity{
+			ID:        i + 1,
+			Pos:       openFloors[i],
+			Rune:      "g",
+			Color:     "#FF5F5F",
+			Health:    20,
+			MaxHealth: 20,
+			Damage:    5,
+		}
+	}
+	return monsters
 }
 
 func generateDungeon(width, height int, rng *rand.Rand) (GameMap, []room) {

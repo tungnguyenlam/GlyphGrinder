@@ -67,6 +67,19 @@ func TestViewRendersFullGrid(t *testing.T) {
 	}
 }
 
+func TestViewRendersMonstersAtStatePositions(t *testing.T) {
+	d := tuitest.New(t, newTUITestModel())
+	state := d.Model().(model).state
+	lines := d.Lines()
+
+	for _, monster := range state.Entities {
+		plain := []rune(stripANSI(lines[monster.Pos.Y]))
+		if got := string(plain[monster.Pos.X]); got != monster.Rune {
+			t.Errorf("monster %d rendered as %q at %+v, want %q", monster.ID, got, monster.Pos, monster.Rune)
+		}
+	}
+}
+
 func TestMovementKeys(t *testing.T) {
 	cases := []struct {
 		name    string
