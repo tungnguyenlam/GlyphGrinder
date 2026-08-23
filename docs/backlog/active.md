@@ -18,22 +18,16 @@ deliberately deferred to M2 — park ideas in `parking-lot.md`.
 
 ## Exact next action
 
-**Replace the fixed room with deterministic room-and-corridor generation.**
+**Populate generated dungeons with monsters and render them.**
 
-- Add a seeded dungeon generator in `game.go` that starts with walls, carves
-  non-overlapping rectangular rooms, and connects every room with floor
-  corridors while retaining a wall border.
-- Make startup supply an explicit RNG/seed and place the player on a generated
-  floor tile; production startup uses a changing seed while tests use fixed
-  seeds.
-- Add game-state tests proving the same seed produces the same map, generated
-  rooms are mutually reachable from the player, the player starts on floor,
-  and multiple chosen seeds do not all produce the same map.
-- Update the headless view and movement tests to derive their assertions from
-  the seeded map rather than the old fixed room.
+- During seeded generation, place at least one monster on a floor tile other
+  than the player's tile, with stable IDs and explicit combat stats.
+- Render monster glyphs over the dungeon floor while keeping `View` pure.
+- Add state tests for deterministic, valid monster placement and a headless
+  test proving the monster is visible at its state position.
 
-Why next: M1 needs real levels before monsters can be placed, and explicit
-randomness keeps generated worlds deterministic under the headless test driver.
+Why next: M1.3 provides connected floor space and retained seeded randomness;
+M1 now needs actors occupying that space before bump combat can be implemented.
 
 ## Milestone plan
 
@@ -41,9 +35,10 @@ randomness keeps generated worlds deterministic under the headless test driver.
 - [x] **M1.2** Move turn resolution out of the key switch: `Update` handles
       input, a `Step(action Action)` method on `GameState` advances the world
       one turn. Needed before monsters can act. — *completed 2026-08-23*.
-- [ ] **M1.3** Map generation — rooms plus corridors into `GameMap`, seeded
+- [x] **M1.3** Map generation — rooms plus corridors into `GameMap`, seeded
       from an explicit RNG stored in the model so tests are deterministic
-      (ADR-0003). Replace the hard-coded 20x10 room in `initialModel`.
+      (ADR-0003). Replace the hard-coded 20x10 room in `initialModel`. —
+      *completed 2026-08-23*.
 - [ ] **M1.4** Populate `GameState.Entities` with monsters at generation time
       and render them in `View` (currently `Entities` is never read or
       written).
@@ -77,5 +72,5 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-08-23  —  VERIFY OK
 ```
 
-gofmt clean, `go vet` clean, builds, headless smoke frame renders, all tests
-pass, `go.mod` tidy.
+M1.3 seeded dungeon generation: gofmt clean, `go vet` clean, builds, headless
+smoke frame renders, all tests pass, `go.mod` tidy.

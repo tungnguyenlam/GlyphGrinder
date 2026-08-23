@@ -1,9 +1,18 @@
 package main
 
-import "testing"
+import (
+	"math/rand"
+	"reflect"
+	"strconv"
+	"testing"
+)
 
-func TestNewGameBuildsWalledRoom(t *testing.T) {
-	g := NewGame(20, 10)
+func newTestGame(seed int64) GameState {
+	return NewGame(20, 10, rand.New(rand.NewSource(seed)))
+}
+
+func TestNewGameGeneratesWalledDungeon(t *testing.T) {
+	g := newTestGame(1)
 
 	if got, want := len(g.Map.Tiles), 10; got != want {
 		t.Fatalf("rows = %d, want %d", got, want)
@@ -24,20 +33,17 @@ func TestNewGameBuildsWalledRoom(t *testing.T) {
 			t.Errorf("row %d: expected wall on left and right border", y)
 		}
 	}
-	if g.Map.Tiles[5][10] != TileFloor {
-		t.Error("interior tile should be floor")
+	if g.Map.Tiles[g.Player.Pos.Y][g.Player.Pos.X] != TileFloor {
+		t.Error("dungeon should contain floor at the player position")
 	}
 }
 
 func TestNewGamePlacesPlayerOnFloor(t *testing.T) {
-	g := NewGame(20, 10)
+	g := newTestGame(2)
 
 	p := g.Player
 	if !p.IsPlayer {
 		t.Error("player entity should have IsPlayer set")
-	}
-	if got, want := p.Pos, (Position{X: 10, Y: 5}); got != want {
-		t.Errorf("player pos = %+v, want %+v", got, want)
 	}
 	if g.Map.Tiles[p.Pos.Y][p.Pos.X] != TileFloor {
 		t.Error("player must start on a floor tile")
@@ -47,23 +53,103 @@ func TestNewGamePlacesPlayerOnFloor(t *testing.T) {
 	}
 }
 
+func TestNewGameIsDeterministicForSeed(t *testing.T) {
+	first := newTestGame(42)
+	second := newTestGame(42)
+
+	if !reflect.DeepEqual(first.Map, second.Map) {
+		t.Fatal("same seed generated different maps")
+	}
+	if first.Player.Pos != second.Player.Pos {
+		t.Fatalf("same seed placed players at %+v and %+v", first.Player.Pos, second.Player.Pos)
+	}
+}
+
+func TestGeneratedDungeonFloorsAreReachable(t *testing.T) {
+	for _, seed := range []int64{1, 7, 42, 99} {
+		t.Run("seed_"+strconv.FormatInt(seed, 10), func(t *testing.T) {
+			g := newTestGame(seed)
+			reachable := reachableFloors(g.Map, g.Player.Pos)
+			floorCount := 0
+			for y := 0; y < g.Map.Height; y++ {
+				for x := 0; x < g.Map.Width; x++ {
+					if g.Map.Tiles[y][x] == TileFloor {
+						floorCount++
+					}
+				}
+			}
+			if got := len(reachable); got != floorCount {
+				t.Errorf("seed %d: reachable floors = %d, want all %d", seed, got, floorCount)
+			}
+		})
+	}
+}
+
+func TestDifferentSeedsVaryDungeon(t *testing.T) {
+	maps := make(map[string]struct{})
+	for _, seed := range []int64{1, 2, 3, 4} {
+		maps[mapSignature(newTestGame(seed).Map)] = struct{}{}
+	}
+	if len(maps) < 2 {
+		t.Fatal("different seeds all generated the same map")
+	}
+}
+
+func reachableFloors(m GameMap, start Position) map[Position]struct{} {
+	reachable := map[Position]struct{}{start: {}}
+	queue := []Position{start}
+	directions := []Position{{X: 1}, {X: -1}, {Y: 1}, {Y: -1}}
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		for _, direction := range directions {
+			next := Position{X: current.X + direction.X, Y: current.Y + direction.Y}
+			if next.X < 0 || next.X >= m.Width || next.Y < 0 || next.Y >= m.Height {
+				continue
+			}
+			if m.Tiles[next.Y][next.X] != TileFloor {
+				continue
+			}
+			if _, seen := reachable[next]; seen {
+				continue
+			}
+			reachable[next] = struct{}{}
+			queue = append(queue, next)
+		}
+	}
+	return reachable
+}
+
+func mapSignature(m GameMap) string {
+	signature := make([]byte, 0, m.Width*m.Height)
+	for _, row := range m.Tiles {
+		for _, tile := range row {
+			signature = append(signature, byte(tile))
+		}
+	}
+	return string(signature)
+}
+
 func TestStepMovesPlayer(t *testing.T) {
 	cases := []struct {
 		name   string
 		action Action
-		want   Position
+		delta  Position
 	}{
-		{name: "up", action: ActionMoveUp, want: Position{X: 10, Y: 4}},
-		{name: "down", action: ActionMoveDown, want: Position{X: 10, Y: 6}},
-		{name: "left", action: ActionMoveLeft, want: Position{X: 9, Y: 5}},
-		{name: "right", action: ActionMoveRight, want: Position{X: 11, Y: 5}},
+		{name: "up", action: ActionMoveUp, delta: Position{Y: -1}},
+		{name: "down", action: ActionMoveDown, delta: Position{Y: 1}},
+		{name: "left", action: ActionMoveLeft, delta: Position{X: -1}},
+		{name: "right", action: ActionMoveRight, delta: Position{X: 1}},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := NewGame(20, 10).Step(tc.action)
-			if got.Player.Pos != tc.want {
-				t.Errorf("player pos = %+v, want %+v", got.Player.Pos, tc.want)
+			g := newTestGame(3)
+			start := g.Player.Pos
+			got := g.Step(tc.action)
+			want := Position{X: start.X + tc.delta.X, Y: start.Y + tc.delta.Y}
+			if got.Player.Pos != want {
+				t.Errorf("player pos = %+v, want %+v", got.Player.Pos, want)
 			}
 		})
 	}
@@ -71,17 +157,18 @@ func TestStepMovesPlayer(t *testing.T) {
 
 func TestStepRejectsBlockedMovement(t *testing.T) {
 	t.Run("wall", func(t *testing.T) {
-		g := NewGame(20, 10)
-		g.Player.Pos = Position{X: 1, Y: 1}
+		g := newTestGame(4)
+		floor, action := floorBesideWall(t, g.Map)
+		g.Player.Pos = floor
 
-		got := g.Step(ActionMoveUp)
+		got := g.Step(action)
 		if got.Player.Pos != g.Player.Pos {
 			t.Errorf("player pos = %+v, want %+v", got.Player.Pos, g.Player.Pos)
 		}
 	})
 
 	t.Run("map bounds", func(t *testing.T) {
-		g := NewGame(20, 10)
+		g := newTestGame(5)
 		g.Player.Pos = Position{X: 0, Y: 0}
 
 		got := g.Step(ActionMoveLeft)
@@ -92,10 +179,37 @@ func TestStepRejectsBlockedMovement(t *testing.T) {
 }
 
 func TestStepIgnoresNoAction(t *testing.T) {
-	g := NewGame(20, 10)
+	g := newTestGame(6)
 
 	got := g.Step(ActionNone)
 	if got.Player.Pos != g.Player.Pos {
 		t.Errorf("player pos = %+v, want %+v", got.Player.Pos, g.Player.Pos)
 	}
+}
+
+func floorBesideWall(t *testing.T, m GameMap) (Position, Action) {
+	t.Helper()
+	directions := []struct {
+		delta  Position
+		action Action
+	}{
+		{delta: Position{Y: -1}, action: ActionMoveUp},
+		{delta: Position{Y: 1}, action: ActionMoveDown},
+		{delta: Position{X: -1}, action: ActionMoveLeft},
+		{delta: Position{X: 1}, action: ActionMoveRight},
+	}
+	for y := 1; y < m.Height-1; y++ {
+		for x := 1; x < m.Width-1; x++ {
+			if m.Tiles[y][x] != TileFloor {
+				continue
+			}
+			for _, direction := range directions {
+				if m.Tiles[y+direction.delta.Y][x+direction.delta.X] == TileWall {
+					return Position{X: x, Y: y}, direction.action
+				}
+			}
+		}
+	}
+	t.Fatal("generated dungeon has no floor beside a wall")
+	return Position{}, ActionNone
 }

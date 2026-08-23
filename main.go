@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -11,11 +13,11 @@ import (
 
 type model struct {
 	state GameState
+	rng   *rand.Rand
 }
 
-func initialModel() model {
-	// Initialize a 20x10 terminal grid as the map
-	return model{state: NewGame(20, 10)}
+func initialModel(rng *rand.Rand) model {
+	return model{state: NewGame(20, 10, rng), rng: rng}
 }
 
 func (m model) Init() tea.Cmd {
@@ -78,7 +80,8 @@ func (m model) View() string {
 }
 
 func main() {
-	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	p := tea.NewProgram(initialModel(rng), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error: %v", err)
 		os.Exit(1)
