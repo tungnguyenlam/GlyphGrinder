@@ -54,6 +54,9 @@ func stripANSI(s string) string {
 func TestViewRendersFullGrid(t *testing.T) {
 	d := tuitest.New(t, newTUITestModel())
 	state := d.Model().(model).state
+	if state.Map.Width <= 80 || state.Map.Height <= 24 {
+		t.Fatalf("production dungeon is %dx%d, want larger than an 80x24 terminal", state.Map.Width, state.Map.Height)
+	}
 
 	lines := d.Lines()
 	if got, want := len(lines), state.Map.Height; got != want {
@@ -73,6 +76,99 @@ func TestViewRendersFullGrid(t *testing.T) {
 	}
 	if got, want := playerAt(t, lines), state.Player.Pos; got != want {
 		t.Errorf("player rendered at %+v, want %+v", got, want)
+	}
+}
+
+func TestResizeClipsViewportAndPreservesSidebar(t *testing.T) {
+	state := openTestStateSized(60, 30)
+	state.Player.Pos = Position{X: 30, Y: 15}
+	state.Entities = nil
+	state = state.refreshVisibility()
+	d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed))})
+
+	d.Resize(50, 9)
+	gotModel := d.Model().(model)
+	if gotModel.windowWidth != 50 || gotModel.windowHeight != 9 {
+		t.Fatalf("stored window size = %dx%d, want 50x9", gotModel.windowWidth, gotModel.windowHeight)
+	}
+	if got, want := gotModel.viewport(), (mapViewport{X: 22, Y: 11, Width: 16, Height: 9}); got != want {
+		t.Fatalf("viewport = %+v, want %+v", got, want)
+	}
+
+	lines := d.Lines()
+	if got, want := len(lines), 9; got != want {
+		t.Fatalf("resized view has %d rows, want %d", got, want)
+	}
+	if got, want := playerAt(t, lines), (Position{X: 8, Y: 4}); got != want {
+		t.Errorf("player rendered at %+v, want viewport position %+v", got, want)
+	}
+	plain := stripANSI(d.View())
+	if got, want := strings.Index(strings.Split(plain, "\n")[0], "HP "), 18; got != want {
+		t.Errorf("sidebar starts at column %d, want %d after 16 map cells and 2 spaces", got, want)
+	}
+	if !strings.Contains(plain, "Log:") || !strings.Contains(plain, "The fight begins.") {
+		t.Errorf("resized view lost sidebar content:\n%s", plain)
+	}
+}
+
+func TestViewportFollowsPlayerAndClampsAtMapEdges(t *testing.T) {
+	centered := openTestStateSized(60, 30)
+	centered.Player.Pos = Position{X: 30, Y: 15}
+	centered.Entities = nil
+	centered = centered.refreshVisibility()
+	d := tuitest.New(t, model{state: centered, rng: rand.New(rand.NewSource(tuiTestSeed))})
+	d.Resize(50, 9)
+
+	d.Key("right")
+	if got, want := d.Model().(model).state.Player.Pos, (Position{X: 31, Y: 15}); got != want {
+		t.Fatalf("player world position after movement = %+v, want %+v", got, want)
+	}
+	if got, want := playerAt(t, d.Lines()), (Position{X: 8, Y: 4}); got != want {
+		t.Errorf("camera did not follow player: rendered at %+v, want %+v", got, want)
+	}
+
+	tests := []struct {
+		name       string
+		world      Position
+		wantScreen Position
+		wantOrigin Position
+	}{
+		{name: "top left", world: Position{X: 1, Y: 1}, wantScreen: Position{X: 1, Y: 1}, wantOrigin: Position{}},
+		{name: "bottom right", world: Position{X: 58, Y: 28}, wantScreen: Position{X: 14, Y: 7}, wantOrigin: Position{X: 44, Y: 21}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			state := openTestStateSized(60, 30)
+			state.Player.Pos = tc.world
+			state.Entities = nil
+			state = state.refreshVisibility()
+			d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed))})
+			d.Resize(50, 9)
+
+			viewport := d.Model().(model).viewport()
+			if got := (Position{X: viewport.X, Y: viewport.Y}); got != tc.wantOrigin {
+				t.Errorf("viewport origin = %+v, want %+v", got, tc.wantOrigin)
+			}
+			if got := playerAt(t, d.Lines()); got != tc.wantScreen {
+				t.Errorf("player rendered at %+v, want %+v", got, tc.wantScreen)
+			}
+		})
+	}
+}
+
+func TestTinyResizeKeepsViewportValid(t *testing.T) {
+	state := openTestStateSized(60, 30)
+	state.Player.Pos = Position{X: 30, Y: 15}
+	state.Entities = nil
+	state = state.refreshVisibility()
+	d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed))})
+
+	d.Resize(1, 1)
+	if got, want := d.Model().(model).viewport(), (mapViewport{X: 30, Y: 15, Width: 1, Height: 1}); got != want {
+		t.Fatalf("tiny viewport = %+v, want %+v", got, want)
+	}
+	if got, want := playerAt(t, d.Lines()), (Position{}); got != want {
+		t.Errorf("player rendered at %+v in tiny viewport, want %+v", got, want)
 	}
 }
 

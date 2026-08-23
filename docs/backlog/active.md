@@ -17,19 +17,19 @@ glyphs, and terminal-aware framing promised by the vision.
 
 ## Exact next action
 
-**Add a resize-aware player-following viewport and larger dungeon.**
+**Add recognizable terrain/entity glyph profiles with an automatic ASCII
+fallback.**
 
-- Grow production/test dungeons beyond a typical terminal frame and store the
-  latest `tea.WindowSizeMsg` dimensions in the model.
-- Derive a clipped map rectangle that follows the player, stays within map
-  bounds, and reserves usable width for the health/log sidebar.
-- Render only that rectangle while translating actor coordinates correctly;
-  handle tiny terminals without panics or negative dimensions.
-- Add headless resize tests for clipping, camera following, edge clamping, and
-  sidebar preservation.
+- Centralize the player, monster, floor, and wall glyphs into explicit rich and
+  ASCII profiles rather than scattering literals through state and rendering.
+- Select the rich profile only when the process environment indicates a
+  Unicode-capable terminal; keep plain ASCII dependable in other environments.
+- Preserve one-cell alignment for every profile and restart, and add headless
+  tests for selection and rendered glyph semantics.
 
-Why next: lighting and palette now provide depth, but the fixed 20x10 frame
-cannot deliver the larger, camera-followed dungeon promised by `GOAL.md`.
+Why next: the viewport now delivers a large, camera-followed dungeon; distinct
+silhouettes and a reliable fallback are the remaining static visual layer
+before motion work begins.
 
 ## Milestone plan
 
@@ -39,8 +39,9 @@ cannot deliver the larger, camera-followed dungeon promised by `GOAL.md`.
 - [x] **M2.2** Replace ad hoc colors with a cohesive truecolor terrain/entity
       palette that degrades through Lip Gloss color profiles. — *completed
       2026-08-23*.
-- [ ] **M2.3** Add a resize-aware viewport and player-following camera, then
-      grow generated maps beyond the initial 20x10 frame.
+- [x] **M2.3** Add a resize-aware viewport and player-following camera, then
+      grow generated maps beyond the initial 20x10 frame. — *completed
+      2026-08-23*.
 - [ ] **M2.4** Add recognizable terrain/entity glyph profiles with a dependable
       ASCII fallback.
 - [ ] **M2.5** Animate player and monster movement from tick messages without
@@ -69,8 +70,8 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-08-23  —  VERIFY OK
 ```
 
-M2.2 semantic truecolor palette: gofmt clean, `go vet` clean, builds, headless
-smoke frame renders, all tests pass, `go.mod` tidy.
+M2.3 resize-aware viewport and 96x48 production dungeon: gofmt clean, `go vet`
+clean, builds, headless smoke frame renders, all tests pass, `go.mod` tidy.
 
 Standing unattended prompt updated to execute substantial batches of related
 work while retaining progressive tests, checkpoints, and reviewable commits.

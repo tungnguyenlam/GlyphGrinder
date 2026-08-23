@@ -12,9 +12,25 @@ import (
 )
 
 type model struct {
-	state GameState
-	rng   *rand.Rand
+	state        GameState
+	rng          *rand.Rand
+	windowWidth  int
+	windowHeight int
 }
+
+type mapViewport struct {
+	X      int
+	Y      int
+	Width  int
+	Height int
+}
+
+const (
+	productionDungeonWidth  = 96
+	productionDungeonHeight = 48
+	sidebarWidth            = 32
+	mapSidebarGap           = 2
+)
 
 type colorPalette struct {
 	LitFloor    lipgloss.Color
@@ -81,7 +97,7 @@ func newViewStyles(p colorPalette) viewStyles {
 }
 
 func initialModel(rng *rand.Rand) model {
-	return model{state: NewGame(20, 10, rng), rng: rng}
+	return model{state: NewGame(productionDungeonWidth, productionDungeonHeight, rng), rng: rng}
 }
 
 func (m model) Init() tea.Cmd {
@@ -90,6 +106,9 @@ func (m model) Init() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.windowWidth = msg.Width
+		m.windowHeight = msg.Height
 	case tea.KeyMsg:
 		action := ActionNone
 		switch msg.String() {
@@ -114,10 +133,32 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m model) viewport() mapViewport {
+	if m.state.Map.Width <= 0 || m.state.Map.Height <= 0 {
+		return mapViewport{}
+	}
+
+	width := m.state.Map.Width
+	if m.windowWidth > 0 {
+		width = min(width, max(1, m.windowWidth-sidebarWidth-mapSidebarGap))
+	}
+	height := m.state.Map.Height
+	if m.windowHeight > 0 {
+		height = min(height, max(1, m.windowHeight))
+	}
+
+	x := m.state.Player.Pos.X - width/2
+	y := m.state.Player.Pos.Y - height/2
+	x = max(0, min(m.state.Map.Width-width, x))
+	y = max(0, min(m.state.Map.Height-height, y))
+	return mapViewport{X: x, Y: y, Width: width, Height: height}
+}
+
 func (m model) View() string {
 	if m.state.Map.Width == 0 || m.state.Map.Height == 0 {
 		return ""
 	}
+	viewport := m.viewport()
 
 	styles := newViewStyles(defaultPalette)
 	player := styles.player.Render(m.state.Player.Rune)
@@ -131,8 +172,8 @@ func (m model) View() string {
 	}
 
 	var sb strings.Builder
-	for y := 0; y < m.state.Map.Height; y++ {
-		for x := 0; x < m.state.Map.Width; x++ {
+	for y := viewport.Y; y < viewport.Y+viewport.Height; y++ {
+		for x := viewport.X; x < viewport.X+viewport.Width; x++ {
 			visible := m.state.Map.Visible[y][x]
 			explored := m.state.Map.Explored[y][x]
 			if !explored {
@@ -154,7 +195,7 @@ func (m model) View() string {
 				}
 			}
 		}
-		if y < m.state.Map.Height-1 {
+		if y < viewport.Y+viewport.Height-1 {
 			sb.WriteString("\n")
 		}
 	}
