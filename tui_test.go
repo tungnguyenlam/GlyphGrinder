@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"math/rand"
 	"reflect"
 	"strings"
@@ -175,6 +176,43 @@ func TestTinyResizeKeepsViewportValid(t *testing.T) {
 	}
 }
 
+func TestResizeDuringAnimationKeepsViewportValid(t *testing.T) {
+	state := openTestStateSized(60, 30)
+	state.Player.Pos = Position{X: 30, Y: 15}
+	state.Entities = nil
+	state = state.refreshVisibility()
+	m := model{
+		state:        state,
+		rng:          rand.New(rand.NewSource(tuiTestSeed)),
+		glyphs:       asciiGlyphs,
+		windowWidth:  50,
+		windowHeight: 9,
+	}
+
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	m = next.(model)
+	if cmd == nil || len(m.motion.Actors) == 0 {
+		t.Fatal("movement did not start animation before resize")
+	}
+	next, _ = m.Update(tea.WindowSizeMsg{Width: 1, Height: 1})
+	m = next.(model)
+	if got, want := m.viewport(), (mapViewport{X: 30, Y: 15, Width: 1, Height: 1}); got != want {
+		t.Errorf("frame-0 tiny viewport = %+v, want %+v", got, want)
+	}
+	if got := playerAt(t, strings.Split(m.View(), "\n")); got != (Position{}) {
+		t.Errorf("frame-0 player after tiny resize = %+v, want {0 0}", got)
+	}
+
+	next, _ = m.Update(animationTickMsg{Sequence: m.motion.Sequence})
+	m = next.(model)
+	if got, want := m.viewport(), (mapViewport{X: 31, Y: 15, Width: 1, Height: 1}); got != want {
+		t.Errorf("animated tiny viewport = %+v, want %+v", got, want)
+	}
+	if got := playerAt(t, strings.Split(m.View(), "\n")); got != (Position{}) {
+		t.Errorf("animated player after tiny resize = %+v, want {0 0}", got)
+	}
+}
+
 func TestViewRendersOnlyVisibleMonsters(t *testing.T) {
 	d := tuitest.New(t, newTUITestModel())
 	state := d.Model().(model).state
@@ -232,6 +270,43 @@ func TestGlyphProfilesStayOneCellWide(t *testing.T) {
 				t.Errorf("%s %s glyph %q is %d cells wide, want 1", name, role, glyph, got)
 			}
 		}
+	}
+}
+
+func TestViewAdaptsToTerminalColorProfiles(t *testing.T) {
+	const (
+		trueColorProfile  = 0 // termenv.TrueColor, exposed through Lip Gloss.
+		asciiColorProfile = 3 // termenv.Ascii, exposed through Lip Gloss.
+	)
+	state := openTestState()
+	state.Entities = nil
+
+	tests := []struct {
+		name        string
+		setProfile  func(*lipgloss.Renderer)
+		wantColor   bool
+		wantEscapes bool
+	}{
+		{name: "truecolor", setProfile: func(r *lipgloss.Renderer) { r.SetColorProfile(trueColorProfile) }, wantColor: true, wantEscapes: true},
+		{name: "colorless", setProfile: func(r *lipgloss.Renderer) { r.SetColorProfile(asciiColorProfile) }, wantColor: false, wantEscapes: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			renderer := lipgloss.NewRenderer(io.Discard)
+			tc.setProfile(renderer)
+			m := model{state: state, renderer: renderer, glyphs: asciiGlyphs}
+			view := m.View()
+			hasTrueColor := strings.Contains(view, "\x1b[38;2;") || strings.Contains(view, "\x1b[48;2;")
+			if hasTrueColor != tc.wantColor {
+				t.Errorf("truecolor escapes present = %v, want %v", hasTrueColor, tc.wantColor)
+			}
+			if got := strings.ContainsRune(view, '\x1b'); got != tc.wantEscapes {
+				t.Errorf("ANSI escapes present = %v, want %v", got, tc.wantEscapes)
+			}
+			if got := playerAt(t, strings.Split(view, "\n")); got != state.Player.Pos {
+				t.Errorf("player under %s profile = %+v, want %+v", tc.name, got, state.Player.Pos)
+			}
+		})
 	}
 }
 
@@ -385,7 +460,7 @@ func TestViewRendersHealthAndRecentLog(t *testing.T) {
 }
 
 func TestPaletteStylesKeepSemanticRolesDistinct(t *testing.T) {
-	styles := newViewStyles(defaultPalette)
+	styles := newViewStyles(lipgloss.DefaultRenderer(), defaultPalette)
 	semanticStyles := []lipgloss.Style{
 		styles.floor,
 		styles.memoryFloor,

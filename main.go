@@ -14,6 +14,7 @@ import (
 type model struct {
 	state        GameState
 	rng          *rand.Rand
+	renderer     *lipgloss.Renderer
 	glyphs       glyphProfile
 	motion       actorMotionState
 	motionSeq    uint64
@@ -147,37 +148,38 @@ type viewStyles struct {
 	danger       lipgloss.Style
 }
 
-func newViewStyles(p colorPalette) viewStyles {
+func newViewStyles(renderer *lipgloss.Renderer, p colorPalette) viewStyles {
 	return viewStyles{
-		player:       lipgloss.NewStyle().Foreground(p.Player).Bold(true),
-		playerTrail:  lipgloss.NewStyle().Foreground(p.Player).Faint(true),
-		monster:      lipgloss.NewStyle().Foreground(p.Monster).Bold(true),
-		monsterTrail: lipgloss.NewStyle().Foreground(p.Monster).Faint(true),
-		ogre:         lipgloss.NewStyle().Foreground(p.Ogre).Bold(true),
-		ogreTrail:    lipgloss.NewStyle().Foreground(p.Ogre).Faint(true),
-		bat:          lipgloss.NewStyle().Foreground(p.Bat).Bold(true),
-		batTrail:     lipgloss.NewStyle().Foreground(p.Bat).Faint(true),
-		floor:        lipgloss.NewStyle().Foreground(p.LitFloor).Background(p.LitFloorBG),
-		wall:         lipgloss.NewStyle().Foreground(p.LitWall).Background(p.LitWallBG),
-		memoryFloor:  lipgloss.NewStyle().Foreground(p.MemoryFloor).Background(p.MemoryBG),
-		memoryWall:   lipgloss.NewStyle().Foreground(p.MemoryWall).Background(p.MemoryBG),
-		stairs:       lipgloss.NewStyle().Foreground(p.UIAccent).Background(p.LitFloorBG).Bold(true),
-		memoryStairs: lipgloss.NewStyle().Foreground(p.MemoryWall).Background(p.MemoryBG),
-		potion:       lipgloss.NewStyle().Foreground(p.Potion).Background(p.LitFloorBG).Bold(true),
-		sword:        lipgloss.NewStyle().Foreground(p.Sword).Background(p.LitFloorBG).Bold(true),
-		uiText:       lipgloss.NewStyle().Foreground(p.UIText),
-		uiAccent:     lipgloss.NewStyle().Foreground(p.UIAccent).Bold(true),
-		health:       lipgloss.NewStyle().Foreground(p.Health),
-		healthEmpty:  lipgloss.NewStyle().Foreground(p.HealthEmpty),
-		danger:       lipgloss.NewStyle().Foreground(p.Danger).Bold(true),
+		player:       renderer.NewStyle().Foreground(p.Player).Bold(true),
+		playerTrail:  renderer.NewStyle().Foreground(p.Player).Faint(true),
+		monster:      renderer.NewStyle().Foreground(p.Monster).Bold(true),
+		monsterTrail: renderer.NewStyle().Foreground(p.Monster).Faint(true),
+		ogre:         renderer.NewStyle().Foreground(p.Ogre).Bold(true),
+		ogreTrail:    renderer.NewStyle().Foreground(p.Ogre).Faint(true),
+		bat:          renderer.NewStyle().Foreground(p.Bat).Bold(true),
+		batTrail:     renderer.NewStyle().Foreground(p.Bat).Faint(true),
+		floor:        renderer.NewStyle().Foreground(p.LitFloor).Background(p.LitFloorBG),
+		wall:         renderer.NewStyle().Foreground(p.LitWall).Background(p.LitWallBG),
+		memoryFloor:  renderer.NewStyle().Foreground(p.MemoryFloor).Background(p.MemoryBG),
+		memoryWall:   renderer.NewStyle().Foreground(p.MemoryWall).Background(p.MemoryBG),
+		stairs:       renderer.NewStyle().Foreground(p.UIAccent).Background(p.LitFloorBG).Bold(true),
+		memoryStairs: renderer.NewStyle().Foreground(p.MemoryWall).Background(p.MemoryBG),
+		potion:       renderer.NewStyle().Foreground(p.Potion).Background(p.LitFloorBG).Bold(true),
+		sword:        renderer.NewStyle().Foreground(p.Sword).Background(p.LitFloorBG).Bold(true),
+		uiText:       renderer.NewStyle().Foreground(p.UIText),
+		uiAccent:     renderer.NewStyle().Foreground(p.UIAccent).Bold(true),
+		health:       renderer.NewStyle().Foreground(p.Health),
+		healthEmpty:  renderer.NewStyle().Foreground(p.HealthEmpty),
+		danger:       renderer.NewStyle().Foreground(p.Danger).Bold(true),
 	}
 }
 
 func initialModel(rng *rand.Rand) model {
 	return model{
-		state:  NewGame(productionDungeonWidth, productionDungeonHeight, rng),
-		rng:    rng,
-		glyphs: glyphProfileForEnvironment(os.Getenv),
+		state:    NewGame(productionDungeonWidth, productionDungeonHeight, rng),
+		rng:      rng,
+		renderer: lipgloss.DefaultRenderer(),
+		glyphs:   glyphProfileForEnvironment(os.Getenv),
 	}
 }
 
@@ -378,8 +380,12 @@ func (m model) View() string {
 	}
 	viewport := m.viewport()
 	glyphs := m.glyphs.withASCIIFallback()
+	renderer := m.renderer
+	if renderer == nil {
+		renderer = lipgloss.DefaultRenderer()
+	}
 
-	styles := newViewStyles(defaultPalette)
+	styles := newViewStyles(renderer, defaultPalette)
 	player := styles.player.Render(glyphs.Player)
 	floor := styles.floor.Render(glyphs.Floor)
 	wall := styles.wall.Render(glyphs.Wall)
