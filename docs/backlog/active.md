@@ -71,3 +71,6 @@ None. No decision is waiting on the user.
 
 M2.2 semantic truecolor palette: gofmt clean, `go vet` clean, builds, headless
 smoke frame renders, all tests pass, `go.mod` tidy.
+
+Standing unattended prompt updated to execute substantial batches of related
+work while retaining progressive tests, checkpoints, and reviewable commits.
