@@ -59,15 +59,17 @@ type glyphProfile struct {
 	Monster string
 	Floor   string
 	Wall    string
+	Stairs  string
 }
 
 var (
-	asciiGlyphs = glyphProfile{Player: "@", Monster: "g", Floor: ".", Wall: "#"}
+	asciiGlyphs = glyphProfile{Player: "@", Monster: "g", Floor: ".", Wall: "#", Stairs: ">"}
 	richGlyphs  = glyphProfile{
 		Player:  "\uf007", // Nerd Fonts: Font Awesome user
 		Monster: "\uf6e2", // Nerd Fonts: Font Awesome ghost
 		Floor:   "·",
 		Wall:    "█",
+		Stairs:  "\uf063", // Nerd Fonts: Font Awesome arrow-down
 	}
 )
 
@@ -114,6 +116,8 @@ type viewStyles struct {
 	wall         lipgloss.Style
 	memoryFloor  lipgloss.Style
 	memoryWall   lipgloss.Style
+	stairs       lipgloss.Style
+	memoryStairs lipgloss.Style
 	uiText       lipgloss.Style
 	uiAccent     lipgloss.Style
 	health       lipgloss.Style
@@ -131,6 +135,8 @@ func newViewStyles(p colorPalette) viewStyles {
 		wall:         lipgloss.NewStyle().Foreground(p.LitWall).Background(p.LitWallBG),
 		memoryFloor:  lipgloss.NewStyle().Foreground(p.MemoryFloor).Background(p.MemoryBG),
 		memoryWall:   lipgloss.NewStyle().Foreground(p.MemoryWall).Background(p.MemoryBG),
+		stairs:       lipgloss.NewStyle().Foreground(p.UIAccent).Background(p.LitFloorBG).Bold(true),
+		memoryStairs: lipgloss.NewStyle().Foreground(p.MemoryWall).Background(p.MemoryBG),
 		uiText:       lipgloss.NewStyle().Foreground(p.UIText),
 		uiAccent:     lipgloss.NewStyle().Foreground(p.UIAccent).Bold(true),
 		health:       lipgloss.NewStyle().Foreground(p.Health),
@@ -170,7 +176,8 @@ func (p glyphProfile) withASCIIFallback() glyphProfile {
 	if lipgloss.Width(p.Player) != 1 ||
 		lipgloss.Width(p.Monster) != 1 ||
 		lipgloss.Width(p.Floor) != 1 ||
-		lipgloss.Width(p.Wall) != 1 {
+		lipgloss.Width(p.Wall) != 1 ||
+		lipgloss.Width(p.Stairs) != 1 {
 		return asciiGlyphs
 	}
 	return p
@@ -203,6 +210,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "r":
 			if m.state.GameOver {
 				m.state = NewGame(m.state.Map.Width, m.state.Map.Height, m.rng)
+				m.motion = actorMotionState{}
+			}
+			return m, nil
+		case ">":
+			previousDepth := m.state.Depth
+			m.state = m.state.Descend(m.rng)
+			if m.state.Depth != previousDepth {
+				m.motionSeq++
 				m.motion = actorMotionState{}
 			}
 			return m, nil
@@ -302,6 +317,8 @@ func (m model) View() string {
 	wall := styles.wall.Render(glyphs.Wall)
 	memoryFloor := styles.memoryFloor.Render(glyphs.Floor)
 	memoryWall := styles.memoryWall.Render(glyphs.Wall)
+	stairs := styles.stairs.Render(glyphs.Stairs)
+	memoryStairs := styles.memoryStairs.Render(glyphs.Stairs)
 	entityGlyphs := make(map[Position]string, len(m.state.Entities))
 	for _, entity := range m.state.Entities {
 		pos := m.animatedPosition(entity.ID, false, entity.Pos)
@@ -336,15 +353,22 @@ func (m model) View() string {
 				sb.WriteString(entity)
 			} else if trail, ok := trailGlyphs[Position{X: x, Y: y}]; ok && (trail.isPlayer || visible) {
 				sb.WriteString(trail.glyph)
-			} else if !visible && m.state.Map.Tiles[y][x] == TileWall {
-				sb.WriteString(memoryWall)
 			} else if !visible {
-				sb.WriteString(memoryFloor)
+				switch m.state.Map.Tiles[y][x] {
+				case TileWall:
+					sb.WriteString(memoryWall)
+				case TileStairs:
+					sb.WriteString(memoryStairs)
+				default:
+					sb.WriteString(memoryFloor)
+				}
 			} else {
-				// Render floor tiles or walls based on the map state
-				if m.state.Map.Tiles[y][x] == TileWall {
+				switch m.state.Map.Tiles[y][x] {
+				case TileWall:
 					sb.WriteString(wall)
-				} else {
+				case TileStairs:
+					sb.WriteString(stairs)
+				default:
 					sb.WriteString(floor)
 				}
 			}
@@ -374,6 +398,7 @@ func renderSidebar(state GameState, styles viewStyles) string {
 	sb.WriteString(styles.health.Render(strings.Repeat("#", filled)))
 	sb.WriteString(styles.healthEmpty.Render(strings.Repeat(".", healthBarWidth-filled)))
 	fmt.Fprintf(&sb, "] %d/%d\n", state.Player.Health, state.Player.MaxHealth)
+	fmt.Fprintf(&sb, "%s %d\n", styles.uiAccent.Render("Depth"), state.Depth)
 	sb.WriteString(styles.uiAccent.Render("Log:"))
 	logStart := max(0, len(state.Log)-visibleLogLines)
 	for _, entry := range state.Log[logStart:] {

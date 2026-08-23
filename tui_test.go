@@ -72,7 +72,7 @@ func TestViewRendersFullGrid(t *testing.T) {
 			continue
 		}
 		for x, cell := range plain[:state.Map.Width] {
-			if !strings.ContainsRune(" #.@g", cell) {
+			if !strings.ContainsRune(" #.@g>", cell) {
 				t.Errorf("map cell (%d,%d) = %q, want a dungeon glyph", x, y, cell)
 			}
 		}
@@ -221,6 +221,7 @@ func TestGlyphProfilesStayOneCellWide(t *testing.T) {
 			"monster": profile.Monster,
 			"floor":   profile.Floor,
 			"wall":    profile.Wall,
+			"stairs":  profile.Stairs,
 		} {
 			if got := lipgloss.Width(glyph); got != 1 {
 				t.Errorf("%s %s glyph %q is %d cells wide, want 1", name, role, glyph, got)
@@ -239,6 +240,7 @@ func TestViewRendersRichGlyphSemantics(t *testing.T) {
 	state := openTestState()
 	state.Player.Pos = Position{X: 3, Y: 3}
 	state.Entities = []Entity{testMonster(1, Position{X: 4, Y: 3})}
+	state.Map.Tiles[2][3] = TileStairs
 	state = state.refreshVisibility()
 	d := tuitest.New(t, model{
 		state:  state,
@@ -256,6 +258,7 @@ func TestViewRendersRichGlyphSemantics(t *testing.T) {
 		{name: "monster", pos: Position{X: 4, Y: 3}, want: richGlyphs.Monster},
 		{name: "floor", pos: Position{X: 2, Y: 3}, want: richGlyphs.Floor},
 		{name: "wall", pos: Position{X: 0, Y: 3}, want: richGlyphs.Wall},
+		{name: "stairs", pos: Position{X: 3, Y: 2}, want: richGlyphs.Stairs},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -263,6 +266,22 @@ func TestViewRendersRichGlyphSemantics(t *testing.T) {
 				t.Errorf("rendered glyph = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestViewRendersASCIIStairs(t *testing.T) {
+	state := openTestState()
+	stairs := Position{X: 3, Y: 2}
+	state.Map.Tiles[stairs.Y][stairs.X] = TileStairs
+	state = state.refreshVisibility()
+	d := tuitest.New(t, model{
+		state:  state,
+		rng:    rand.New(rand.NewSource(tuiTestSeed)),
+		glyphs: asciiGlyphs,
+	})
+
+	if got := renderedCell(t, d.Lines(), stairs); got != asciiGlyphs.Stairs {
+		t.Errorf("rendered stair glyph = %q, want %q", got, asciiGlyphs.Stairs)
 	}
 }
 
@@ -308,6 +327,9 @@ func TestViewRendersHealthAndRecentLog(t *testing.T) {
 
 	if !strings.Contains(plain, "HP [######....] 65/100") {
 		t.Errorf("view does not contain health bar:\n%s", plain)
+	}
+	if !strings.Contains(plain, "Depth 1") {
+		t.Errorf("view does not contain dungeon depth:\n%s", plain)
 	}
 	if !strings.Contains(plain, "A test event.") {
 		t.Errorf("view does not contain recent log entry:\n%s", plain)
@@ -481,6 +503,50 @@ func TestMovementInputReplacesInFlightAnimation(t *testing.T) {
 	m = next.(model)
 	if cmd != nil || m.motion.Frame != 0 {
 		t.Errorf("stale tick advanced replacement animation to frame %d", m.motion.Frame)
+	}
+}
+
+func TestDescendKeyRegeneratesAndRendersNextDepth(t *testing.T) {
+	rng := rand.New(rand.NewSource(tuiTestSeed))
+	state := NewGame(20, 10, rng)
+	state.Player.Pos = tilePositions(state.Map, TileStairs)[0]
+	state.Player.Health = 63
+	state = state.refreshVisibility()
+	m := model{
+		state:  state,
+		rng:    rng,
+		glyphs: asciiGlyphs,
+		motion: actorMotionState{
+			Actors:   []actorMotion{{IsPlayer: true, From: Position{X: 1, Y: 1}, To: state.Player.Pos}},
+			Frame:    1,
+			Sequence: 4,
+		},
+		motionSeq:    4,
+		windowWidth:  50,
+		windowHeight: 9,
+	}
+	d := tuitest.New(t, m)
+
+	d.Key(">")
+
+	got := d.Model().(model)
+	if got.state.Depth != 2 {
+		t.Fatalf("depth after > = %d, want 2", got.state.Depth)
+	}
+	if got.state.Player.Health != 63 {
+		t.Errorf("health after > = %d, want 63", got.state.Player.Health)
+	}
+	if len(got.motion.Actors) != 0 || got.motion.Frame != 0 {
+		t.Errorf("descent retained actor/camera motion: %+v", got.motion)
+	}
+	viewport := got.viewport()
+	wantScreen := Position{X: got.state.Player.Pos.X - viewport.X, Y: got.state.Player.Pos.Y - viewport.Y}
+	if rendered := playerAt(t, d.Lines()); rendered != wantScreen {
+		t.Errorf("next-depth player rendered at %+v, want %+v", rendered, wantScreen)
+	}
+	plain := stripANSI(d.View())
+	if !strings.Contains(plain, "HP [######....] 63/100") || !strings.Contains(plain, "Depth 2") {
+		t.Errorf("next-depth view lost preserved health or depth:\n%s", plain)
 	}
 }
 

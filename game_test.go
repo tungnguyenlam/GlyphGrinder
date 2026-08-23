@@ -51,6 +51,27 @@ func TestNewGamePlacesPlayerOnFloor(t *testing.T) {
 	if p.Health != p.MaxHealth {
 		t.Errorf("player starts at %d/%d health, want full", p.Health, p.MaxHealth)
 	}
+	if got, want := g.Depth, 1; got != want {
+		t.Errorf("starting depth = %d, want %d", got, want)
+	}
+}
+
+func TestNewGamePlacesReachableStairsAwayFromPlayer(t *testing.T) {
+	for _, seed := range []int64{1, 7, 42, 99} {
+		t.Run("seed_"+strconv.FormatInt(seed, 10), func(t *testing.T) {
+			g := newTestGame(seed)
+			stairs := tilePositions(g.Map, TileStairs)
+			if got, want := len(stairs), 1; got != want {
+				t.Fatalf("stair count = %d, want %d", got, want)
+			}
+			if stairs[0] == g.Player.Pos {
+				t.Fatal("stairs overlap the player's starting position")
+			}
+			if _, reachable := reachableTiles(g.Map, g.Player.Pos)[stairs[0]]; !reachable {
+				t.Fatalf("stairs at %+v are not reachable from player at %+v", stairs[0], g.Player.Pos)
+			}
+		})
+	}
 }
 
 func TestNewGamePlacesMonstersOnDistinctFloors(t *testing.T) {
@@ -93,17 +114,17 @@ func TestGeneratedDungeonFloorsAreReachable(t *testing.T) {
 	for _, seed := range []int64{1, 7, 42, 99} {
 		t.Run("seed_"+strconv.FormatInt(seed, 10), func(t *testing.T) {
 			g := newTestGame(seed)
-			reachable := reachableFloors(g.Map, g.Player.Pos)
-			floorCount := 0
+			reachable := reachableTiles(g.Map, g.Player.Pos)
+			walkableCount := 0
 			for y := 0; y < g.Map.Height; y++ {
 				for x := 0; x < g.Map.Width; x++ {
-					if g.Map.Tiles[y][x] == TileFloor {
-						floorCount++
+					if g.Map.Tiles[y][x] != TileWall {
+						walkableCount++
 					}
 				}
 			}
-			if got := len(reachable); got != floorCount {
-				t.Errorf("seed %d: reachable floors = %d, want all %d", seed, got, floorCount)
+			if got := len(reachable); got != walkableCount {
+				t.Errorf("seed %d: reachable tiles = %d, want all %d", seed, got, walkableCount)
 			}
 		})
 	}
@@ -183,7 +204,7 @@ func TestStepRefreshesVisibilityAfterPlayerMoves(t *testing.T) {
 	}
 }
 
-func reachableFloors(m GameMap, start Position) map[Position]struct{} {
+func reachableTiles(m GameMap, start Position) map[Position]struct{} {
 	reachable := map[Position]struct{}{start: {}}
 	queue := []Position{start}
 	directions := []Position{{X: 1}, {X: -1}, {Y: 1}, {Y: -1}}
@@ -195,7 +216,7 @@ func reachableFloors(m GameMap, start Position) map[Position]struct{} {
 			if next.X < 0 || next.X >= m.Width || next.Y < 0 || next.Y >= m.Height {
 				continue
 			}
-			if m.Tiles[next.Y][next.X] != TileFloor {
+			if m.Tiles[next.Y][next.X] == TileWall {
 				continue
 			}
 			if _, seen := reachable[next]; seen {
@@ -208,6 +229,18 @@ func reachableFloors(m GameMap, start Position) map[Position]struct{} {
 	return reachable
 }
 
+func tilePositions(m GameMap, want TileType) []Position {
+	var positions []Position
+	for y, row := range m.Tiles {
+		for x, tile := range row {
+			if tile == want {
+				positions = append(positions, Position{X: x, Y: y})
+			}
+		}
+	}
+	return positions
+}
+
 func mapSignature(m GameMap) string {
 	signature := make([]byte, 0, m.Width*m.Height)
 	for _, row := range m.Tiles {
@@ -216,6 +249,76 @@ func mapSignature(m GameMap) string {
 		}
 	}
 	return string(signature)
+}
+
+func TestDescendRequiresPlayerToStandOnStairs(t *testing.T) {
+	g := newTestGame(12)
+	before := g
+
+	got := g.Descend(rand.New(rand.NewSource(99)))
+
+	if !reflect.DeepEqual(got, before) {
+		t.Errorf("descent away from stairs changed state:\ngot  %+v\nwant %+v", got, before)
+	}
+}
+
+func TestDescendGeneratesNextLevelAndPreservesPlayerStats(t *testing.T) {
+	rng := rand.New(rand.NewSource(18))
+	g := NewGame(20, 10, rng)
+	g.Player.Pos = tilePositions(g.Map, TileStairs)[0]
+	g.Player.Health = 37
+	g.Player.MaxHealth = 120
+	g.Player.Damage = 14
+	oldMap := mapSignature(g.Map)
+
+	got := g.Descend(rng)
+
+	if got.Depth != 2 {
+		t.Errorf("depth after descent = %d, want 2", got.Depth)
+	}
+	if got.Player.Health != 37 || got.Player.MaxHealth != 120 || got.Player.Damage != 14 {
+		t.Errorf("player stats after descent = %+v, want health 37/120 and damage 14", got.Player)
+	}
+	if got.Map.Width != g.Map.Width || got.Map.Height != g.Map.Height {
+		t.Errorf("next map dimensions = %dx%d, want %dx%d", got.Map.Width, got.Map.Height, g.Map.Width, g.Map.Height)
+	}
+	if got.Map.Tiles[got.Player.Pos.Y][got.Player.Pos.X] != TileFloor {
+		t.Errorf("player starts next depth on tile %d, want floor", got.Map.Tiles[got.Player.Pos.Y][got.Player.Pos.X])
+	}
+	stairs := tilePositions(got.Map, TileStairs)
+	if len(stairs) != 1 {
+		t.Fatalf("next depth stair count = %d, want 1", len(stairs))
+	}
+	if _, reachable := reachableTiles(got.Map, got.Player.Pos)[stairs[0]]; !reachable {
+		t.Fatalf("next stairs at %+v are unreachable", stairs[0])
+	}
+	if got.Map.Explored == nil || !got.Map.Explored[got.Player.Pos.Y][got.Player.Pos.X] {
+		t.Error("next depth visibility was not initialized around the player")
+	}
+	if &got.Map.Visible[0][0] == &g.Map.Visible[0][0] || &got.Map.Explored[0][0] == &g.Map.Explored[0][0] {
+		t.Error("descent retained visibility grids from the prior depth")
+	}
+	if oldMap == mapSignature(got.Map) {
+		t.Error("descent generated the same dungeon layout")
+	}
+	if gotLog, want := got.Log[len(got.Log)-1], "You descend to depth 2."; gotLog != want {
+		t.Errorf("last log entry = %q, want %q", gotLog, want)
+	}
+}
+
+func TestDescentSequenceIsDeterministicForSeed(t *testing.T) {
+	descend := func(seed int64) GameState {
+		rng := rand.New(rand.NewSource(seed))
+		g := NewGame(20, 10, rng)
+		g.Player.Pos = tilePositions(g.Map, TileStairs)[0]
+		return g.Descend(rng)
+	}
+
+	first := descend(73)
+	second := descend(73)
+	if !reflect.DeepEqual(first, second) {
+		t.Fatal("same seeded run generated different second levels")
+	}
 }
 
 func TestStepMovesPlayer(t *testing.T) {
@@ -480,7 +583,8 @@ func openTestStateSized(width, height int) GameState {
 			MaxHealth: 100,
 			Damage:    10,
 		},
-		Log: log,
+		Log:   log,
+		Depth: 1,
 	}
 	return g.refreshVisibility()
 }

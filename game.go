@@ -18,6 +18,7 @@ type TileType uint8
 const (
 	TileFloor TileType = iota
 	TileWall
+	TileStairs
 )
 
 // Action describes one turn requested by the player.
@@ -74,6 +75,7 @@ type GameState struct {
 	Player   Entity
 	Entities []Entity
 	Log      []string
+	Depth    int
 	GameOver bool
 }
 
@@ -313,23 +315,86 @@ func hasLineOfSight(m GameMap, from, to Position) bool {
 	}
 }
 
-// NewGame generates a dungeon using rng and places the player in its first room.
+// NewGame generates the first dungeon level for a new run.
 func NewGame(width, height int, rng *rand.Rand) GameState {
+	player := Entity{
+		IsPlayer:  true,
+		Health:    100,
+		MaxHealth: 100,
+		Damage:    10,
+	}
+	return newDungeonLevel(width, height, 1, player, nil, rng)
+}
+
+// Descend replaces the current map with the next dungeon level when the player
+// is standing on stairs. Run-level player stats and the message log survive.
+func (g GameState) Descend(rng *rand.Rand) GameState {
+	pos := g.Player.Pos
+	if g.GameOver || pos.X < 0 || pos.X >= g.Map.Width || pos.Y < 0 || pos.Y >= g.Map.Height {
+		return g
+	}
+	if g.Map.Tiles[pos.Y][pos.X] != TileStairs {
+		return g
+	}
+
+	nextDepth := g.Depth + 1
+	log := appendLog(g.Log, fmt.Sprintf("You descend to depth %d.", nextDepth))
+	return newDungeonLevel(g.Map.Width, g.Map.Height, nextDepth, g.Player, log, rng)
+}
+
+func newDungeonLevel(width, height, depth int, player Entity, log []string, rng *rand.Rand) GameState {
 	gameMap, rooms := generateDungeon(width, height, rng)
 	playerPos := rooms[0].center()
+	placeDownStairs(&gameMap, playerPos)
+	player.Pos = playerPos
+	player.IsPlayer = true
 
 	g := GameState{
 		Map:      gameMap,
 		Entities: placeMonsters(gameMap, playerPos, rng),
-		Player: Entity{
-			IsPlayer:  true,
-			Pos:       playerPos,
-			Health:    100,
-			MaxHealth: 100,
-			Damage:    10,
-		},
+		Player:   player,
+		Log:      log,
+		Depth:    depth,
 	}
 	return g.refreshVisibility()
+}
+
+func placeDownStairs(m *GameMap, playerPos Position) {
+	distances := make([][]int, m.Height)
+	for y := range distances {
+		distances[y] = make([]int, m.Width)
+		for x := range distances[y] {
+			distances[y][x] = -1
+		}
+	}
+	distances[playerPos.Y][playerPos.X] = 0
+	queue := []Position{playerPos}
+	stairs := playerPos
+	directions := [...]Position{{X: 1}, {Y: 1}, {X: -1}, {Y: -1}}
+
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		if distances[current.Y][current.X] > distances[stairs.Y][stairs.X] {
+			stairs = current
+		}
+		for _, direction := range directions {
+			next := Position{X: current.X + direction.X, Y: current.Y + direction.Y}
+			if next.X < 0 || next.X >= m.Width || next.Y < 0 || next.Y >= m.Height {
+				continue
+			}
+			if m.Tiles[next.Y][next.X] == TileWall || distances[next.Y][next.X] >= 0 {
+				continue
+			}
+			distances[next.Y][next.X] = distances[current.Y][current.X] + 1
+			queue = append(queue, next)
+		}
+	}
+
+	if stairs == playerPos {
+		panic("generated dungeon has no floor away from the player")
+	}
+	m.Tiles[stairs.Y][stairs.X] = TileStairs
 }
 
 func placeMonsters(m GameMap, playerPos Position, rng *rand.Rand) []Entity {

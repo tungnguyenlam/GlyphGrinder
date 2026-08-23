@@ -16,25 +16,25 @@ longer tactical arc and build-changing choices required of a real roguelike.
 
 ## Exact next action
 
-**Add stairs and deterministic descent to deeper generated levels.**
+**Add deterministic health potions with pickup, inventory, and tactical use.**
 
-- Add a down-stair tile on a reachable floor away from the player and track the
-  current dungeon depth in `GameState`.
-- Map `>` to a descend action that works only while standing on stairs, creates
-  the next seeded dungeon, preserves the run's player health, and resets
-  visibility/camera motion safely.
-- Render stairs through both rich and ASCII glyph profiles and show depth in
-  the sidebar.
-- Cover deterministic stair placement, invalid descent, successful descent,
-  preserved stats, and the full headless input/render path.
+- Place potions deterministically on ordinary floor cells without overlapping
+  the player, stairs, monsters, or one another.
+- Pick a potion up by moving onto it, carry potion inventory across dungeon
+  depths, and clear inventory on a fresh run.
+- Map `p` to consume one potion only while injured, heal without exceeding max
+  health, spend a turn so nearby monsters can respond, and log the result.
+- Render potions through rich and ASCII glyph profiles, show their inventory
+  count in the sidebar, and cover placement/pickup/use plus headless input and
+  rendering.
 
-Why next: a run currently ends on the first map with no objective. Descent is
-the smallest complete vertical slice that establishes progression for items,
-enemy variety, difficulty, and an eventual win condition.
+Why next: descent now establishes a run, but health only decreases. Potions add
+the first build resource and a meaningful risk/reward decision about when to
+spend a combat turn recovering.
 
 ## Milestone plan
 
-- [ ] **M3.1** Add dungeon depth, reachable stairs, and deterministic descent.
+- [x] **M3.1** Add dungeon depth, reachable stairs, and deterministic descent.
 - [ ] **M3.2** Add potions with pickup, inventory, and tactical use.
 - [ ] **M3.3** Add a weapon tier and equipment choice that changes combat.
 - [ ] **M3.4** Add at least two monster archetypes with distinct stats and
@@ -65,6 +65,10 @@ None. No decision is waiting on the user.
 
 M2.5 tick-driven player/monster motion and M2 completion: gofmt clean, `go vet`
 clean, builds, headless smoke frame renders, all tests pass, `go.mod` tidy.
+
+M3.1 reachable stairs and deterministic descent: state and headless coverage
+pass; rich/ASCII stairs, depth sidebar, preserved health, fresh visibility,
+and cleared camera motion verified.
 
 Standing unattended prompt updated to execute substantial batches of related
 work while retaining progressive tests, checkpoints, and reviewable commits.
