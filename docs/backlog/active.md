@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-08-23
+**Last updated:** 2026-08-23 (final audit before stop)
 
 ## Current milestone
 
