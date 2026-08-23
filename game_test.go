@@ -101,20 +101,26 @@ func TestNewGamePlacesMonstersOnDistinctFloors(t *testing.T) {
 	}
 }
 
-func TestNewGamePlacesPotionsOnDistinctUnoccupiedFloors(t *testing.T) {
+func TestNewGamePlacesItemsOnDistinctUnoccupiedFloors(t *testing.T) {
 	for _, seed := range []int64{3, 8, 21, 55} {
 		t.Run("seed_"+strconv.FormatInt(seed, 10), func(t *testing.T) {
 			g := newTestGame(seed)
-			if got, want := len(g.Items), 2; got != want {
-				t.Fatalf("item count = %d, want %d potions", got, want)
+			if got, want := len(g.Items), 3; got != want {
+				t.Fatalf("item count = %d, want 2 potions and 1 sword", got)
 			}
+			potionCount, swordCount := 0, 0
 			occupied := map[Position]struct{}{g.Player.Pos: {}}
 			for _, monster := range g.Entities {
 				occupied[monster.Pos] = struct{}{}
 			}
 			for _, item := range g.Items {
-				if item.Type != ItemPotion {
-					t.Errorf("item at %+v has type %d, want potion", item.Pos, item.Type)
+				switch item.Type {
+				case ItemPotion:
+					potionCount++
+				case ItemSword:
+					swordCount++
+				default:
+					t.Errorf("item at %+v has unknown type %d", item.Pos, item.Type)
 				}
 				if g.Map.Tiles[item.Pos.Y][item.Pos.X] != TileFloor {
 					t.Errorf("potion placed off ordinary floor at %+v", item.Pos)
@@ -123,6 +129,9 @@ func TestNewGamePlacesPotionsOnDistinctUnoccupiedFloors(t *testing.T) {
 					t.Errorf("potion overlaps actor or another item at %+v", item.Pos)
 				}
 				occupied[item.Pos] = struct{}{}
+			}
+			if potionCount != 2 || swordCount != 1 {
+				t.Errorf("placed %d potions and %d swords, want 2 and 1", potionCount, swordCount)
 			}
 		})
 	}
@@ -295,8 +304,10 @@ func TestDescendGeneratesNextLevelAndPreservesPlayerStats(t *testing.T) {
 	g.Player.Pos = tilePositions(g.Map, TileStairs)[0]
 	g.Player.Health = 37
 	g.Player.MaxHealth = 120
-	g.Player.Damage = 14
+	g.Player.Damage = swordDamage
 	g.Potions = 2
+	g.HasSword = true
+	g.Equipped = true
 	oldMap := mapSignature(g.Map)
 
 	got := g.Descend(rng)
@@ -304,11 +315,14 @@ func TestDescendGeneratesNextLevelAndPreservesPlayerStats(t *testing.T) {
 	if got.Depth != 2 {
 		t.Errorf("depth after descent = %d, want 2", got.Depth)
 	}
-	if got.Player.Health != 37 || got.Player.MaxHealth != 120 || got.Player.Damage != 14 {
-		t.Errorf("player stats after descent = %+v, want health 37/120 and damage 14", got.Player)
+	if got.Player.Health != 37 || got.Player.MaxHealth != 120 || got.Player.Damage != swordDamage {
+		t.Errorf("player stats after descent = %+v, want health 37/120 and damage %d", got.Player, swordDamage)
 	}
 	if got.Potions != 2 {
 		t.Errorf("potion inventory after descent = %d, want 2", got.Potions)
+	}
+	if !got.HasSword || !got.Equipped || got.Player.Damage != swordDamage {
+		t.Errorf("weapon state after descent = carried %v, equipped %v, damage %d", got.HasSword, got.Equipped, got.Player.Damage)
 	}
 	if got.Map.Width != g.Map.Width || got.Map.Height != g.Map.Height {
 		t.Errorf("next map dimensions = %dx%d, want %dx%d", got.Map.Width, got.Map.Height, g.Map.Width, g.Map.Height)
@@ -372,6 +386,56 @@ func TestStepPicksUpPotion(t *testing.T) {
 	}
 	if gotLog, want := got.Log[len(got.Log)-1], "You pick up a health potion."; gotLog != want {
 		t.Errorf("last log entry = %q, want %q", gotLog, want)
+	}
+}
+
+func TestStepPicksUpAndEquipsSword(t *testing.T) {
+	g := openTestState()
+	g.Player.Pos = Position{X: 2, Y: 3}
+	g.Entities = nil
+	g.Items = []Item{{Type: ItemSword, Pos: Position{X: 3, Y: 3}}}
+
+	pickedUp := g.Step(ActionMoveRight)
+	if !pickedUp.HasSword || pickedUp.Equipped || pickedUp.Player.Damage != 10 || len(pickedUp.Items) != 0 {
+		t.Fatalf("sword pickup state = carried %v, equipped %v, damage %d, items %+v", pickedUp.HasSword, pickedUp.Equipped, pickedUp.Player.Damage, pickedUp.Items)
+	}
+
+	equipped := pickedUp.Step(ActionEquipWeapon)
+	if !equipped.Equipped || equipped.Player.Damage != swordDamage {
+		t.Errorf("equipped state = %v with damage %d, want true and %d", equipped.Equipped, equipped.Player.Damage, swordDamage)
+	}
+	if gotLog, want := equipped.Log[len(equipped.Log)-1], "You equip the iron sword."; gotLog != want {
+		t.Errorf("last log entry = %q, want %q", gotLog, want)
+	}
+}
+
+func TestEquipSwordSpendsTurnAndChangesCombatDamage(t *testing.T) {
+	g := combatTestState(20)
+	g.HasSword = true
+
+	equipped := g.Step(ActionEquipWeapon)
+	if equipped.Player.Health != 90 {
+		t.Errorf("health after equipping beside two monsters = %d, want 90", equipped.Player.Health)
+	}
+
+	attacked := equipped.Step(ActionMoveRight)
+	if attacked.Entities[0].Health != 5 {
+		t.Errorf("monster health after sword hit = %d, want 5", attacked.Entities[0].Health)
+	}
+}
+
+func TestEquipSwordIsFreeWhenUnavailableOrAlreadyEquipped(t *testing.T) {
+	for _, g := range []GameState{openTestState(), func() GameState {
+		g := openTestState()
+		g.HasSword = true
+		g.Equipped = true
+		g.Player.Damage = swordDamage
+		return g
+	}()} {
+		g.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
+		if got := g.Step(ActionEquipWeapon); !reflect.DeepEqual(got, g) {
+			t.Errorf("invalid equip changed state:\ngot  %+v\nwant %+v", got, g)
+		}
 	}
 }
 

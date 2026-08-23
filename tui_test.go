@@ -72,7 +72,7 @@ func TestViewRendersFullGrid(t *testing.T) {
 			continue
 		}
 		for x, cell := range plain[:state.Map.Width] {
-			if !strings.ContainsRune(" #.@g>!", cell) {
+			if !strings.ContainsRune(" #.@g>!/", cell) {
 				t.Errorf("map cell (%d,%d) = %q, want a dungeon glyph", x, y, cell)
 			}
 		}
@@ -223,6 +223,7 @@ func TestGlyphProfilesStayOneCellWide(t *testing.T) {
 			"wall":    profile.Wall,
 			"stairs":  profile.Stairs,
 			"potion":  profile.Potion,
+			"sword":   profile.Sword,
 		} {
 			if got := lipgloss.Width(glyph); got != 1 {
 				t.Errorf("%s %s glyph %q is %d cells wide, want 1", name, role, glyph, got)
@@ -243,6 +244,7 @@ func TestViewRendersRichGlyphSemantics(t *testing.T) {
 	state.Entities = []Entity{testMonster(1, Position{X: 4, Y: 3})}
 	state.Map.Tiles[2][3] = TileStairs
 	state.Items = []Item{{Type: ItemPotion, Pos: Position{X: 2, Y: 2}}}
+	state.Items = append(state.Items, Item{Type: ItemSword, Pos: Position{X: 1, Y: 2}})
 	state = state.refreshVisibility()
 	d := tuitest.New(t, model{
 		state:  state,
@@ -262,6 +264,7 @@ func TestViewRendersRichGlyphSemantics(t *testing.T) {
 		{name: "wall", pos: Position{X: 0, Y: 3}, want: richGlyphs.Wall},
 		{name: "stairs", pos: Position{X: 3, Y: 2}, want: richGlyphs.Stairs},
 		{name: "potion", pos: Position{X: 2, Y: 2}, want: richGlyphs.Potion},
+		{name: "sword", pos: Position{X: 1, Y: 2}, want: richGlyphs.Sword},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -276,8 +279,10 @@ func TestViewRendersASCIIMapFeatures(t *testing.T) {
 	state := openTestState()
 	stairs := Position{X: 3, Y: 2}
 	potion := Position{X: 2, Y: 2}
+	sword := Position{X: 1, Y: 2}
 	state.Map.Tiles[stairs.Y][stairs.X] = TileStairs
 	state.Items = []Item{{Type: ItemPotion, Pos: potion}}
+	state.Items = append(state.Items, Item{Type: ItemSword, Pos: sword})
 	state = state.refreshVisibility()
 	d := tuitest.New(t, model{
 		state:  state,
@@ -290,6 +295,9 @@ func TestViewRendersASCIIMapFeatures(t *testing.T) {
 	}
 	if got := renderedCell(t, d.Lines(), potion); got != asciiGlyphs.Potion {
 		t.Errorf("rendered potion glyph = %q, want %q", got, asciiGlyphs.Potion)
+	}
+	if got := renderedCell(t, d.Lines(), sword); got != asciiGlyphs.Sword {
+		t.Errorf("rendered sword glyph = %q, want %q", got, asciiGlyphs.Sword)
 	}
 }
 
@@ -341,6 +349,9 @@ func TestViewRendersHealthAndRecentLog(t *testing.T) {
 	}
 	if !strings.Contains(plain, "Potions 0 (p)") {
 		t.Errorf("view does not contain potion inventory:\n%s", plain)
+	}
+	if !strings.Contains(plain, "Weapon fists, 10 dmg") {
+		t.Errorf("view does not contain weapon state:\n%s", plain)
 	}
 	if !strings.Contains(plain, "A test event.") {
 		t.Errorf("view does not contain recent log entry:\n%s", plain)
@@ -523,6 +534,9 @@ func TestDescendKeyRegeneratesAndRendersNextDepth(t *testing.T) {
 	state.Player.Pos = tilePositions(state.Map, TileStairs)[0]
 	state.Player.Health = 63
 	state.Potions = 2
+	state.HasSword = true
+	state.Equipped = true
+	state.Player.Damage = swordDamage
 	state = state.refreshVisibility()
 	m := model{
 		state:  state,
@@ -551,6 +565,9 @@ func TestDescendKeyRegeneratesAndRendersNextDepth(t *testing.T) {
 	if got.state.Potions != 2 {
 		t.Errorf("potions after > = %d, want 2", got.state.Potions)
 	}
+	if !got.state.HasSword || !got.state.Equipped || got.state.Player.Damage != swordDamage {
+		t.Errorf("weapon after > = carried %v, equipped %v, damage %d", got.state.HasSword, got.state.Equipped, got.state.Player.Damage)
+	}
 	if len(got.motion.Actors) != 0 || got.motion.Frame != 0 {
 		t.Errorf("descent retained actor/camera motion: %+v", got.motion)
 	}
@@ -562,8 +579,36 @@ func TestDescendKeyRegeneratesAndRendersNextDepth(t *testing.T) {
 	plain := stripANSI(d.View())
 	if !strings.Contains(plain, "HP [######....] 63/100") ||
 		!strings.Contains(plain, "Depth 2") ||
-		!strings.Contains(plain, "Potions 2 (p)") {
+		!strings.Contains(plain, "Potions 2 (p)") ||
+		!strings.Contains(plain, "Weapon sword, 15 dmg") {
 		t.Errorf("next-depth view lost preserved run state:\n%s", plain)
+	}
+}
+
+func TestSwordPickupAndEquipSurviveUpdateRoundTrip(t *testing.T) {
+	state := openTestState()
+	state.Player.Pos = Position{X: 2, Y: 3}
+	state.Entities = nil
+	state.Items = []Item{{Type: ItemSword, Pos: Position{X: 3, Y: 3}}}
+	state = state.refreshVisibility()
+	d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed)), glyphs: asciiGlyphs})
+
+	d.Key("right")
+	pickedUp := d.Model().(model).state
+	if !pickedUp.HasSword || pickedUp.Equipped || pickedUp.Player.Damage != 10 {
+		t.Fatalf("pickup state = carried %v, equipped %v, damage %d", pickedUp.HasSword, pickedUp.Equipped, pickedUp.Player.Damage)
+	}
+	if plain := stripANSI(d.View()); !strings.Contains(plain, "Weapon sword (e), 10 dmg") {
+		t.Errorf("carried sword not rendered:\n%s", plain)
+	}
+
+	d.Key("e")
+	equipped := d.Model().(model).state
+	if !equipped.Equipped || equipped.Player.Damage != swordDamage {
+		t.Errorf("after e equipped = %v, damage = %d", equipped.Equipped, equipped.Player.Damage)
+	}
+	if plain := stripANSI(d.View()); !strings.Contains(plain, "Weapon sword, 15 dmg") {
+		t.Errorf("equipped sword not rendered:\n%s", plain)
 	}
 }
 
@@ -670,6 +715,9 @@ func TestGameOverAndRestartSurviveUpdateRoundTrip(t *testing.T) {
 	state.Player.Pos = Position{X: 3, Y: 3}
 	state.Player.Health = 5
 	state.Potions = 2
+	state.HasSword = true
+	state.Equipped = true
+	state.Player.Damage = swordDamage
 	state.Map.Tiles[3][4] = TileWall
 	state.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
 	d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed))})
@@ -702,6 +750,9 @@ func TestGameOverAndRestartSurviveUpdateRoundTrip(t *testing.T) {
 	}
 	if restarted.Potions != 0 || len(restarted.Items) == 0 {
 		t.Errorf("restart inventory/items = %d/%d, want empty inventory and generated items", restarted.Potions, len(restarted.Items))
+	}
+	if restarted.HasSword || restarted.Equipped || restarted.Player.Damage != 10 {
+		t.Errorf("restart retained weapon state: carried %v, equipped %v, damage %d", restarted.HasSword, restarted.Equipped, restarted.Player.Damage)
 	}
 	if len(restartedModel.motion.Actors) != 0 {
 		t.Errorf("restart retained actor motion: %+v", restartedModel.motion)

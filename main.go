@@ -61,10 +61,11 @@ type glyphProfile struct {
 	Wall    string
 	Stairs  string
 	Potion  string
+	Sword   string
 }
 
 var (
-	asciiGlyphs = glyphProfile{Player: "@", Monster: "g", Floor: ".", Wall: "#", Stairs: ">", Potion: "!"}
+	asciiGlyphs = glyphProfile{Player: "@", Monster: "g", Floor: ".", Wall: "#", Stairs: ">", Potion: "!", Sword: "/"}
 	richGlyphs  = glyphProfile{
 		Player:  "\uf007", // Nerd Fonts: Font Awesome user
 		Monster: "\uf6e2", // Nerd Fonts: Font Awesome ghost
@@ -72,6 +73,7 @@ var (
 		Wall:    "█",
 		Stairs:  "\uf063", // Nerd Fonts: Font Awesome arrow-down
 		Potion:  "\uf0c3", // Nerd Fonts: Font Awesome flask
+		Sword:   "\uf71c", // Nerd Fonts: Material Design sword-cross
 	}
 )
 
@@ -86,6 +88,7 @@ type colorPalette struct {
 	Player      lipgloss.Color
 	Monster     lipgloss.Color
 	Potion      lipgloss.Color
+	Sword       lipgloss.Color
 	UIText      lipgloss.Color
 	UIAccent    lipgloss.Color
 	Health      lipgloss.Color
@@ -104,6 +107,7 @@ var defaultPalette = colorPalette{
 	Player:      "#FFD166",
 	Monster:     "#EF6A6A",
 	Potion:      "#C4B5FD",
+	Sword:       "#F8FAFC",
 	UIText:      "#CBD5E1",
 	UIAccent:    "#67E8F9",
 	Health:      "#6EE7B7",
@@ -123,6 +127,7 @@ type viewStyles struct {
 	stairs       lipgloss.Style
 	memoryStairs lipgloss.Style
 	potion       lipgloss.Style
+	sword        lipgloss.Style
 	uiText       lipgloss.Style
 	uiAccent     lipgloss.Style
 	health       lipgloss.Style
@@ -143,6 +148,7 @@ func newViewStyles(p colorPalette) viewStyles {
 		stairs:       lipgloss.NewStyle().Foreground(p.UIAccent).Background(p.LitFloorBG).Bold(true),
 		memoryStairs: lipgloss.NewStyle().Foreground(p.MemoryWall).Background(p.MemoryBG),
 		potion:       lipgloss.NewStyle().Foreground(p.Potion).Background(p.LitFloorBG).Bold(true),
+		sword:        lipgloss.NewStyle().Foreground(p.Sword).Background(p.LitFloorBG).Bold(true),
 		uiText:       lipgloss.NewStyle().Foreground(p.UIText),
 		uiAccent:     lipgloss.NewStyle().Foreground(p.UIAccent).Bold(true),
 		health:       lipgloss.NewStyle().Foreground(p.Health),
@@ -184,7 +190,8 @@ func (p glyphProfile) withASCIIFallback() glyphProfile {
 		lipgloss.Width(p.Floor) != 1 ||
 		lipgloss.Width(p.Wall) != 1 ||
 		lipgloss.Width(p.Stairs) != 1 ||
-		lipgloss.Width(p.Potion) != 1 {
+		lipgloss.Width(p.Potion) != 1 ||
+		lipgloss.Width(p.Sword) != 1 {
 		return asciiGlyphs
 	}
 	return p
@@ -238,6 +245,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			action = ActionMoveRight
 		case "p":
 			action = ActionUsePotion
+		case "e":
+			action = ActionEquipWeapon
 		}
 		if action == ActionNone {
 			return m, nil
@@ -329,6 +338,7 @@ func (m model) View() string {
 	stairs := styles.stairs.Render(glyphs.Stairs)
 	memoryStairs := styles.memoryStairs.Render(glyphs.Stairs)
 	potion := styles.potion.Render(glyphs.Potion)
+	sword := styles.sword.Render(glyphs.Sword)
 	entityGlyphs := make(map[Position]string, len(m.state.Entities))
 	for _, entity := range m.state.Entities {
 		pos := m.animatedPosition(entity.ID, false, entity.Pos)
@@ -336,8 +346,11 @@ func (m model) View() string {
 	}
 	itemGlyphs := make(map[Position]string, len(m.state.Items))
 	for _, item := range m.state.Items {
-		if item.Type == ItemPotion {
+		switch item.Type {
+		case ItemPotion:
 			itemGlyphs[item.Pos] = potion
+		case ItemSword:
+			itemGlyphs[item.Pos] = sword
 		}
 	}
 	playerPos := m.animatedPosition(0, true, m.state.Player.Pos)
@@ -418,6 +431,14 @@ func renderSidebar(state GameState, styles viewStyles) string {
 	fmt.Fprintf(&sb, "] %d/%d\n", state.Player.Health, state.Player.MaxHealth)
 	fmt.Fprintf(&sb, "%s %d\n", styles.uiAccent.Render("Depth"), state.Depth)
 	fmt.Fprintf(&sb, "%s %d %s\n", styles.uiAccent.Render("Potions"), state.Potions, styles.uiText.Render("(p)"))
+	weapon := "fists"
+	if state.HasSword {
+		weapon = "sword (e)"
+	}
+	if state.Equipped {
+		weapon = "sword"
+	}
+	fmt.Fprintf(&sb, "%s %s, %d dmg\n", styles.uiAccent.Render("Weapon"), styles.uiText.Render(weapon), state.Player.Damage)
 	sb.WriteString(styles.uiAccent.Render("Log:"))
 	logStart := max(0, len(state.Log)-visibleLogLines)
 	for _, entry := range state.Log[logStart:] {

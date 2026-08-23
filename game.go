@@ -25,6 +25,7 @@ type ItemType uint8
 
 const (
 	ItemPotion ItemType = iota
+	ItemSword
 )
 
 type Item struct {
@@ -42,6 +43,7 @@ const (
 	ActionMoveLeft
 	ActionMoveRight
 	ActionUsePotion
+	ActionEquipWeapon
 )
 
 // GameMap holds the grid.
@@ -90,6 +92,8 @@ type GameState struct {
 	Log      []string
 	Depth    int
 	Potions  int
+	HasSword bool
+	Equipped bool
 	GameOver bool
 }
 
@@ -100,6 +104,9 @@ func (g GameState) Step(action Action) GameState {
 	}
 	if action == ActionUsePotion {
 		return g.usePotion()
+	}
+	if action == ActionEquipWeapon {
+		return g.equipWeapon()
 	}
 
 	dx, dy := 0, 0
@@ -122,6 +129,18 @@ func (g GameState) Step(action Action) GameState {
 		g = g.pickUpItem()
 		g = g.refreshVisibility()
 	}
+	return g.resolveMonsterTurns()
+}
+
+const swordDamage = 15
+
+func (g GameState) equipWeapon() GameState {
+	if !g.HasSword || g.Equipped {
+		return g
+	}
+	g.Equipped = true
+	g.Player.Damage = swordDamage
+	g.Log = appendLog(g.Log, "You equip the iron sword.")
 	return g.resolveMonsterTurns()
 }
 
@@ -149,6 +168,9 @@ func (g GameState) pickUpItem() GameState {
 		case ItemPotion:
 			g.Potions++
 			g.Log = appendLog(g.Log, "You pick up a health potion.")
+		case ItemSword:
+			g.HasSword = true
+			g.Log = appendLog(g.Log, "You pick up an iron sword.")
 		}
 		return g
 	}
@@ -371,7 +393,7 @@ func NewGame(width, height int, rng *rand.Rand) GameState {
 		MaxHealth: 100,
 		Damage:    10,
 	}
-	return newDungeonLevel(width, height, 1, player, 0, nil, rng)
+	return newDungeonLevel(width, height, 1, player, 0, false, false, nil, rng)
 }
 
 // Descend replaces the current map with the next dungeon level when the player
@@ -387,10 +409,10 @@ func (g GameState) Descend(rng *rand.Rand) GameState {
 
 	nextDepth := g.Depth + 1
 	log := appendLog(g.Log, fmt.Sprintf("You descend to depth %d.", nextDepth))
-	return newDungeonLevel(g.Map.Width, g.Map.Height, nextDepth, g.Player, g.Potions, log, rng)
+	return newDungeonLevel(g.Map.Width, g.Map.Height, nextDepth, g.Player, g.Potions, g.HasSword, g.Equipped, log, rng)
 }
 
-func newDungeonLevel(width, height, depth int, player Entity, potions int, log []string, rng *rand.Rand) GameState {
+func newDungeonLevel(width, height, depth int, player Entity, potions int, hasSword, equipped bool, log []string, rng *rand.Rand) GameState {
 	gameMap, rooms := generateDungeon(width, height, rng)
 	playerPos := rooms[0].center()
 	placeDownStairs(&gameMap, playerPos)
@@ -401,16 +423,18 @@ func newDungeonLevel(width, height, depth int, player Entity, potions int, log [
 	g := GameState{
 		Map:      gameMap,
 		Entities: monsters,
-		Items:    placePotions(gameMap, playerPos, monsters, rng),
+		Items:    placeItems(gameMap, playerPos, monsters, rng),
 		Player:   player,
 		Log:      log,
 		Depth:    depth,
 		Potions:  potions,
+		HasSword: hasSword,
+		Equipped: equipped,
 	}
 	return g.refreshVisibility()
 }
 
-func placePotions(m GameMap, playerPos Position, monsters []Entity, rng *rand.Rand) []Item {
+func placeItems(m GameMap, playerPos Position, monsters []Entity, rng *rand.Rand) []Item {
 	occupied := make(map[Position]struct{}, len(monsters)+1)
 	occupied[playerPos] = struct{}{}
 	for _, monster := range monsters {
@@ -435,11 +459,14 @@ func placePotions(m GameMap, playerPos Position, monsters []Entity, rng *rand.Ra
 	})
 
 	potionCount := min(2, len(openFloors))
-	potions := make([]Item, potionCount)
-	for i := range potions {
-		potions[i] = Item{Type: ItemPotion, Pos: openFloors[i]}
+	items := make([]Item, 0, min(3, len(openFloors)))
+	for i := 0; i < potionCount; i++ {
+		items = append(items, Item{Type: ItemPotion, Pos: openFloors[i]})
 	}
-	return potions
+	if len(openFloors) > potionCount {
+		items = append(items, Item{Type: ItemSword, Pos: openFloors[potionCount]})
+	}
+	return items
 }
 
 func placeDownStairs(m *GameMap, playerPos Position) {
