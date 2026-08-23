@@ -16,23 +16,23 @@ green outside the maintainer's machine.
 
 ## Exact next action
 
-**Make the repository installable and document the complete play path.**
+**Close the terminal startup and resize degradation matrix.**
 
-- Adopt the public GitHub module identity from `origin` so documented
-  `go install github.com/tungnguyenlam/GlyphGrinder@latest` installs the right
-  command when a version is available.
-- Add an isolated local `go install .` check to `./scripts/verify.sh` without
-  leaving a binary in the repository or the user's normal Go bin directory.
-- Rewrite the README around installation, all controls, the three-depth win
-  condition, terminal fallback behavior, and contributor verification.
-- Cover any path/name fallout and run the canonical verification suite.
+- Audit current locale, `TERM`, color-profile, initial-size, and mid-run resize
+  behavior against the README's graceful-degradation promise.
+- Add only the missing capability selection or viewport safeguards, keeping
+  startup automatic and configuration-free.
+- Add a table-driven headless matrix for ASCII/no Nerd Font, rich/truecolor,
+  1x1 startup, and resizing during movement or animation.
+- Keep rendering pure and verify without launching the TTY-only binary.
 
-Why next: the game now has a full run, but its module identity is local-only,
-installation is unverified, and the README still describes the M1-era loop.
+Why next: glyph selection and resize handling exist, but M4 requires the whole
+degradation promise to be explicit and exercised as a startup contract before
+performance is budgeted.
 
 ## Milestone plan
 
-- [ ] **M4.1** Verify local and versioned `go install` paths; document install,
+- [x] **M4.1** Verify local and versioned `go install` paths; document install,
       controls, gameplay, and terminal requirements.
 - [ ] **M4.2** Exercise startup degradation for ASCII/no Nerd Font, truecolor
       capability, tiny terminals, and mid-run resize without a TTY.
@@ -62,3 +62,7 @@ None. No decision is waiting on the user.
 M3.5 three-depth victory flow: pre-final descent, final-stair escape without
 regeneration, frozen won state, visible goal/victory UI, and one-key fresh-run
 restart pass at state and headless levels.
+
+M4.1 public GitHub module identity, isolated executable `go install` check,
+complete installation/gameplay/control/terminal README, and path fallout all
+pass the canonical suite.

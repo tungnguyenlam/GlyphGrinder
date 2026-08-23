@@ -1,4 +1,4 @@
-module glyphgrinder
+module github.com/tungnguyenlam/GlyphGrinder
 
 go 1.25.0
 

@@ -27,6 +27,22 @@ go vet ./...
 step "go build (compiles)"
 go build ./...
 
+step "go install (isolated binary)"
+install_dir="$(mktemp -d "${TMPDIR:-/tmp}/glyphgrinder-install.XXXXXX")"
+cleanup_install() {
+	rm -f "$install_dir/GlyphGrinder"
+	rmdir "$install_dir" 2>/dev/null || true
+}
+trap cleanup_install EXIT
+GOBIN="$install_dir" go install .
+if [[ ! -x "$install_dir/GlyphGrinder" ]]; then
+	echo "go install did not produce the GlyphGrinder command" >&2
+	exit 1
+fi
+echo "go install produced an executable GlyphGrinder command"
+cleanup_install
+trap - EXIT
+
 step "smoke test (renders one frame headlessly)"
 # The real binary needs a TTY and cannot run in CI or under an agent; the
 # headless driver in internal/tuitest is the smoke test. See

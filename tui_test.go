@@ -8,7 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"glyphgrinder/internal/tuitest"
+	"github.com/tungnguyenlam/GlyphGrinder/internal/tuitest"
 )
 
 const tuiTestSeed int64 = 42
