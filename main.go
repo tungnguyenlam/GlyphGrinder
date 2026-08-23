@@ -57,6 +57,8 @@ const (
 type glyphProfile struct {
 	Player  string
 	Monster string
+	Ogre    string
+	Bat     string
 	Floor   string
 	Wall    string
 	Stairs  string
@@ -65,10 +67,12 @@ type glyphProfile struct {
 }
 
 var (
-	asciiGlyphs = glyphProfile{Player: "@", Monster: "g", Floor: ".", Wall: "#", Stairs: ">", Potion: "!", Sword: "/"}
+	asciiGlyphs = glyphProfile{Player: "@", Monster: "g", Ogre: "O", Bat: "b", Floor: ".", Wall: "#", Stairs: ">", Potion: "!", Sword: "/"}
 	richGlyphs  = glyphProfile{
 		Player:  "\uf007", // Nerd Fonts: Font Awesome user
 		Monster: "\uf6e2", // Nerd Fonts: Font Awesome ghost
+		Ogre:    "\uf714", // Nerd Fonts: Font Awesome skull-crossbones
+		Bat:     "\uf6d5", // Nerd Fonts: Font Awesome dragon
 		Floor:   "·",
 		Wall:    "█",
 		Stairs:  "\uf063", // Nerd Fonts: Font Awesome arrow-down
@@ -87,6 +91,8 @@ type colorPalette struct {
 	MemoryBG    lipgloss.Color
 	Player      lipgloss.Color
 	Monster     lipgloss.Color
+	Ogre        lipgloss.Color
+	Bat         lipgloss.Color
 	Potion      lipgloss.Color
 	Sword       lipgloss.Color
 	UIText      lipgloss.Color
@@ -106,6 +112,8 @@ var defaultPalette = colorPalette{
 	MemoryBG:    "#0B1018",
 	Player:      "#FFD166",
 	Monster:     "#EF6A6A",
+	Ogre:        "#F59E0B",
+	Bat:         "#A78BFA",
 	Potion:      "#C4B5FD",
 	Sword:       "#F8FAFC",
 	UIText:      "#CBD5E1",
@@ -120,6 +128,10 @@ type viewStyles struct {
 	playerTrail  lipgloss.Style
 	monster      lipgloss.Style
 	monsterTrail lipgloss.Style
+	ogre         lipgloss.Style
+	ogreTrail    lipgloss.Style
+	bat          lipgloss.Style
+	batTrail     lipgloss.Style
 	floor        lipgloss.Style
 	wall         lipgloss.Style
 	memoryFloor  lipgloss.Style
@@ -141,6 +153,10 @@ func newViewStyles(p colorPalette) viewStyles {
 		playerTrail:  lipgloss.NewStyle().Foreground(p.Player).Faint(true),
 		monster:      lipgloss.NewStyle().Foreground(p.Monster).Bold(true),
 		monsterTrail: lipgloss.NewStyle().Foreground(p.Monster).Faint(true),
+		ogre:         lipgloss.NewStyle().Foreground(p.Ogre).Bold(true),
+		ogreTrail:    lipgloss.NewStyle().Foreground(p.Ogre).Faint(true),
+		bat:          lipgloss.NewStyle().Foreground(p.Bat).Bold(true),
+		batTrail:     lipgloss.NewStyle().Foreground(p.Bat).Faint(true),
 		floor:        lipgloss.NewStyle().Foreground(p.LitFloor).Background(p.LitFloorBG),
 		wall:         lipgloss.NewStyle().Foreground(p.LitWall).Background(p.LitWallBG),
 		memoryFloor:  lipgloss.NewStyle().Foreground(p.MemoryFloor).Background(p.MemoryBG),
@@ -187,6 +203,8 @@ func glyphProfileForEnvironment(getenv func(string) string) glyphProfile {
 func (p glyphProfile) withASCIIFallback() glyphProfile {
 	if lipgloss.Width(p.Player) != 1 ||
 		lipgloss.Width(p.Monster) != 1 ||
+		lipgloss.Width(p.Ogre) != 1 ||
+		lipgloss.Width(p.Bat) != 1 ||
 		lipgloss.Width(p.Floor) != 1 ||
 		lipgloss.Width(p.Wall) != 1 ||
 		lipgloss.Width(p.Stairs) != 1 ||
@@ -195,6 +213,37 @@ func (p glyphProfile) withASCIIFallback() glyphProfile {
 		return asciiGlyphs
 	}
 	return p
+}
+
+func (p glyphProfile) monsterGlyph(archetype MonsterArchetype) string {
+	switch archetype {
+	case MonsterOgre:
+		return p.Ogre
+	case MonsterBat:
+		return p.Bat
+	default:
+		return p.Monster
+	}
+}
+
+func (s viewStyles) monsterStyle(archetype MonsterArchetype, trail bool) lipgloss.Style {
+	switch archetype {
+	case MonsterOgre:
+		if trail {
+			return s.ogreTrail
+		}
+		return s.ogre
+	case MonsterBat:
+		if trail {
+			return s.batTrail
+		}
+		return s.bat
+	default:
+		if trail {
+			return s.monsterTrail
+		}
+		return s.monster
+	}
 }
 
 func (m model) Init() tea.Cmd {
@@ -340,9 +389,11 @@ func (m model) View() string {
 	potion := styles.potion.Render(glyphs.Potion)
 	sword := styles.sword.Render(glyphs.Sword)
 	entityGlyphs := make(map[Position]string, len(m.state.Entities))
+	monsterArchetypes := make(map[int]MonsterArchetype, len(m.state.Entities))
 	for _, entity := range m.state.Entities {
 		pos := m.animatedPosition(entity.ID, false, entity.Pos)
-		entityGlyphs[pos] = styles.monster.Render(glyphs.Monster)
+		entityGlyphs[pos] = styles.monsterStyle(entity.Archetype, false).Render(glyphs.monsterGlyph(entity.Archetype))
+		monsterArchetypes[entity.ID] = entity.Archetype
 	}
 	itemGlyphs := make(map[Position]string, len(m.state.Items))
 	for _, item := range m.state.Items {
@@ -361,7 +412,8 @@ func (m model) View() string {
 	trailGlyphs := make(map[Position]trailGlyph, len(m.motion.Actors))
 	if m.motion.Frame > 0 && m.motion.Frame < animationFrames-1 {
 		for _, actor := range m.motion.Actors {
-			glyph := styles.monsterTrail.Render(glyphs.Monster)
+			archetype := monsterArchetypes[actor.ID]
+			glyph := styles.monsterStyle(archetype, true).Render(glyphs.monsterGlyph(archetype))
 			if actor.IsPlayer {
 				glyph = styles.playerTrail.Render(glyphs.Player)
 			}

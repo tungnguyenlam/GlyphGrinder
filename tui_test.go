@@ -72,7 +72,7 @@ func TestViewRendersFullGrid(t *testing.T) {
 			continue
 		}
 		for x, cell := range plain[:state.Map.Width] {
-			if !strings.ContainsRune(" #.@g>!/", cell) {
+			if !strings.ContainsRune(" #.@gOb>!/", cell) {
 				t.Errorf("map cell (%d,%d) = %q, want a dungeon glyph", x, y, cell)
 			}
 		}
@@ -183,11 +183,12 @@ func TestViewRendersOnlyVisibleMonsters(t *testing.T) {
 	for _, monster := range state.Entities {
 		plain := []rune(stripANSI(lines[monster.Pos.Y]))
 		got := string(plain[monster.Pos.X])
-		if state.Map.Visible[monster.Pos.Y][monster.Pos.X] && got != asciiGlyphs.Monster {
-			t.Errorf("visible monster %d rendered as %q at %+v, want %q", monster.ID, got, monster.Pos, asciiGlyphs.Monster)
+		want := asciiGlyphs.monsterGlyph(monster.Archetype)
+		if state.Map.Visible[monster.Pos.Y][monster.Pos.X] && got != want {
+			t.Errorf("visible %s %d rendered as %q at %+v, want %q", monster.Archetype.name(), monster.ID, got, monster.Pos, want)
 		}
-		if !state.Map.Visible[monster.Pos.Y][monster.Pos.X] && got == asciiGlyphs.Monster {
-			t.Errorf("hidden monster %d rendered at %+v", monster.ID, monster.Pos)
+		if !state.Map.Visible[monster.Pos.Y][monster.Pos.X] && strings.Contains("gOb", got) {
+			t.Errorf("hidden %s %d rendered at %+v", monster.Archetype.name(), monster.ID, monster.Pos)
 		}
 	}
 }
@@ -219,6 +220,8 @@ func TestGlyphProfilesStayOneCellWide(t *testing.T) {
 		for role, glyph := range map[string]string{
 			"player":  profile.Player,
 			"monster": profile.Monster,
+			"ogre":    profile.Ogre,
+			"bat":     profile.Bat,
 			"floor":   profile.Floor,
 			"wall":    profile.Wall,
 			"stairs":  profile.Stairs,
@@ -229,6 +232,29 @@ func TestGlyphProfilesStayOneCellWide(t *testing.T) {
 				t.Errorf("%s %s glyph %q is %d cells wide, want 1", name, role, glyph, got)
 			}
 		}
+	}
+}
+
+func TestViewRendersDistinctMonsterArchetypes(t *testing.T) {
+	state := openTestState()
+	goblin := testMonster(1, Position{X: 2, Y: 2})
+	ogre := testMonster(2, Position{X: 4, Y: 2})
+	ogre.Archetype = MonsterOgre
+	bat := testMonster(3, Position{X: 2, Y: 4})
+	bat.Archetype = MonsterBat
+	state.Entities = []Entity{goblin, ogre, bat}
+	state = state.refreshVisibility()
+
+	for name, profile := range map[string]glyphProfile{"ASCII": asciiGlyphs, "rich": richGlyphs} {
+		t.Run(name, func(t *testing.T) {
+			d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed)), glyphs: profile})
+			lines := d.Lines()
+			for _, monster := range state.Entities {
+				if got, want := renderedCell(t, lines, monster.Pos), profile.monsterGlyph(monster.Archetype); got != want {
+					t.Errorf("%s rendered as %q, want %q", monster.Archetype.name(), got, want)
+				}
+			}
+		})
 	}
 }
 
@@ -365,6 +391,8 @@ func TestPaletteStylesKeepSemanticRolesDistinct(t *testing.T) {
 		styles.memoryFloor,
 		styles.player,
 		styles.monster,
+		styles.ogre,
+		styles.bat,
 	}
 	for i := range semanticStyles {
 		if got := stripANSI(semanticStyles[i].Render(".")); got != "." {
@@ -679,7 +707,7 @@ func TestBumpAttackSurvivesUpdateRoundTrip(t *testing.T) {
 	if got.Player.Pos != state.Player.Pos {
 		t.Errorf("player moved to %+v during attack, want %+v", got.Player.Pos, state.Player.Pos)
 	}
-	if gotLog, want := got.Log, "You hit monster 1 for 10 damage."; len(gotLog) < 2 || gotLog[1] != want {
+	if gotLog, want := got.Log, "You hit goblin 1 for 10 damage."; len(gotLog) < 2 || gotLog[1] != want {
 		t.Errorf("log after key = %q, want player event %q first", gotLog, want)
 	}
 
@@ -705,7 +733,7 @@ func TestMonsterAttackSurvivesUpdateRoundTrip(t *testing.T) {
 	if got.Entities[0].Pos != (Position{X: 3, Y: 2}) {
 		t.Errorf("attacking monster moved to %+v, want {3 2}", got.Entities[0].Pos)
 	}
-	if gotLog, want := got.Log, "Monster 1 hits you for 5 damage."; len(gotLog) != 2 || gotLog[1] != want {
+	if gotLog, want := got.Log, "Goblin 1 hits you for 5 damage."; len(gotLog) != 2 || gotLog[1] != want {
 		t.Errorf("log after key = %q, want final entry %q", gotLog, want)
 	}
 }

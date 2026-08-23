@@ -81,12 +81,16 @@ func TestNewGamePlacesMonstersOnDistinctFloors(t *testing.T) {
 	}
 
 	occupied := map[Position]struct{}{g.Player.Pos: {}}
+	wantArchetypes := []MonsterArchetype{MonsterGoblin, MonsterOgre, MonsterBat}
 	for i, monster := range g.Entities {
 		if got, want := monster.ID, i+1; got != want {
 			t.Errorf("monster %d ID = %d, want %d", i, got, want)
 		}
 		if monster.IsPlayer {
 			t.Errorf("monster %d is marked as player", monster.ID)
+		}
+		if monster.Archetype != wantArchetypes[i] {
+			t.Errorf("monster %d archetype = %s, want %s", monster.ID, monster.Archetype.name(), wantArchetypes[i].name())
 		}
 		if monster.Health <= 0 || monster.Health != monster.MaxHealth || monster.Damage <= 0 {
 			t.Errorf("monster %d has invalid combat stats: %+v", monster.ID, monster)
@@ -98,6 +102,39 @@ func TestNewGamePlacesMonstersOnDistinctFloors(t *testing.T) {
 			t.Errorf("monster %d overlaps another actor at %+v", monster.ID, monster.Pos)
 		}
 		occupied[monster.Pos] = struct{}{}
+	}
+}
+
+func TestGeneratedMonsterStatsScalePredictablyWithDepth(t *testing.T) {
+	m := openTestStateSized(12, 8).Map
+	tests := []struct {
+		depth int
+		want  map[MonsterArchetype][2]int
+	}{
+		{depth: 1, want: map[MonsterArchetype][2]int{
+			MonsterGoblin: {20, 5},
+			MonsterOgre:   {35, 8},
+			MonsterBat:    {12, 3},
+		}},
+		{depth: 3, want: map[MonsterArchetype][2]int{
+			MonsterGoblin: {30, 7},
+			MonsterOgre:   {51, 12},
+			MonsterBat:    {18, 5},
+		}},
+	}
+	for _, tc := range tests {
+		depth := tc.depth
+		monsters := placeMonsters(m, Position{X: 1, Y: 1}, depth, rand.New(rand.NewSource(17)))
+		if len(monsters) != 3 {
+			t.Fatalf("depth %d generated %d monsters, want 3", depth, len(monsters))
+		}
+		for _, monster := range monsters {
+			wantStats := tc.want[monster.Archetype]
+			wantHealth, wantDamage := wantStats[0], wantStats[1]
+			if monster.Health != wantHealth || monster.MaxHealth != wantHealth || monster.Damage != wantDamage {
+				t.Errorf("depth %d %s stats = %d/%d health, %d damage; want %d/%d and %d", depth, monster.Archetype.name(), monster.Health, monster.MaxHealth, monster.Damage, wantHealth, wantHealth, wantDamage)
+			}
+		}
 	}
 }
 
@@ -457,7 +494,7 @@ func TestUsePotionHealsAndSpendsTurn(t *testing.T) {
 	if gotLog, want := got.Log, []string{
 		"The fight begins.",
 		"You drink a potion and recover 25 health.",
-		"Monster 1 hits you for 5 damage.",
+		"Goblin 1 hits you for 5 damage.",
 	}; !reflect.DeepEqual(gotLog, want) {
 		t.Errorf("log after potion turn = %q, want %q", gotLog, want)
 	}
@@ -580,9 +617,9 @@ func TestStepBumpAttackDamagesMonster(t *testing.T) {
 	}
 	if gotLog, want := got.Log, []string{
 		"The fight begins.",
-		"You hit monster 1 for 10 damage.",
-		"Monster 1 hits you for 5 damage.",
-		"Monster 2 hits you for 5 damage.",
+		"You hit goblin 1 for 10 damage.",
+		"Goblin 1 hits you for 5 damage.",
+		"Goblin 2 hits you for 5 damage.",
 	}; !reflect.DeepEqual(gotLog, want) {
 		t.Errorf("log = %q, want %q", gotLog, want)
 	}
@@ -604,8 +641,8 @@ func TestStepBumpAttackKillsMonster(t *testing.T) {
 	}
 	if gotLog, want := got.Log, []string{
 		"The fight begins.",
-		"You kill monster 1.",
-		"Monster 2 hits you for 5 damage.",
+		"You kill goblin 1.",
+		"Goblin 2 hits you for 5 damage.",
 	}; !reflect.DeepEqual(gotLog, want) {
 		t.Errorf("log = %q, want %q", gotLog, want)
 	}
@@ -629,6 +666,60 @@ func TestMonsterTurnPursuesPlayer(t *testing.T) {
 	}
 	if g.Entities[0].Pos != (Position{X: 5, Y: 3}) {
 		t.Errorf("Step mutated prior monster position to %+v", g.Entities[0].Pos)
+	}
+}
+
+func TestMonsterArchetypesUseDistinctMovementCadences(t *testing.T) {
+	tests := []struct {
+		name       string
+		archetype  MonsterArchetype
+		wantFirst  Position
+		wantSecond Position
+	}{
+		{name: "goblin advances once each turn", archetype: MonsterGoblin, wantFirst: Position{X: 4, Y: 3}, wantSecond: Position{X: 3, Y: 3}},
+		{name: "ogre rests every other turn", archetype: MonsterOgre, wantFirst: Position{X: 4, Y: 3}, wantSecond: Position{X: 4, Y: 3}},
+		{name: "bat advances twice each turn", archetype: MonsterBat, wantFirst: Position{X: 3, Y: 3}, wantSecond: Position{X: 2, Y: 3}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			g := openTestState()
+			g.Player.Pos = Position{X: 1, Y: 3}
+			g.Map.Tiles[2][1] = TileWall
+			monster := testMonster(1, Position{X: 5, Y: 3})
+			monster.Archetype = tc.archetype
+			g.Entities = []Entity{monster}
+
+			first := g.Step(ActionMoveUp)
+			if first.Entities[0].Pos != tc.wantFirst {
+				t.Errorf("first turn position = %+v, want %+v", first.Entities[0].Pos, tc.wantFirst)
+			}
+			second := first.Step(ActionMoveUp)
+			if second.Entities[0].Pos != tc.wantSecond {
+				t.Errorf("second turn position = %+v, want %+v", second.Entities[0].Pos, tc.wantSecond)
+			}
+		})
+	}
+}
+
+func TestFastBatCanCloseDistanceAndAttackInOneTurn(t *testing.T) {
+	g := openTestState()
+	g.Player.Pos = Position{X: 2, Y: 3}
+	g.Map.Tiles[2][2] = TileWall
+	bat := testMonster(7, Position{X: 4, Y: 3})
+	bat.Archetype = MonsterBat
+	bat.Damage = 3
+	g.Entities = []Entity{bat}
+
+	got := g.Step(ActionMoveUp)
+
+	if got.Entities[0].Pos != (Position{X: 3, Y: 3}) {
+		t.Errorf("bat position = %+v, want {3 3}", got.Entities[0].Pos)
+	}
+	if got.Player.Health != 97 {
+		t.Errorf("health after bat closes and attacks = %d, want 97", got.Player.Health)
+	}
+	if gotLog, want := got.Log[len(got.Log)-1], "Bat 7 hits you for 3 damage."; gotLog != want {
+		t.Errorf("last log = %q, want %q", gotLog, want)
 	}
 }
 
@@ -666,7 +757,7 @@ func TestMonsterTurnAttacksAfterBlockedPlayerAction(t *testing.T) {
 	if g.Player.Health != 100 {
 		t.Errorf("Step mutated prior player health to %d", g.Player.Health)
 	}
-	if gotLog, want := got.Log, []string{"The fight begins.", "Monster 1 hits you for 5 damage."}; !reflect.DeepEqual(gotLog, want) {
+	if gotLog, want := got.Log, []string{"The fight begins.", "Goblin 1 hits you for 5 damage."}; !reflect.DeepEqual(gotLog, want) {
 		t.Errorf("log = %q, want %q", gotLog, want)
 	}
 	if priorLogBacking[1] != "" {
@@ -682,13 +773,15 @@ func TestMonsterTurnsResolveInStableIDOrder(t *testing.T) {
 		testMonster(2, Position{X: 3, Y: 4}),
 		testMonster(1, Position{X: 3, Y: 2}),
 	}
+	g.Entities[0].Archetype = MonsterBat
+	g.Entities[1].Archetype = MonsterOgre
 
 	got := g.Step(ActionMoveRight)
 
 	want := []string{
 		"The fight begins.",
-		"Monster 1 hits you for 5 damage.",
-		"Monster 2 hits you for 5 damage.",
+		"Ogre 1 hits you for 5 damage.",
+		"Bat 2 hits you for 5 damage.",
 	}
 	if !reflect.DeepEqual(got.Log, want) {
 		t.Errorf("log = %q, want stable ID order %q", got.Log, want)

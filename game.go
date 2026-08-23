@@ -33,6 +33,37 @@ type Item struct {
 	Pos  Position
 }
 
+// MonsterArchetype identifies a monster's combat stats and movement cadence.
+type MonsterArchetype uint8
+
+const (
+	MonsterGoblin MonsterArchetype = iota
+	MonsterOgre
+	MonsterBat
+)
+
+func (a MonsterArchetype) name() string {
+	switch a {
+	case MonsterOgre:
+		return "ogre"
+	case MonsterBat:
+		return "bat"
+	default:
+		return "goblin"
+	}
+}
+
+func (a MonsterArchetype) title() string {
+	switch a {
+	case MonsterOgre:
+		return "Ogre"
+	case MonsterBat:
+		return "Bat"
+	default:
+		return "Goblin"
+	}
+}
+
 // Action describes one turn requested by the player.
 type Action uint8
 
@@ -78,6 +109,7 @@ type Entity struct {
 	ID        int
 	Pos       Position
 	IsPlayer  bool
+	Archetype MonsterArchetype
 	Health    int
 	MaxHealth int
 	Damage    int
@@ -85,16 +117,17 @@ type Entity struct {
 
 // GameState is the flat root state of the game engine.
 type GameState struct {
-	Map      GameMap
-	Player   Entity
-	Entities []Entity
-	Items    []Item
-	Log      []string
-	Depth    int
-	Potions  int
-	HasSword bool
-	Equipped bool
-	GameOver bool
+	Map          GameMap
+	Player       Entity
+	Entities     []Entity
+	Items        []Item
+	Log          []string
+	Depth        int
+	Potions      int
+	HasSword     bool
+	Equipped     bool
+	GameOver     bool
+	MonsterTurns int
 }
 
 // Step resolves a player action and returns the resulting game state.
@@ -198,6 +231,7 @@ func (g GameState) resolvePlayerMove(dx, dy int) GameState {
 
 func (g GameState) resolveMonsterTurns() GameState {
 	g.Entities = append([]Entity(nil), g.Entities...)
+	g.MonsterTurns++
 	occupied := make(map[Position]struct{}, len(g.Entities))
 	turnOrder := make([]int, 0, len(g.Entities))
 	for i, entity := range g.Entities {
@@ -213,37 +247,63 @@ func (g GameState) resolveMonsterTurns() GameState {
 
 	for _, index := range turnOrder {
 		monster := &g.Entities[index]
-		if manhattanDistance(monster.Pos, g.Player.Pos) == 1 {
-			g.Player.Health = max(0, g.Player.Health-monster.Damage)
-			g.Log = appendLog(g.Log, fmt.Sprintf("Monster %d hits you for %d damage.", monster.ID, monster.Damage))
-			if g.Player.Health == 0 {
-				g.GameOver = true
-				g.Log = appendLog(g.Log, "You die.")
+		actions := monsterActions(monster.Archetype, g.MonsterTurns)
+		for range actions {
+			if manhattanDistance(monster.Pos, g.Player.Pos) == 1 {
+				g.Player.Health = max(0, g.Player.Health-monster.Damage)
+				g.Log = appendLog(g.Log, fmt.Sprintf("%s %d hits you for %d damage.", monster.Archetype.title(), monster.ID, monster.Damage))
+				if g.Player.Health == 0 {
+					g.GameOver = true
+					g.Log = appendLog(g.Log, "You die.")
+				}
 				break
 			}
-			continue
+
+			if !moveMonsterTowardPlayer(monster, g.Player.Pos, g.Map, occupied) {
+				break
+			}
 		}
-
-		for _, delta := range approachSteps(monster.Pos, g.Player.Pos) {
-			next := Position{X: monster.Pos.X + delta.X, Y: monster.Pos.Y + delta.Y}
-			if next.X < 0 || next.X >= g.Map.Width || next.Y < 0 || next.Y >= g.Map.Height {
-				continue
-			}
-			if next == g.Player.Pos || g.Map.Tiles[next.Y][next.X] == TileWall {
-				continue
-			}
-			if _, blocked := occupied[next]; blocked {
-				continue
-			}
-
-			delete(occupied, monster.Pos)
-			monster.Pos = next
-			occupied[next] = struct{}{}
+		if g.GameOver {
 			break
 		}
 	}
 
 	return g
+}
+
+func monsterActions(archetype MonsterArchetype, turn int) int {
+	switch archetype {
+	case MonsterOgre:
+		if turn%2 == 0 {
+			return 0
+		}
+		return 1
+	case MonsterBat:
+		return 2
+	default:
+		return 1
+	}
+}
+
+func moveMonsterTowardPlayer(monster *Entity, playerPos Position, m GameMap, occupied map[Position]struct{}) bool {
+	for _, delta := range approachSteps(monster.Pos, playerPos) {
+		next := Position{X: monster.Pos.X + delta.X, Y: monster.Pos.Y + delta.Y}
+		if next.X < 0 || next.X >= m.Width || next.Y < 0 || next.Y >= m.Height {
+			continue
+		}
+		if next == playerPos || m.Tiles[next.Y][next.X] == TileWall {
+			continue
+		}
+		if _, blocked := occupied[next]; blocked {
+			continue
+		}
+
+		delete(occupied, monster.Pos)
+		monster.Pos = next
+		occupied[next] = struct{}{}
+		return true
+	}
+	return false
 }
 
 func approachSteps(from, to Position) []Position {
@@ -296,15 +356,16 @@ func abs(value int) int {
 func (g GameState) attackMonster(index int) GameState {
 	entities := append([]Entity(nil), g.Entities...)
 	entities[index].Health -= g.Player.Damage
+	name := entities[index].Archetype.name()
 	if entities[index].Health > 0 {
 		g.Entities = entities
-		g.Log = appendLog(g.Log, fmt.Sprintf("You hit monster %d for %d damage.", entities[index].ID, g.Player.Damage))
+		g.Log = appendLog(g.Log, fmt.Sprintf("You hit %s %d for %d damage.", name, entities[index].ID, g.Player.Damage))
 		return g
 	}
 
 	defeatedID := entities[index].ID
 	g.Entities = append(entities[:index], entities[index+1:]...)
-	g.Log = appendLog(g.Log, fmt.Sprintf("You kill monster %d.", defeatedID))
+	g.Log = appendLog(g.Log, fmt.Sprintf("You kill %s %d.", name, defeatedID))
 	return g
 }
 
@@ -418,7 +479,7 @@ func newDungeonLevel(width, height, depth int, player Entity, potions int, hasSw
 	placeDownStairs(&gameMap, playerPos)
 	player.Pos = playerPos
 	player.IsPlayer = true
-	monsters := placeMonsters(gameMap, playerPos, rng)
+	monsters := placeMonsters(gameMap, playerPos, depth, rng)
 
 	g := GameState{
 		Map:      gameMap,
@@ -507,7 +568,7 @@ func placeDownStairs(m *GameMap, playerPos Position) {
 	m.Tiles[stairs.Y][stairs.X] = TileStairs
 }
 
-func placeMonsters(m GameMap, playerPos Position, rng *rand.Rand) []Entity {
+func placeMonsters(m GameMap, playerPos Position, depth int, rng *rand.Rand) []Entity {
 	openFloors := make([]Position, 0, m.Width*m.Height)
 	for y := 1; y < m.Height-1; y++ {
 		for x := 1; x < m.Width-1; x++ {
@@ -524,15 +585,30 @@ func placeMonsters(m GameMap, playerPos Position, rng *rand.Rand) []Entity {
 	monsterCount := min(3, len(openFloors))
 	monsters := make([]Entity, monsterCount)
 	for i := range monsters {
+		archetype := [...]MonsterArchetype{MonsterGoblin, MonsterOgre, MonsterBat}[i]
+		health, damage := monsterStats(archetype, depth)
 		monsters[i] = Entity{
 			ID:        i + 1,
 			Pos:       openFloors[i],
-			Health:    20,
-			MaxHealth: 20,
-			Damage:    5,
+			Archetype: archetype,
+			Health:    health,
+			MaxHealth: health,
+			Damage:    damage,
 		}
 	}
 	return monsters
+}
+
+func monsterStats(archetype MonsterArchetype, depth int) (health, damage int) {
+	depthBonus := max(0, depth-1)
+	switch archetype {
+	case MonsterOgre:
+		return 35 + 8*depthBonus, 8 + 2*depthBonus
+	case MonsterBat:
+		return 12 + 3*depthBonus, 3 + depthBonus
+	default:
+		return 20 + 5*depthBonus, 5 + depthBonus
+	}
 }
 
 func generateDungeon(width, height int, rng *rand.Rand) (GameMap, []room) {

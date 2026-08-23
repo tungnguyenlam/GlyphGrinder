@@ -16,28 +16,25 @@ longer tactical arc and build-changing choices required of a real roguelike.
 
 ## Exact next action
 
-**Add three depth-scaled monster archetypes with distinct movement.**
+**Add a final depth and explicit victory flow.**
 
-- Give monsters an explicit archetype: the current balanced pursuer, a slower
-  high-health brute, and a fragile fast skirmisher, with deterministic mixes.
-- Make archetypes differ in stats and turn behavior enough to change
-  positioning, while keeping ID-ordered deterministic resolution and collision
-  rules intact.
-- Scale monster health and damage predictably with dungeon depth and identify
-  archetypes by name in combat logs.
-- Render each archetype with distinct rich/ASCII glyphs and colors, and cover
-  generation, movement cadence, combat, scaling, and headless visibility.
+- Set a short, deterministic final depth and turn the final staircase into the
+  run exit instead of generating another unbounded level.
+- Add a distinct won state that freezes turns, renders a clear victory prompt,
+  and restarts a fresh run with `r` just like death.
+- Cover pre-final descent, final-depth victory, frozen post-win input, restart,
+  and the complete headless key/render path.
 
-Why next: equipment now changes the player's side of combat, but every enemy is
-still the same pursuer. Archetypes and depth scaling make progression tactical
-before the final-depth victory condition is added.
+Why next: depth, items, equipment, and enemy variety now create a progressing
+run, but descent is still endless. A final exit closes the run arc required by
+M3 and gives the player a reason to survive deeper floors.
 
 ## Milestone plan
 
 - [x] **M3.1** Add dungeon depth, reachable stairs, and deterministic descent.
 - [x] **M3.2** Add potions with pickup, inventory, and tactical use.
 - [x] **M3.3** Add a weapon tier and equipment choice that changes combat.
-- [ ] **M3.4** Add at least two monster archetypes with distinct stats and
+- [x] **M3.4** Add at least two monster archetypes with distinct stats and
       movement behavior, scaling by depth.
 - [ ] **M3.5** Add a final depth and explicit win state with one-key restart.
 
@@ -77,6 +74,11 @@ and full headless input/render coverage pass.
 M3.3 iron sword equipment: deterministic placement/pickup, turn-costing equip,
 15-damage combat, descent/restart state, rich/ASCII rendering, and headless
 input/render coverage pass.
+
+M3.4 goblin, ogre, and bat archetypes: deterministic mixed generation,
+depth-scaled stats, one/alternate/two-action movement cadence, ID-ordered
+collision and combat, named logs, distinct rich/ASCII glyphs and colors, and
+headless visibility coverage pass.
 
 Standing unattended prompt updated to execute substantial batches of related
 work while retaining progressive tests, checkpoints, and reviewable commits.
