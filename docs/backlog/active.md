@@ -16,23 +16,23 @@ green outside the maintainer's machine.
 
 ## Exact next action
 
-**Run the canonical verification suite in GitHub Actions.**
+**Complete the external release checks after these commits are pushed.**
 
-- Add a minimal workflow for pushes and pull requests that checks out the
-  repository, installs the Go version declared by `go.mod`, caches modules, and
-  runs only `./scripts/verify.sh`.
-- Give the workflow read-only repository permissions and cancel superseded
-  runs on the same ref.
-- Validate the workflow structure locally as far as the environment permits,
-  then run the canonical suite once more.
+- Confirm the `Verify` GitHub Actions workflow passes on the first pushed
+  commit and that its only verification entry point is `./scripts/verify.sh`.
+- From outside this checkout, run
+  `go install github.com/tungnguyenlam/GlyphGrinder@latest` after the public
+  branch contains the module-path change and confirm `GlyphGrinder` launches.
+- Run `make run` in a real terminal, capture a representative gameplay frame,
+  add the image under `docs/assets/`, and embed it near the top of the README.
 
-Why next: installability, fallback, and performance are now verified locally.
-CI is the remaining M4 acceptance criterion and should invoke the exact same
-entry point rather than grow a second verification definition.
+Why next: every local M4 engineering check is green. These last observations
+inherently require the remote repository or a real interactive terminal and
+cannot be truthfully simulated by the headless agent environment.
 
 ## Milestone plan
 
-- [x] **M4.1** Verify local and versioned `go install` paths; document install,
+- [ ] **M4.1** Verify local and versioned `go install` paths; document install,
       controls, gameplay, and terminal requirements.
 - [x] **M4.2** Exercise startup degradation for ASCII/no Nerd Font, truecolor
       capability, tiny terminals, and mid-run resize without a TTY.
@@ -43,7 +43,8 @@ entry point rather than grow a second verification definition.
 ## Acceptance criteria for M4
 
 - The README gives a working install command, complete controls, the run goal,
-  terminal expectations, and the canonical contributor workflow.
+  terminal expectations, a genuine gameplay screenshot, and the canonical
+  contributor workflow.
 - Installation, startup fallback, tiny/mid-run resize behavior, and the render
   frame budget have automated coverage that does not require a TTY.
 - CI runs the same canonical verification command used locally.
@@ -51,7 +52,10 @@ entry point rather than grow a second verification definition.
 
 ## Blockers
 
-None. No decision is waiting on the user.
+- The workflow and versioned `go install ...@latest` cannot see unpushed local
+  commits. The standing prompt forbids pushing or publishing.
+- A genuine README screenshot needs `make run` in a real TTY; the agent
+  environment cannot open `/dev/tty` (see the active TTY notice).
 
 ## Last verification
 
@@ -77,3 +81,8 @@ M4.3 baseline on Apple M4 (`go test -run '^$' -bench
 us/op, 47,679 B/op, 889 allocs/op. This is about 0.6% of the 16.7 ms animation
 interval, so no optimization was justified; the averaged production-frame
 budget guard passes 20 consecutive runs.
+
+M4.4 read-only GitHub Actions workflow: push/PR triggers, cached `go.mod` Go
+toolchain, per-ref cancellation, ten-minute timeout, and the canonical script
+as its sole verification command. YAML parses locally and the same script is
+green; remote execution awaits a push.
