@@ -12,10 +12,12 @@ TTY, so the binary fails immediately:
 
 ```
 $ printf 'q' | ./glyphgrinder
-Error: could not open a new TTY: open /dev/tty: device not configured
+glyphgrinder: could not open a new TTY: open /dev/tty: device not configured
 $ echo $?
 1
 ```
+
+(The message goes to stderr; the exit status is still 1.)
 
 An agent that tries `go run .` to check a change will read that exit-1 as "my
 change broke the game" and start debugging something that was never broken.

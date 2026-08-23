@@ -36,7 +36,3 @@ lingering as a fuzzy reminder.
 - Golden-frame testing: snapshot `View` output and diff it.
 - A `--dump-frame` flag so the real binary can be smoke-tested without a TTY
   (would resolve the TTY notice).
-- Profile allocations in `View`; it currently rebuilds every style on every
-  frame.
-- Fuzz test on map generation to assert connectivity and no unreachable player
-  spawn.
