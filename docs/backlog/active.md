@@ -18,19 +18,18 @@ deliberately deferred to M2 — park ideas in `parking-lot.md`.
 
 ## Exact next action
 
-**Give every monster a deterministic turn after the player's action.**
+**Finish the playable loop with health/log UI, death, and restart.**
 
-- After each directional player action, process living monsters in stable ID
-  order: attack when adjacent, otherwise take one unoccupied floor step that
-  reduces Manhattan distance to the player.
-- Prevent monsters from entering walls, the player tile, or each other's tiles;
-  subtract monster damage from player health and append attack messages.
-- Add state tests for pursuit, blocked movement, collision avoidance, attack
-  damage, and prior-state isolation; cover one movement/attack path through the
-  headless driver.
+- Mark the state game-over when monster damage reduces player health to zero,
+  append a death message, and stop further world turns.
+- Render a health bar and recent combat log beside the dungeon; show an
+  unmistakable game-over prompt with `r` as the one-key restart.
+- Restart through the retained RNG so the new run gets a fresh generated state.
+  Cover death freezing, visible UI state, and restart through game-state and
+  headless tests.
 
-Why next: the player can now kill stationary targets; M1 needs enemies that
-threaten the player before health/game-over UI can complete the loop.
+Why next: all underlying map, actor, combat, and enemy-turn rules exist; this is
+the remaining feedback/recovery layer required to make them a complete loop.
 
 ## Milestone plan
 
@@ -47,8 +46,8 @@ threaten the player before health/game-over UI can complete the loop.
 - [x] **M1.5** Bump-to-attack: moving into an occupied tile deals
       `Entity.Damage`, reduces `Health`, removes the entity at zero, and
       appends a line to `GameState.Log`. — *completed 2026-08-23*.
-- [ ] **M1.6** Monster turns: each monster steps toward the player after the
-      player's turn resolves.
+- [x] **M1.6** Monster turns: each monster steps toward the player after the
+      player's turn resolves. — *completed 2026-08-23*.
 - [ ] **M1.7** Render the log and a health bar alongside the map; handle player
       death with a game-over state and restart on one keypress.
 
@@ -74,5 +73,5 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-08-23  —  VERIFY OK
 ```
 
-M1.5 bump-to-attack combat: gofmt clean, `go vet` clean, builds, headless smoke
-frame renders, all tests pass, `go.mod` tidy.
+M1.6 deterministic monster pursuit and attacks: gofmt clean, `go vet` clean,
+builds, headless smoke frame renders, all tests pass, `go.mod` tidy.

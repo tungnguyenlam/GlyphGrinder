@@ -143,14 +143,34 @@ func TestBumpAttackSurvivesUpdateRoundTrip(t *testing.T) {
 	if got.Player.Pos != state.Player.Pos {
 		t.Errorf("player moved to %+v during attack, want %+v", got.Player.Pos, state.Player.Pos)
 	}
-	if gotLog, want := got.Log, "You hit monster 1 for 10 damage."; len(gotLog) != 2 || gotLog[1] != want {
-		t.Errorf("log after key = %q, want final entry %q", gotLog, want)
+	if gotLog, want := got.Log, "You hit monster 1 for 10 damage."; len(gotLog) < 2 || gotLog[1] != want {
+		t.Errorf("log after key = %q, want player event %q first", gotLog, want)
 	}
 
 	d.Key("right")
 	got = d.Model().(model).state
 	if len(got.Entities) != 1 || got.Entities[0].ID != 2 {
 		t.Errorf("entities after second key = %+v, want only monster 2", got.Entities)
+	}
+}
+
+func TestMonsterAttackSurvivesUpdateRoundTrip(t *testing.T) {
+	state := openTestState()
+	state.Player.Pos = Position{X: 3, Y: 3}
+	state.Map.Tiles[3][4] = TileWall
+	state.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
+	d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed))})
+
+	d.Key("right")
+	got := d.Model().(model).state
+	if got.Player.Health != 95 {
+		t.Errorf("player health after key = %d, want 95", got.Player.Health)
+	}
+	if got.Entities[0].Pos != (Position{X: 3, Y: 2}) {
+		t.Errorf("attacking monster moved to %+v, want {3 2}", got.Entities[0].Pos)
+	}
+	if gotLog, want := got.Log, "Monster 1 hits you for 5 damage."; len(gotLog) != 2 || gotLog[1] != want {
+		t.Errorf("log after key = %q, want final entry %q", gotLog, want)
 	}
 }
 

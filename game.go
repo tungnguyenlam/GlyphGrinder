@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"sort"
 )
 
 // Position represents a 2D coordinate on the grid.
@@ -91,6 +92,11 @@ func (g GameState) Step(action Action) GameState {
 		return g
 	}
 
+	g = g.resolvePlayerMove(dx, dy)
+	return g.resolveMonsterTurns()
+}
+
+func (g GameState) resolvePlayerMove(dx, dy int) GameState {
 	newX := g.Player.Pos.X + dx
 	newY := g.Player.Pos.Y + dy
 	if newX < 0 || newX >= g.Map.Width || newY < 0 || newY >= g.Map.Height {
@@ -107,6 +113,101 @@ func (g GameState) Step(action Action) GameState {
 
 	g.Player.Pos = Position{X: newX, Y: newY}
 	return g
+}
+
+func (g GameState) resolveMonsterTurns() GameState {
+	g.Entities = append([]Entity(nil), g.Entities...)
+	occupied := make(map[Position]struct{}, len(g.Entities))
+	turnOrder := make([]int, 0, len(g.Entities))
+	for i, entity := range g.Entities {
+		if entity.Health <= 0 {
+			continue
+		}
+		occupied[entity.Pos] = struct{}{}
+		turnOrder = append(turnOrder, i)
+	}
+	sort.Slice(turnOrder, func(i, j int) bool {
+		return g.Entities[turnOrder[i]].ID < g.Entities[turnOrder[j]].ID
+	})
+
+	for _, index := range turnOrder {
+		monster := &g.Entities[index]
+		if manhattanDistance(monster.Pos, g.Player.Pos) == 1 {
+			g.Player.Health = max(0, g.Player.Health-monster.Damage)
+			g.Log = appendLog(g.Log, fmt.Sprintf("Monster %d hits you for %d damage.", monster.ID, monster.Damage))
+			if g.Player.Health == 0 {
+				break
+			}
+			continue
+		}
+
+		for _, delta := range approachSteps(monster.Pos, g.Player.Pos) {
+			next := Position{X: monster.Pos.X + delta.X, Y: monster.Pos.Y + delta.Y}
+			if next.X < 0 || next.X >= g.Map.Width || next.Y < 0 || next.Y >= g.Map.Height {
+				continue
+			}
+			if next == g.Player.Pos || g.Map.Tiles[next.Y][next.X] == TileWall {
+				continue
+			}
+			if _, blocked := occupied[next]; blocked {
+				continue
+			}
+
+			delete(occupied, monster.Pos)
+			monster.Pos = next
+			occupied[next] = struct{}{}
+			break
+		}
+	}
+
+	return g
+}
+
+func approachSteps(from, to Position) []Position {
+	dx := to.X - from.X
+	dy := to.Y - from.Y
+	horizontal := Position{X: sign(dx)}
+	vertical := Position{Y: sign(dy)}
+
+	steps := make([]Position, 0, 2)
+	if abs(dx) >= abs(dy) {
+		if horizontal.X != 0 {
+			steps = append(steps, horizontal)
+		}
+		if vertical.Y != 0 {
+			steps = append(steps, vertical)
+		}
+		return steps
+	}
+	if vertical.Y != 0 {
+		steps = append(steps, vertical)
+	}
+	if horizontal.X != 0 {
+		steps = append(steps, horizontal)
+	}
+	return steps
+}
+
+func manhattanDistance(a, b Position) int {
+	return abs(a.X-b.X) + abs(a.Y-b.Y)
+}
+
+func sign(value int) int {
+	switch {
+	case value < 0:
+		return -1
+	case value > 0:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func abs(value int) int {
+	if value < 0 {
+		return -value
+	}
+	return value
 }
 
 func (g GameState) attackMonster(index int) GameState {

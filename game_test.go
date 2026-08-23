@@ -228,7 +228,12 @@ func TestStepBumpAttackDamagesMonster(t *testing.T) {
 	if got.Entities[1] != untargeted {
 		t.Errorf("untargeted monster changed: got %+v, want %+v", got.Entities[1], untargeted)
 	}
-	if gotLog, want := got.Log, []string{"The fight begins.", "You hit monster 1 for 10 damage."}; !reflect.DeepEqual(gotLog, want) {
+	if gotLog, want := got.Log, []string{
+		"The fight begins.",
+		"You hit monster 1 for 10 damage.",
+		"Monster 1 hits you for 5 damage.",
+		"Monster 2 hits you for 5 damage.",
+	}; !reflect.DeepEqual(gotLog, want) {
 		t.Errorf("log = %q, want %q", gotLog, want)
 	}
 	if g.Entities[0].Health != 20 {
@@ -247,11 +252,96 @@ func TestStepBumpAttackKillsMonster(t *testing.T) {
 	if len(got.Entities) != 1 || got.Entities[0].ID != 2 {
 		t.Fatalf("entities after kill = %+v, want only monster 2", got.Entities)
 	}
-	if gotLog, want := got.Log, []string{"The fight begins.", "You kill monster 1."}; !reflect.DeepEqual(gotLog, want) {
+	if gotLog, want := got.Log, []string{
+		"The fight begins.",
+		"You kill monster 1.",
+		"Monster 2 hits you for 5 damage.",
+	}; !reflect.DeepEqual(gotLog, want) {
 		t.Errorf("log = %q, want %q", gotLog, want)
 	}
 	if len(g.Entities) != 2 || g.Entities[0].Health != 10 {
 		t.Errorf("Step mutated prior entities: %+v", g.Entities)
+	}
+}
+
+func TestMonsterTurnPursuesPlayer(t *testing.T) {
+	g := openTestState()
+	g.Player.Pos = Position{X: 2, Y: 3}
+	g.Entities = []Entity{testMonster(1, Position{X: 5, Y: 3})}
+
+	got := g.Step(ActionMoveUp)
+
+	if got.Player.Pos != (Position{X: 2, Y: 2}) {
+		t.Errorf("player pos = %+v, want {2 2}", got.Player.Pos)
+	}
+	if got.Entities[0].Pos != (Position{X: 4, Y: 3}) {
+		t.Errorf("monster pos = %+v, want {4 3}", got.Entities[0].Pos)
+	}
+	if g.Entities[0].Pos != (Position{X: 5, Y: 3}) {
+		t.Errorf("Step mutated prior monster position to %+v", g.Entities[0].Pos)
+	}
+}
+
+func TestMonsterTurnAvoidsWallsAndActors(t *testing.T) {
+	g := openTestState()
+	g.Player.Pos = Position{X: 1, Y: 3}
+	g.Entities = []Entity{
+		testMonster(1, Position{X: 4, Y: 3}),
+		testMonster(2, Position{X: 3, Y: 3}),
+	}
+	g.Map.Tiles[2][4] = TileWall
+
+	got := g.Step(ActionMoveUp)
+
+	if got.Entities[0].Pos != (Position{X: 4, Y: 3}) {
+		t.Errorf("blocked monster moved to %+v, want {4 3}", got.Entities[0].Pos)
+	}
+	if got.Entities[1].Pos != (Position{X: 2, Y: 3}) {
+		t.Errorf("unblocked monster moved to %+v, want {2 3}", got.Entities[1].Pos)
+	}
+}
+
+func TestMonsterTurnAttacksAfterBlockedPlayerAction(t *testing.T) {
+	g := openTestState()
+	g.Player.Pos = Position{X: 3, Y: 3}
+	g.Map.Tiles[3][4] = TileWall
+	g.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
+	priorLogBacking := g.Log[:cap(g.Log)]
+
+	got := g.Step(ActionMoveRight)
+
+	if got.Player.Health != 95 {
+		t.Errorf("player health = %d, want 95", got.Player.Health)
+	}
+	if g.Player.Health != 100 {
+		t.Errorf("Step mutated prior player health to %d", g.Player.Health)
+	}
+	if gotLog, want := got.Log, []string{"The fight begins.", "Monster 1 hits you for 5 damage."}; !reflect.DeepEqual(gotLog, want) {
+		t.Errorf("log = %q, want %q", gotLog, want)
+	}
+	if priorLogBacking[1] != "" {
+		t.Errorf("Step mutated prior log backing array with %q", priorLogBacking[1])
+	}
+}
+
+func TestMonsterTurnsResolveInStableIDOrder(t *testing.T) {
+	g := openTestState()
+	g.Player.Pos = Position{X: 3, Y: 3}
+	g.Map.Tiles[3][4] = TileWall
+	g.Entities = []Entity{
+		testMonster(2, Position{X: 3, Y: 4}),
+		testMonster(1, Position{X: 3, Y: 2}),
+	}
+
+	got := g.Step(ActionMoveRight)
+
+	want := []string{
+		"The fight begins.",
+		"Monster 1 hits you for 5 damage.",
+		"Monster 2 hits you for 5 damage.",
+	}
+	if !reflect.DeepEqual(got.Log, want) {
+		t.Errorf("log = %q, want stable ID order %q", got.Log, want)
 	}
 }
 
@@ -278,6 +368,43 @@ func combatTestState(targetHealth int) GameState {
 	g.Log = make([]string, 1, 3)
 	g.Log[0] = "The fight begins."
 	return g
+}
+
+func openTestState() GameState {
+	const width, height = 7, 7
+	tiles := make([][]TileType, height)
+	for y := range tiles {
+		tiles[y] = make([]TileType, width)
+		for x := range tiles[y] {
+			if x == 0 || x == width-1 || y == 0 || y == height-1 {
+				tiles[y][x] = TileWall
+			}
+		}
+	}
+	log := make([]string, 1, 3)
+	log[0] = "The fight begins."
+	return GameState{
+		Map: GameMap{Width: width, Height: height, Tiles: tiles},
+		Player: Entity{
+			IsPlayer:  true,
+			Rune:      "@",
+			Health:    100,
+			MaxHealth: 100,
+			Damage:    10,
+		},
+		Log: log,
+	}
+}
+
+func testMonster(id int, pos Position) Entity {
+	return Entity{
+		ID:        id,
+		Pos:       pos,
+		Rune:      "g",
+		Health:    20,
+		MaxHealth: 20,
+		Damage:    5,
+	}
 }
 
 func floorBesideWall(t *testing.T, m GameMap) (Position, Action) {
