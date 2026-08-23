@@ -101,6 +101,33 @@ func TestNewGamePlacesMonstersOnDistinctFloors(t *testing.T) {
 	}
 }
 
+func TestNewGamePlacesPotionsOnDistinctUnoccupiedFloors(t *testing.T) {
+	for _, seed := range []int64{3, 8, 21, 55} {
+		t.Run("seed_"+strconv.FormatInt(seed, 10), func(t *testing.T) {
+			g := newTestGame(seed)
+			if got, want := len(g.Items), 2; got != want {
+				t.Fatalf("item count = %d, want %d potions", got, want)
+			}
+			occupied := map[Position]struct{}{g.Player.Pos: {}}
+			for _, monster := range g.Entities {
+				occupied[monster.Pos] = struct{}{}
+			}
+			for _, item := range g.Items {
+				if item.Type != ItemPotion {
+					t.Errorf("item at %+v has type %d, want potion", item.Pos, item.Type)
+				}
+				if g.Map.Tiles[item.Pos.Y][item.Pos.X] != TileFloor {
+					t.Errorf("potion placed off ordinary floor at %+v", item.Pos)
+				}
+				if _, exists := occupied[item.Pos]; exists {
+					t.Errorf("potion overlaps actor or another item at %+v", item.Pos)
+				}
+				occupied[item.Pos] = struct{}{}
+			}
+		})
+	}
+}
+
 func TestNewGameIsDeterministicForSeed(t *testing.T) {
 	first := newTestGame(42)
 	second := newTestGame(42)
@@ -269,6 +296,7 @@ func TestDescendGeneratesNextLevelAndPreservesPlayerStats(t *testing.T) {
 	g.Player.Health = 37
 	g.Player.MaxHealth = 120
 	g.Player.Damage = 14
+	g.Potions = 2
 	oldMap := mapSignature(g.Map)
 
 	got := g.Descend(rng)
@@ -278,6 +306,9 @@ func TestDescendGeneratesNextLevelAndPreservesPlayerStats(t *testing.T) {
 	}
 	if got.Player.Health != 37 || got.Player.MaxHealth != 120 || got.Player.Damage != 14 {
 		t.Errorf("player stats after descent = %+v, want health 37/120 and damage 14", got.Player)
+	}
+	if got.Potions != 2 {
+		t.Errorf("potion inventory after descent = %d, want 2", got.Potions)
 	}
 	if got.Map.Width != g.Map.Width || got.Map.Height != g.Map.Height {
 		t.Errorf("next map dimensions = %dx%d, want %dx%d", got.Map.Width, got.Map.Height, g.Map.Width, g.Map.Height)
@@ -318,6 +349,94 @@ func TestDescentSequenceIsDeterministicForSeed(t *testing.T) {
 	second := descend(73)
 	if !reflect.DeepEqual(first, second) {
 		t.Fatal("same seeded run generated different second levels")
+	}
+}
+
+func TestStepPicksUpPotion(t *testing.T) {
+	g := openTestState()
+	g.Player.Pos = Position{X: 2, Y: 3}
+	g.Entities = nil
+	g.Items = []Item{{Type: ItemPotion, Pos: Position{X: 3, Y: 3}}}
+	priorItems := append([]Item(nil), g.Items...)
+
+	got := g.Step(ActionMoveRight)
+
+	if got.Player.Pos != (Position{X: 3, Y: 3}) {
+		t.Errorf("player position = %+v, want potion cell {3 3}", got.Player.Pos)
+	}
+	if got.Potions != 1 || len(got.Items) != 0 {
+		t.Errorf("after pickup potions = %d, ground items = %+v; want 1 and none", got.Potions, got.Items)
+	}
+	if !reflect.DeepEqual(g.Items, priorItems) {
+		t.Errorf("pickup mutated prior items: got %+v, want %+v", g.Items, priorItems)
+	}
+	if gotLog, want := got.Log[len(got.Log)-1], "You pick up a health potion."; gotLog != want {
+		t.Errorf("last log entry = %q, want %q", gotLog, want)
+	}
+}
+
+func TestUsePotionHealsAndSpendsTurn(t *testing.T) {
+	g := openTestState()
+	g.Player.Pos = Position{X: 3, Y: 3}
+	g.Player.Health = 70
+	g.Potions = 2
+	g.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
+
+	got := g.Step(ActionUsePotion)
+
+	if got.Potions != 1 {
+		t.Errorf("potions after use = %d, want 1", got.Potions)
+	}
+	if got.Player.Health != 90 {
+		t.Errorf("health after healing 25 and taking 5 damage = %d, want 90", got.Player.Health)
+	}
+	if gotLog, want := got.Log, []string{
+		"The fight begins.",
+		"You drink a potion and recover 25 health.",
+		"Monster 1 hits you for 5 damage.",
+	}; !reflect.DeepEqual(gotLog, want) {
+		t.Errorf("log after potion turn = %q, want %q", gotLog, want)
+	}
+}
+
+func TestUsePotionCapsHealingAtMaxHealth(t *testing.T) {
+	g := openTestState()
+	g.Player.Health = 90
+	g.Potions = 1
+	g.Entities = nil
+
+	got := g.Step(ActionUsePotion)
+
+	if got.Player.Health != 100 || got.Potions != 0 {
+		t.Errorf("after potion health = %d and inventory = %d, want 100 and 0", got.Player.Health, got.Potions)
+	}
+	if gotLog, want := got.Log[len(got.Log)-1], "You drink a potion and recover 10 health."; gotLog != want {
+		t.Errorf("last log entry = %q, want %q", gotLog, want)
+	}
+}
+
+func TestUsePotionIsFreeWhenUnavailableOrAtFullHealth(t *testing.T) {
+	tests := []struct {
+		name    string
+		health  int
+		potions int
+	}{
+		{name: "no inventory", health: 50, potions: 0},
+		{name: "full health", health: 100, potions: 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			g := openTestState()
+			g.Player.Health = tc.health
+			g.Potions = tc.potions
+			g.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
+
+			got := g.Step(ActionUsePotion)
+
+			if !reflect.DeepEqual(got, g) {
+				t.Errorf("invalid potion use changed state:\ngot  %+v\nwant %+v", got, g)
+			}
+		})
 	}
 }
 

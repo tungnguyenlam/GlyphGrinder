@@ -72,7 +72,7 @@ func TestViewRendersFullGrid(t *testing.T) {
 			continue
 		}
 		for x, cell := range plain[:state.Map.Width] {
-			if !strings.ContainsRune(" #.@g>", cell) {
+			if !strings.ContainsRune(" #.@g>!", cell) {
 				t.Errorf("map cell (%d,%d) = %q, want a dungeon glyph", x, y, cell)
 			}
 		}
@@ -222,6 +222,7 @@ func TestGlyphProfilesStayOneCellWide(t *testing.T) {
 			"floor":   profile.Floor,
 			"wall":    profile.Wall,
 			"stairs":  profile.Stairs,
+			"potion":  profile.Potion,
 		} {
 			if got := lipgloss.Width(glyph); got != 1 {
 				t.Errorf("%s %s glyph %q is %d cells wide, want 1", name, role, glyph, got)
@@ -241,6 +242,7 @@ func TestViewRendersRichGlyphSemantics(t *testing.T) {
 	state.Player.Pos = Position{X: 3, Y: 3}
 	state.Entities = []Entity{testMonster(1, Position{X: 4, Y: 3})}
 	state.Map.Tiles[2][3] = TileStairs
+	state.Items = []Item{{Type: ItemPotion, Pos: Position{X: 2, Y: 2}}}
 	state = state.refreshVisibility()
 	d := tuitest.New(t, model{
 		state:  state,
@@ -259,6 +261,7 @@ func TestViewRendersRichGlyphSemantics(t *testing.T) {
 		{name: "floor", pos: Position{X: 2, Y: 3}, want: richGlyphs.Floor},
 		{name: "wall", pos: Position{X: 0, Y: 3}, want: richGlyphs.Wall},
 		{name: "stairs", pos: Position{X: 3, Y: 2}, want: richGlyphs.Stairs},
+		{name: "potion", pos: Position{X: 2, Y: 2}, want: richGlyphs.Potion},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -269,10 +272,12 @@ func TestViewRendersRichGlyphSemantics(t *testing.T) {
 	}
 }
 
-func TestViewRendersASCIIStairs(t *testing.T) {
+func TestViewRendersASCIIMapFeatures(t *testing.T) {
 	state := openTestState()
 	stairs := Position{X: 3, Y: 2}
+	potion := Position{X: 2, Y: 2}
 	state.Map.Tiles[stairs.Y][stairs.X] = TileStairs
+	state.Items = []Item{{Type: ItemPotion, Pos: potion}}
 	state = state.refreshVisibility()
 	d := tuitest.New(t, model{
 		state:  state,
@@ -282,6 +287,9 @@ func TestViewRendersASCIIStairs(t *testing.T) {
 
 	if got := renderedCell(t, d.Lines(), stairs); got != asciiGlyphs.Stairs {
 		t.Errorf("rendered stair glyph = %q, want %q", got, asciiGlyphs.Stairs)
+	}
+	if got := renderedCell(t, d.Lines(), potion); got != asciiGlyphs.Potion {
+		t.Errorf("rendered potion glyph = %q, want %q", got, asciiGlyphs.Potion)
 	}
 }
 
@@ -330,6 +338,9 @@ func TestViewRendersHealthAndRecentLog(t *testing.T) {
 	}
 	if !strings.Contains(plain, "Depth 1") {
 		t.Errorf("view does not contain dungeon depth:\n%s", plain)
+	}
+	if !strings.Contains(plain, "Potions 0 (p)") {
+		t.Errorf("view does not contain potion inventory:\n%s", plain)
 	}
 	if !strings.Contains(plain, "A test event.") {
 		t.Errorf("view does not contain recent log entry:\n%s", plain)
@@ -511,6 +522,7 @@ func TestDescendKeyRegeneratesAndRendersNextDepth(t *testing.T) {
 	state := NewGame(20, 10, rng)
 	state.Player.Pos = tilePositions(state.Map, TileStairs)[0]
 	state.Player.Health = 63
+	state.Potions = 2
 	state = state.refreshVisibility()
 	m := model{
 		state:  state,
@@ -536,6 +548,9 @@ func TestDescendKeyRegeneratesAndRendersNextDepth(t *testing.T) {
 	if got.state.Player.Health != 63 {
 		t.Errorf("health after > = %d, want 63", got.state.Player.Health)
 	}
+	if got.state.Potions != 2 {
+		t.Errorf("potions after > = %d, want 2", got.state.Potions)
+	}
 	if len(got.motion.Actors) != 0 || got.motion.Frame != 0 {
 		t.Errorf("descent retained actor/camera motion: %+v", got.motion)
 	}
@@ -545,8 +560,43 @@ func TestDescendKeyRegeneratesAndRendersNextDepth(t *testing.T) {
 		t.Errorf("next-depth player rendered at %+v, want %+v", rendered, wantScreen)
 	}
 	plain := stripANSI(d.View())
-	if !strings.Contains(plain, "HP [######....] 63/100") || !strings.Contains(plain, "Depth 2") {
-		t.Errorf("next-depth view lost preserved health or depth:\n%s", plain)
+	if !strings.Contains(plain, "HP [######....] 63/100") ||
+		!strings.Contains(plain, "Depth 2") ||
+		!strings.Contains(plain, "Potions 2 (p)") {
+		t.Errorf("next-depth view lost preserved run state:\n%s", plain)
+	}
+}
+
+func TestPotionPickupAndUseSurviveUpdateRoundTrip(t *testing.T) {
+	state := openTestState()
+	state.Player.Pos = Position{X: 2, Y: 3}
+	state.Player.Health = 60
+	state.Entities = nil
+	state.Items = []Item{{Type: ItemPotion, Pos: Position{X: 3, Y: 3}}}
+	state = state.refreshVisibility()
+	d := tuitest.New(t, model{
+		state:  state,
+		rng:    rand.New(rand.NewSource(tuiTestSeed)),
+		glyphs: asciiGlyphs,
+	})
+
+	d.Key("right")
+	pickedUp := d.Model().(model).state
+	if pickedUp.Potions != 1 || len(pickedUp.Items) != 0 {
+		t.Fatalf("after pickup potions = %d, items = %+v; want 1 and none", pickedUp.Potions, pickedUp.Items)
+	}
+	if plain := stripANSI(d.View()); !strings.Contains(plain, "Potions 1 (p)") {
+		t.Errorf("pickup inventory not rendered:\n%s", plain)
+	}
+
+	d.Key("p")
+	used := d.Model().(model).state
+	if used.Player.Health != 85 || used.Potions != 0 {
+		t.Errorf("after p health = %d, potions = %d; want 85 and 0", used.Player.Health, used.Potions)
+	}
+	plain := stripANSI(d.View())
+	if !strings.Contains(plain, "HP [########..] 85/100") || !strings.Contains(plain, "Potions 0 (p)") {
+		t.Errorf("potion use not reflected in view:\n%s", plain)
 	}
 }
 
@@ -619,6 +669,7 @@ func TestGameOverAndRestartSurviveUpdateRoundTrip(t *testing.T) {
 	state := openTestState()
 	state.Player.Pos = Position{X: 3, Y: 3}
 	state.Player.Health = 5
+	state.Potions = 2
 	state.Map.Tiles[3][4] = TileWall
 	state.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
 	d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed))})
@@ -648,6 +699,9 @@ func TestGameOverAndRestartSurviveUpdateRoundTrip(t *testing.T) {
 	}
 	if len(restarted.Entities) == 0 {
 		t.Error("restarted dungeon has no monsters")
+	}
+	if restarted.Potions != 0 || len(restarted.Items) == 0 {
+		t.Errorf("restart inventory/items = %d/%d, want empty inventory and generated items", restarted.Potions, len(restarted.Items))
 	}
 	if len(restartedModel.motion.Actors) != 0 {
 		t.Errorf("restart retained actor motion: %+v", restartedModel.motion)
