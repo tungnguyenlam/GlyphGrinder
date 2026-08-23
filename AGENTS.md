@@ -14,7 +14,8 @@ seeded room-and-corridor generation, bump combat, and deterministic monster
 turns; `main.go` maps input and renders the dungeon plus health/log UI. A run
 has three monsters, player and monster damage, death, and `r` to restart. Field
 of view, exploration memory, semantic color/glyph profiles, and a resize-aware
-camera now render a 96x48 dungeon; movement animation is the remaining M2 work.
+camera now render a 96x48 dungeon with tick-driven actor motion. Multi-level
+progression, items, enemy variety, and a win condition are the current M3 work.
 
 The north star is [GOAL.md](GOAL.md) — read it before planning work, and check
 every task against it.

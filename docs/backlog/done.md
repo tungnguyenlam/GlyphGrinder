@@ -4,6 +4,24 @@ Completed milestones, newest first. This is the project's memory of what has
 already been built and tried — check here before "discovering" that something
 is missing.
 
+## 2026-08-23 — M2: It looks like the pitch
+
+Turned the playable loop into a terminal presentation with depth, framing, and
+motion while keeping game rules deterministic.
+
+- Added occluded field of view, persistent exploration memory, and hidden
+  unseen monsters.
+- Added a semantic truecolor palette for visible/remembered terrain, actors,
+  health, logs, and danger states.
+- Grew production dungeons to 96x48 and added a resize-aware, edge-clamped
+  player camera that reserves the sidebar and survives 1x1 terminals.
+- Added environment-selected Nerd Font/Unicode glyphs with a dependable ASCII
+  fallback and one-cell width checks.
+- Added generation-tagged 60 Hz player/monster motion frames with faint source
+  trails, camera coupling, rapid-input replacement, and pure rendering.
+
+Verified: `./scripts/verify.sh` — VERIFY OK.
+
 ## 2026-08-23 — M1: Playable core loop
 
 Turned the fixed-room prototype into a complete, restartable roguelike loop.

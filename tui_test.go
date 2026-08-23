@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"glyphgrinder/internal/tuitest"
 )
@@ -365,6 +366,124 @@ func TestMovementKeys(t *testing.T) {
 	}
 }
 
+func TestMovementAnimationAdvancesOnlyOnTicks(t *testing.T) {
+	state := openTestState()
+	state.Entities = nil
+	m := model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed)), glyphs: asciiGlyphs}
+	from := state.Player.Pos
+	to := Position{X: from.X + 1, Y: from.Y}
+
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	m = next.(model)
+	if cmd == nil {
+		t.Fatal("movement did not schedule an animation tick")
+	}
+	if got := m.state.Player.Pos; got != to {
+		t.Fatalf("resolved player position = %+v, want %+v", got, to)
+	}
+	if got := playerAt(t, strings.Split(m.View(), "\n")); got != from {
+		t.Errorf("frame 0 rendered player at %+v, want prior position %+v", got, from)
+	}
+
+	next, cmd = m.Update(animationTickMsg{Sequence: m.motion.Sequence})
+	m = next.(model)
+	if cmd == nil {
+		t.Fatal("first animation frame did not schedule the next tick")
+	}
+	lines := strings.Split(m.View(), "\n")
+	if got := renderedCell(t, lines, from); got != asciiGlyphs.Player {
+		t.Errorf("frame 1 source trail = %q, want %q", got, asciiGlyphs.Player)
+	}
+	if got := renderedCell(t, lines, to); got != asciiGlyphs.Player {
+		t.Errorf("frame 1 destination = %q, want %q", got, asciiGlyphs.Player)
+	}
+
+	next, cmd = m.Update(animationTickMsg{Sequence: m.motion.Sequence})
+	m = next.(model)
+	if cmd == nil {
+		t.Fatal("second animation frame did not schedule the settling tick")
+	}
+	if got := playerAt(t, strings.Split(m.View(), "\n")); got != to {
+		t.Errorf("frame 2 rendered player at %+v, want destination %+v", got, to)
+	}
+
+	next, cmd = m.Update(animationTickMsg{Sequence: m.motion.Sequence})
+	m = next.(model)
+	if cmd != nil || len(m.motion.Actors) != 0 {
+		t.Errorf("settled animation = %+v, cmd nil = %v", m.motion, cmd == nil)
+	}
+}
+
+func TestAnimationTracksMonstersAndCamera(t *testing.T) {
+	state := openTestStateSized(60, 30)
+	state.Player.Pos = Position{X: 30, Y: 15}
+	state.Entities = []Entity{testMonster(1, Position{X: 26, Y: 13})}
+	state = state.refreshVisibility()
+	m := model{
+		state:        state,
+		rng:          rand.New(rand.NewSource(tuiTestSeed)),
+		glyphs:       asciiGlyphs,
+		windowWidth:  50,
+		windowHeight: 9,
+	}
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	m = next.(model)
+	if got, want := m.viewport().X, 22; got != want {
+		t.Errorf("camera origin on frame 0 = %d, want %d", got, want)
+	}
+	lines := strings.Split(m.View(), "\n")
+	if got, want := playerAt(t, lines), (Position{X: 8, Y: 4}); got != want {
+		t.Errorf("animated player at %+v, want %+v", got, want)
+	}
+	if got := renderedCell(t, lines, Position{X: 4, Y: 2}); got != asciiGlyphs.Monster {
+		t.Errorf("frame 0 monster glyph = %q, want %q at prior cell", got, asciiGlyphs.Monster)
+	}
+
+	next, _ = m.Update(animationTickMsg{Sequence: m.motion.Sequence})
+	m = next.(model)
+	next, _ = m.Update(animationTickMsg{Sequence: m.motion.Sequence})
+	m = next.(model)
+	if got, want := m.viewport().X, 23; got != want {
+		t.Errorf("camera origin on frame 2 = %d, want %d", got, want)
+	}
+	lines = strings.Split(m.View(), "\n")
+	if got, want := playerAt(t, lines), (Position{X: 8, Y: 4}); got != want {
+		t.Errorf("settling player at %+v, want %+v", got, want)
+	}
+	monster := m.state.Entities[0]
+	monsterScreen := Position{X: monster.Pos.X - m.viewport().X, Y: monster.Pos.Y - m.viewport().Y}
+	if got := renderedCell(t, lines, monsterScreen); got != asciiGlyphs.Monster {
+		t.Errorf("frame 2 monster glyph = %q, want %q at destination", got, asciiGlyphs.Monster)
+	}
+}
+
+func TestMovementInputReplacesInFlightAnimation(t *testing.T) {
+	state := openTestStateSized(9, 7)
+	state.Player.Pos = Position{X: 3, Y: 3}
+	state.Entities = nil
+	state = state.refreshVisibility()
+	m := model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed)), glyphs: asciiGlyphs}
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	m = next.(model)
+	staleSequence := m.motion.Sequence
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	m = next.(model)
+
+	if got, want := m.state.Player.Pos, (Position{X: 5, Y: 3}); got != want {
+		t.Fatalf("resolved position after rapid input = %+v, want %+v", got, want)
+	}
+	if got, want := playerAt(t, strings.Split(m.View(), "\n")), (Position{X: 4, Y: 3}); got != want {
+		t.Errorf("replacement animation starts at %+v, want last resolved cell %+v", got, want)
+	}
+	next, cmd := m.Update(animationTickMsg{Sequence: staleSequence})
+	m = next.(model)
+	if cmd != nil || m.motion.Frame != 0 {
+		t.Errorf("stale tick advanced replacement animation to frame %d", m.motion.Frame)
+	}
+}
+
 func TestPlayerCannotWalkThroughWalls(t *testing.T) {
 	d := tuitest.New(t, newTUITestModel())
 	want := d.Model().(model).state
@@ -439,9 +558,13 @@ func TestGameOverAndRestartSurviveUpdateRoundTrip(t *testing.T) {
 	d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed))})
 
 	d.Key("right")
-	dead := d.Model().(model).state
+	deadModel := d.Model().(model)
+	dead := deadModel.state
 	if !dead.GameOver {
 		t.Fatal("lethal input did not produce game over")
+	}
+	if len(deadModel.motion.Actors) != 0 {
+		t.Errorf("lethal stationary turn started motion: %+v", deadModel.motion)
 	}
 	plain := stripANSI(d.View())
 	if !strings.Contains(plain, "GAME OVER") || !strings.Contains(plain, "Press r to restart") {
@@ -449,7 +572,8 @@ func TestGameOverAndRestartSurviveUpdateRoundTrip(t *testing.T) {
 	}
 
 	d.Key("r")
-	restarted := d.Model().(model).state
+	restartedModel := d.Model().(model)
+	restarted := restartedModel.state
 	if restarted.GameOver {
 		t.Fatal("restart left game in game-over state")
 	}
@@ -458,6 +582,9 @@ func TestGameOverAndRestartSurviveUpdateRoundTrip(t *testing.T) {
 	}
 	if len(restarted.Entities) == 0 {
 		t.Error("restarted dungeon has no monsters")
+	}
+	if len(restartedModel.motion.Actors) != 0 {
+		t.Errorf("restart retained actor motion: %+v", restartedModel.motion)
 	}
 }
 
