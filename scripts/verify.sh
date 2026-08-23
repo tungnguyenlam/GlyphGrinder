@@ -11,8 +11,23 @@ cd "$(dirname "$0")/.."
 
 step() { printf '\n\033[1;36m==> %s\033[0m\n' "$1"; }
 
+# A verification that cannot run its tools must fail loudly, never pass
+# vacuously: check the toolchain exists before any step relies on it.
+for tool in go gofmt; do
+	if ! command -v "$tool" >/dev/null 2>&1; then
+		echo "verify.sh: required tool '$tool' not found on PATH; install Go and retry" >&2
+		exit 1
+	fi
+done
+
 step "gofmt (formatting check)"
-unformatted="$(gofmt -l . | grep -v '^vendor/' || true)"
+# gofmt exits non-zero on syntax errors without listing the offending file, so
+# trust its exit status, not just its output. No `|| true` on this call.
+if ! unformatted="$(gofmt -l .)"; then
+	echo "gofmt failed; fix the syntax errors it reported and re-run" >&2
+	exit 1
+fi
+unformatted="$(printf '%s' "$unformatted" | grep -v '^vendor/' || true)"
 if [[ -n "$unformatted" ]]; then
 	echo "These files are not gofmt-clean:" >&2
 	echo "$unformatted" >&2
