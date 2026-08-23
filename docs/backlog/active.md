@@ -17,27 +17,28 @@ glyphs, and terminal-aware framing promised by the vision.
 
 ## Exact next action
 
-**Replace ad hoc colors with a semantic dungeon palette.**
+**Add a resize-aware player-following viewport and larger dungeon.**
 
-- Define one semantic palette for lit stone/floor, remembered terrain, player,
-  monsters, health, log text, and danger/game-over UI instead of scattered
-  literals.
-- Apply foreground/background depth consistently while relying on Lip Gloss's
-  terminal color-profile conversion for graceful degradation.
-- Keep colors out of rule decisions and preserve plain-text glyph output; add
-  focused rendering tests for semantic style distinctions without snapshotting
-  entire ANSI frames.
+- Grow production/test dungeons beyond a typical terminal frame and store the
+  latest `tea.WindowSizeMsg` dimensions in the model.
+- Derive a clipped map rectangle that follows the player, stays within map
+  bounds, and reserves usable width for the health/log sidebar.
+- Render only that rectangle while translating actor coordinates correctly;
+  handle tiny terminals without panics or negative dimensions.
+- Add headless resize tests for clipping, camera following, edge clamping, and
+  sidebar preservation.
 
-Why next: M2.1 now exposes lit and remembered states, but their current greys
-and actor colors are still disconnected literals rather than a designed ramp.
+Why next: lighting and palette now provide depth, but the fixed 20x10 frame
+cannot deliver the larger, camera-followed dungeon promised by `GOAL.md`.
 
 ## Milestone plan
 
 - [x] **M2.1** Field of view and exploration memory with wall occlusion;
       invisible monsters stay hidden and explored terrain renders dimly. —
       *completed 2026-08-23*.
-- [ ] **M2.2** Replace ad hoc colors with a cohesive truecolor terrain/entity
-      palette that degrades through Lip Gloss color profiles.
+- [x] **M2.2** Replace ad hoc colors with a cohesive truecolor terrain/entity
+      palette that degrades through Lip Gloss color profiles. — *completed
+      2026-08-23*.
 - [ ] **M2.3** Add a resize-aware viewport and player-following camera, then
       grow generated maps beyond the initial 20x10 frame.
 - [ ] **M2.4** Add recognizable terrain/entity glyph profiles with a dependable
@@ -68,5 +69,5 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-08-23  —  VERIFY OK
 ```
 
-M2.1 field of view and exploration memory: gofmt clean, `go vet` clean, builds,
-headless smoke frame renders, all tests pass, `go.mod` tidy.
+M2.2 semantic truecolor palette: gofmt clean, `go vet` clean, builds, headless
+smoke frame renders, all tests pass, `go.mod` tidy.

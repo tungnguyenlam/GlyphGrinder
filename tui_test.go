@@ -2,9 +2,11 @@ package main
 
 import (
 	"math/rand"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
 	"glyphgrinder/internal/tuitest"
 )
 
@@ -136,6 +138,29 @@ func TestViewRendersHealthAndRecentLog(t *testing.T) {
 	}
 	if !strings.Contains(plain, "A test event.") {
 		t.Errorf("view does not contain recent log entry:\n%s", plain)
+	}
+}
+
+func TestPaletteStylesKeepSemanticRolesDistinct(t *testing.T) {
+	styles := newViewStyles(defaultPalette)
+	semanticStyles := []lipgloss.Style{
+		styles.floor,
+		styles.memoryFloor,
+		styles.player,
+		styles.monster,
+	}
+	for i := range semanticStyles {
+		if got := stripANSI(semanticStyles[i].Render(".")); got != "." {
+			t.Errorf("style %d changed plain glyph to %q", i, got)
+		}
+		for j := 0; j < i; j++ {
+			sameForeground := reflect.DeepEqual(semanticStyles[i].GetForeground(), semanticStyles[j].GetForeground())
+			sameBackground := reflect.DeepEqual(semanticStyles[i].GetBackground(), semanticStyles[j].GetBackground())
+			sameBold := semanticStyles[i].GetBold() == semanticStyles[j].GetBold()
+			if sameForeground && sameBackground && sameBold {
+				t.Errorf("semantic styles %d and %d render identically", i, j)
+			}
+		}
 	}
 }
 
