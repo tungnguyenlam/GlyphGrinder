@@ -438,7 +438,6 @@ func combatTestState(targetHealth int) GameState {
 		{
 			ID:        1,
 			Pos:       Position{X: g.Player.Pos.X + 1, Y: g.Player.Pos.Y},
-			Rune:      "g",
 			Health:    targetHealth,
 			MaxHealth: 20,
 			Damage:    5,
@@ -446,7 +445,6 @@ func combatTestState(targetHealth int) GameState {
 		{
 			ID:        2,
 			Pos:       Position{X: g.Player.Pos.X - 1, Y: g.Player.Pos.Y},
-			Rune:      "g",
 			Health:    20,
 			MaxHealth: 20,
 			Damage:    5,
@@ -478,7 +476,6 @@ func openTestStateSized(width, height int) GameState {
 		Player: Entity{
 			IsPlayer:  true,
 			Pos:       Position{X: width / 2, Y: height / 2},
-			Rune:      "@",
 			Health:    100,
 			MaxHealth: 100,
 			Damage:    10,
@@ -492,7 +489,6 @@ func testMonster(id int, pos Position) Entity {
 	return Entity{
 		ID:        id,
 		Pos:       pos,
-		Rune:      "g",
 		Health:    20,
 		MaxHealth: 20,
 		Damage:    5,

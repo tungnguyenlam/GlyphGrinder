@@ -63,8 +63,6 @@ type Entity struct {
 	ID        int
 	Pos       Position
 	IsPlayer  bool
-	Rune      string
-	Color     string
 	Health    int
 	MaxHealth int
 	Damage    int
@@ -326,8 +324,6 @@ func NewGame(width, height int, rng *rand.Rand) GameState {
 		Player: Entity{
 			IsPlayer:  true,
 			Pos:       playerPos,
-			Rune:      "@",
-			Color:     string(defaultPalette.Player),
 			Health:    100,
 			MaxHealth: 100,
 			Damage:    10,
@@ -356,8 +352,6 @@ func placeMonsters(m GameMap, playerPos Position, rng *rand.Rand) []Entity {
 		monsters[i] = Entity{
 			ID:        i + 1,
 			Pos:       openFloors[i],
-			Rune:      "g",
-			Color:     string(defaultPalette.Monster),
 			Health:    20,
 			MaxHealth: 20,
 			Damage:    5,

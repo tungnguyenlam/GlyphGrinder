@@ -7,8 +7,10 @@
 
 `GameState` is a plain struct holding a `GameMap`, the `Player` entity, a slice
 of other `Entity` values, and a message `Log`. Entities are concrete structs
-with fixed fields (`Pos`, `Rune`, `Color`, `Health`, `MaxHealth`, `Damage`) —
-not component bags, not interfaces, not an entity-component-system.
+with fixed rule fields (`Pos`, `Health`, `MaxHealth`, `Damage`) — not component
+bags, not interfaces, not an entity-component-system. Presentation choices such
+as glyphs and colors live on the Bubble Tea model/rendering side instead of in
+game entities.
 
 The state travels by value: Bubble Tea's `Update` receives a `model` by value,
 mutates its copy, and returns it. We keep it that way rather than switching to

@@ -17,19 +17,23 @@ glyphs, and terminal-aware framing promised by the vision.
 
 ## Exact next action
 
-**Add recognizable terrain/entity glyph profiles with an automatic ASCII
-fallback.**
+**Animate resolved player and monster movement through tick-driven render
+state.**
 
-- Centralize the player, monster, floor, and wall glyphs into explicit rich and
-  ASCII profiles rather than scattering literals through state and rendering.
-- Select the rich profile only when the process environment indicates a
-  Unicode-capable terminal; keep plain ASCII dependable in other environments.
-- Preserve one-cell alignment for every profile and restart, and add headless
-  tests for selection and rendered glyph semantics.
+- Capture actor positions before and after each resolved turn in `Update`, then
+  store short-lived interpolation state without changing deterministic
+  `GameState` rule positions.
+- Schedule fixed-rate Bubble Tea tick messages while motion is active and ease
+  render coordinates toward their resolved cells; never read time or mutate in
+  `View`.
+- Keep input responsive and define how another key during motion settles or
+  replaces the current transition before resolving the next turn.
+- Add headless frame-by-frame tests for player/monster movement, camera
+  interaction, rest state, and restart/death behavior.
 
-Why next: the viewport now delivers a large, camera-followed dungeon; distinct
-silhouettes and a reliable fallback are the remaining static visual layer
-before motion work begins.
+Why next: visibility, palette, camera, and glyph silhouettes now provide the
+static presentation promised by `GOAL.md`; motion is the last M2 acceptance
+criterion.
 
 ## Milestone plan
 
@@ -42,8 +46,8 @@ before motion work begins.
 - [x] **M2.3** Add a resize-aware viewport and player-following camera, then
       grow generated maps beyond the initial 20x10 frame. — *completed
       2026-08-23*.
-- [ ] **M2.4** Add recognizable terrain/entity glyph profiles with a dependable
-      ASCII fallback.
+- [x] **M2.4** Add recognizable terrain/entity glyph profiles with a dependable
+      ASCII fallback. — *completed 2026-08-23*.
 - [ ] **M2.5** Animate player and monster movement from tick messages without
       moving rule resolution into `View`.
 
@@ -70,7 +74,7 @@ None. No decision is waiting on the user.
 ./scripts/verify.sh   —  2026-08-23  —  VERIFY OK
 ```
 
-M2.3 resize-aware viewport and 96x48 production dungeon: gofmt clean, `go vet`
+M2.4 environment-selected rich/ASCII glyph profiles: gofmt clean, `go vet`
 clean, builds, headless smoke frame renders, all tests pass, `go.mod` tidy.
 
 Standing unattended prompt updated to execute substantial batches of related

@@ -12,9 +12,9 @@ GlyphGrinder is a terminal roguelike written in Go, built on Bubble Tea
 `package main` at the repo root holds the game: `game.go` owns the flat state,
 seeded room-and-corridor generation, bump combat, and deterministic monster
 turns; `main.go` maps input and renders the dungeon plus health/log UI. A run
-now has three monsters, player and monster damage, death, and `r` to restart.
-Field of view, a camera, animation, and richer glyph/color treatment are the
-current M2 work rather than existing features.
+has three monsters, player and monster damage, death, and `r` to restart. Field
+of view, exploration memory, semantic color/glyph profiles, and a resize-aware
+camera now render a 96x48 dungeon; movement animation is the remaining M2 work.
 
 The north star is [GOAL.md](GOAL.md) — read it before planning work, and check
 every task against it.

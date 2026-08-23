@@ -13,7 +13,9 @@ import (
 const tuiTestSeed int64 = 42
 
 func newTUITestModel() model {
-	return initialModel(rand.New(rand.NewSource(tuiTestSeed)))
+	m := initialModel(rand.New(rand.NewSource(tuiTestSeed)))
+	m.glyphs = asciiGlyphs
+	return m
 }
 
 // playerAt reports the grid position of the player glyph in a rendered view.
@@ -180,12 +182,86 @@ func TestViewRendersOnlyVisibleMonsters(t *testing.T) {
 	for _, monster := range state.Entities {
 		plain := []rune(stripANSI(lines[monster.Pos.Y]))
 		got := string(plain[monster.Pos.X])
-		if state.Map.Visible[monster.Pos.Y][monster.Pos.X] && got != monster.Rune {
-			t.Errorf("visible monster %d rendered as %q at %+v, want %q", monster.ID, got, monster.Pos, monster.Rune)
+		if state.Map.Visible[monster.Pos.Y][monster.Pos.X] && got != asciiGlyphs.Monster {
+			t.Errorf("visible monster %d rendered as %q at %+v, want %q", monster.ID, got, monster.Pos, asciiGlyphs.Monster)
 		}
-		if !state.Map.Visible[monster.Pos.Y][monster.Pos.X] && got == monster.Rune {
+		if !state.Map.Visible[monster.Pos.Y][monster.Pos.X] && got == asciiGlyphs.Monster {
 			t.Errorf("hidden monster %d rendered at %+v", monster.ID, monster.Pos)
 		}
+	}
+}
+
+func TestGlyphProfileSelection(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+		want glyphProfile
+	}{
+		{name: "UTF-8 locale", env: map[string]string{"LANG": "en_US.UTF-8"}, want: richGlyphs},
+		{name: "compact UTF8 locale", env: map[string]string{"LC_CTYPE": "C.UTF8"}, want: richGlyphs},
+		{name: "plain locale", env: map[string]string{"LANG": "C"}, want: asciiGlyphs},
+		{name: "missing locale", env: map[string]string{}, want: asciiGlyphs},
+		{name: "dumb terminal overrides Unicode", env: map[string]string{"TERM": "dumb", "LANG": "en_US.UTF-8"}, want: asciiGlyphs},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			getenv := func(key string) string { return tc.env[key] }
+			if got := glyphProfileForEnvironment(getenv); got != tc.want {
+				t.Errorf("profile = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestGlyphProfilesStayOneCellWide(t *testing.T) {
+	for name, profile := range map[string]glyphProfile{"ASCII": asciiGlyphs, "rich": richGlyphs} {
+		for role, glyph := range map[string]string{
+			"player":  profile.Player,
+			"monster": profile.Monster,
+			"floor":   profile.Floor,
+			"wall":    profile.Wall,
+		} {
+			if got := lipgloss.Width(glyph); got != 1 {
+				t.Errorf("%s %s glyph %q is %d cells wide, want 1", name, role, glyph, got)
+			}
+		}
+	}
+}
+
+func TestIncompleteGlyphProfileFallsBackToASCII(t *testing.T) {
+	if got := (glyphProfile{Player: "@"}).withASCIIFallback(); got != asciiGlyphs {
+		t.Errorf("incomplete profile resolved to %+v, want ASCII %+v", got, asciiGlyphs)
+	}
+}
+
+func TestViewRendersRichGlyphSemantics(t *testing.T) {
+	state := openTestState()
+	state.Player.Pos = Position{X: 3, Y: 3}
+	state.Entities = []Entity{testMonster(1, Position{X: 4, Y: 3})}
+	state = state.refreshVisibility()
+	d := tuitest.New(t, model{
+		state:  state,
+		rng:    rand.New(rand.NewSource(tuiTestSeed)),
+		glyphs: richGlyphs,
+	})
+	lines := d.Lines()
+
+	tests := []struct {
+		name string
+		pos  Position
+		want string
+	}{
+		{name: "player", pos: Position{X: 3, Y: 3}, want: richGlyphs.Player},
+		{name: "monster", pos: Position{X: 4, Y: 3}, want: richGlyphs.Monster},
+		{name: "floor", pos: Position{X: 2, Y: 3}, want: richGlyphs.Floor},
+		{name: "wall", pos: Position{X: 0, Y: 3}, want: richGlyphs.Wall},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := renderedCell(t, lines, tc.pos); got != tc.want {
+				t.Errorf("rendered glyph = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 

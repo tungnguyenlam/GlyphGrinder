@@ -1,9 +1,11 @@
 # GlyphGrinder
-A Go-based roguelike proving terminal games can be beautiful. Features fluid animations, Nerd Font icons, and rich truecolor graphics powered by Bubble Tea.
 
-> Early days: today it's a walled room you can move an `@` around in. See
-> [GOAL.md](GOAL.md) for where it's going and
-> [docs/backlog/active.md](docs/backlog/active.md) for what's next.
+A Go terminal roguelike proving terminal games can be beautiful. Explore a
+large procedural dungeon through torch-like field of view, fight pursuing
+monsters, and try to survive with truecolor depth and a player-following camera.
+
+It is still early; [GOAL.md](GOAL.md) describes the intended destination and
+[docs/backlog/active.md](docs/backlog/active.md) tracks the next slice.
 
 ## Play
 
@@ -11,7 +13,9 @@ A Go-based roguelike proving terminal games can be beautiful. Features fluid ani
 make run          # needs a real terminal
 ```
 
-Arrows or WASD to move, `q` to quit.
+Arrows or WASD move, `r` restarts after death, and `q` quits. UTF-8 terminals
+use richer one-cell glyphs (best with a Nerd Font); non-UTF-8 and `TERM=dumb`
+environments fall back automatically to `@`, `g`, `.`, and `#`.
 
 ## Develop
 

@@ -14,6 +14,7 @@ import (
 type model struct {
 	state        GameState
 	rng          *rand.Rand
+	glyphs       glyphProfile
 	windowWidth  int
 	windowHeight int
 }
@@ -30,6 +31,23 @@ const (
 	productionDungeonHeight = 48
 	sidebarWidth            = 32
 	mapSidebarGap           = 2
+)
+
+type glyphProfile struct {
+	Player  string
+	Monster string
+	Floor   string
+	Wall    string
+}
+
+var (
+	asciiGlyphs = glyphProfile{Player: "@", Monster: "g", Floor: ".", Wall: "#"}
+	richGlyphs  = glyphProfile{
+		Player:  "\uf007", // Nerd Fonts: Font Awesome user
+		Monster: "\uf6e2", // Nerd Fonts: Font Awesome ghost
+		Floor:   "·",
+		Wall:    "█",
+	}
 )
 
 type colorPalette struct {
@@ -97,7 +115,40 @@ func newViewStyles(p colorPalette) viewStyles {
 }
 
 func initialModel(rng *rand.Rand) model {
-	return model{state: NewGame(productionDungeonWidth, productionDungeonHeight, rng), rng: rng}
+	return model{
+		state:  NewGame(productionDungeonWidth, productionDungeonHeight, rng),
+		rng:    rng,
+		glyphs: glyphProfileForEnvironment(os.Getenv),
+	}
+}
+
+func glyphProfileForEnvironment(getenv func(string) string) glyphProfile {
+	if strings.EqualFold(strings.TrimSpace(getenv("TERM")), "dumb") {
+		return asciiGlyphs
+	}
+
+	locale := getenv("LC_ALL")
+	if locale == "" {
+		locale = getenv("LC_CTYPE")
+	}
+	if locale == "" {
+		locale = getenv("LANG")
+	}
+	locale = strings.ToLower(locale)
+	if strings.Contains(locale, "utf-8") || strings.Contains(locale, "utf8") {
+		return richGlyphs
+	}
+	return asciiGlyphs
+}
+
+func (p glyphProfile) withASCIIFallback() glyphProfile {
+	if lipgloss.Width(p.Player) != 1 ||
+		lipgloss.Width(p.Monster) != 1 ||
+		lipgloss.Width(p.Floor) != 1 ||
+		lipgloss.Width(p.Wall) != 1 {
+		return asciiGlyphs
+	}
+	return p
 }
 
 func (m model) Init() tea.Cmd {
@@ -159,16 +210,17 @@ func (m model) View() string {
 		return ""
 	}
 	viewport := m.viewport()
+	glyphs := m.glyphs.withASCIIFallback()
 
 	styles := newViewStyles(defaultPalette)
-	player := styles.player.Render(m.state.Player.Rune)
-	floor := styles.floor.Render(".")
-	wall := styles.wall.Render("#")
-	memoryFloor := styles.memoryFloor.Render(".")
-	memoryWall := styles.memoryWall.Render("#")
+	player := styles.player.Render(glyphs.Player)
+	floor := styles.floor.Render(glyphs.Floor)
+	wall := styles.wall.Render(glyphs.Wall)
+	memoryFloor := styles.memoryFloor.Render(glyphs.Floor)
+	memoryWall := styles.memoryWall.Render(glyphs.Wall)
 	entityGlyphs := make(map[Position]string, len(m.state.Entities))
 	for _, entity := range m.state.Entities {
-		entityGlyphs[entity.Pos] = styles.monster.Render(entity.Rune)
+		entityGlyphs[entity.Pos] = styles.monster.Render(glyphs.Monster)
 	}
 
 	var sb strings.Builder
