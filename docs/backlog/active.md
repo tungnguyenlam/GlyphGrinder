@@ -71,6 +71,14 @@ script with an empty toolchain PATH (fails naming `go`), a `go`-only PATH
 error; previously passed vacuously). Startup errors now go to stderr with a
 trailing newline.
 
+Session audit (2026-08-23): game logic, value-state slice isolation, the
+69-test suite, CI workflow (exec bit on `verify.sh` is `100755`, canonical
+script is the only entry point), Makefile, README, and agent docs re-checked —
+no further provable gaps. Parking lot pruned of two answered items (View
+allocation profiling, map-generation fuzzing); TTY notice example refreshed
+for the stderr error format. All remaining M4 work is the blocked external
+release checks in the Exact next action above.
+
 M3.5 three-depth victory flow: pre-final descent, final-stair escape without
 regeneration, frozen won state, visible goal/victory UI, and one-key fresh-run
 restart pass at state and headless levels.
