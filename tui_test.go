@@ -613,6 +613,37 @@ func TestDescendKeyRegeneratesAndRendersNextDepth(t *testing.T) {
 	}
 }
 
+func TestFinalDescentRendersVictoryAndRestarts(t *testing.T) {
+	rng := rand.New(rand.NewSource(tuiTestSeed))
+	state := NewGame(20, 10, rng)
+	state.Depth = finalDepth
+	state.Player.Pos = tilePositions(state.Map, TileStairs)[0]
+	state = state.refreshVisibility()
+	d := tuitest.New(t, model{state: state, rng: rng, glyphs: asciiGlyphs})
+
+	d.Key(">")
+	won := d.Model().(model)
+	if !won.state.Won || won.state.Depth != finalDepth {
+		t.Fatalf("final > produced won/depth = %v/%d, want true/%d", won.state.Won, won.state.Depth, finalDepth)
+	}
+	plain := stripANSI(d.View())
+	if !strings.Contains(plain, "VICTORY") || !strings.Contains(plain, "Press r to restart") {
+		t.Errorf("victory view is missing restart prompt:\n%s", plain)
+	}
+
+	before := won.state
+	d.Key("left")
+	if got := d.Model().(model).state; !reflect.DeepEqual(got, before) {
+		t.Errorf("movement changed won state:\ngot  %+v\nwant %+v", got, before)
+	}
+
+	d.Key("r")
+	restarted := d.Model().(model).state
+	if restarted.Won || restarted.GameOver || restarted.Depth != 1 {
+		t.Errorf("restart won/game over/depth = %v/%v/%d, want false/false/1", restarted.Won, restarted.GameOver, restarted.Depth)
+	}
+}
+
 func TestSwordPickupAndEquipSurviveUpdateRoundTrip(t *testing.T) {
 	state := openTestState()
 	state.Player.Pos = Position{X: 2, Y: 3}

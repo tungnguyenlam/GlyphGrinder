@@ -271,15 +271,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 		case "r":
-			if m.state.GameOver {
+			if m.state.GameOver || m.state.Won {
 				m.state = NewGame(m.state.Map.Width, m.state.Map.Height, m.rng)
 				m.motion = actorMotionState{}
 			}
 			return m, nil
 		case ">":
 			previousDepth := m.state.Depth
+			previousWon := m.state.Won
 			m.state = m.state.Descend(m.rng)
-			if m.state.Depth != previousDepth {
+			if m.state.Depth != previousDepth || m.state.Won != previousWon {
 				m.motionSeq++
 				m.motion = actorMotionState{}
 			}
@@ -482,6 +483,11 @@ func renderSidebar(state GameState, styles viewStyles) string {
 	sb.WriteString(styles.healthEmpty.Render(strings.Repeat(".", healthBarWidth-filled)))
 	fmt.Fprintf(&sb, "] %d/%d\n", state.Player.Health, state.Player.MaxHealth)
 	fmt.Fprintf(&sb, "%s %d\n", styles.uiAccent.Render("Depth"), state.Depth)
+	if state.Depth < finalDepth {
+		fmt.Fprintf(&sb, "%s reach depth %d\n", styles.uiAccent.Render("Goal"), finalDepth)
+	} else {
+		fmt.Fprintf(&sb, "%s escape via >\n", styles.uiAccent.Render("Goal"))
+	}
 	fmt.Fprintf(&sb, "%s %d %s\n", styles.uiAccent.Render("Potions"), state.Potions, styles.uiText.Render("(p)"))
 	weapon := "fists"
 	if state.HasSword {
@@ -500,6 +506,11 @@ func renderSidebar(state GameState, styles viewStyles) string {
 	if state.GameOver {
 		sb.WriteByte('\n')
 		sb.WriteString(styles.danger.Render("GAME OVER"))
+		sb.WriteByte('\n')
+		sb.WriteString(styles.uiAccent.Render("Press r to restart"))
+	} else if state.Won {
+		sb.WriteByte('\n')
+		sb.WriteString(styles.health.Render("VICTORY"))
 		sb.WriteByte('\n')
 		sb.WriteString(styles.uiAccent.Render("Press r to restart"))
 	}

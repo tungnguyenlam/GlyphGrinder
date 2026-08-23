@@ -388,6 +388,52 @@ func TestDescendGeneratesNextLevelAndPreservesPlayerStats(t *testing.T) {
 	}
 }
 
+func TestPenultimateDepthDescendsIntoFinalDepth(t *testing.T) {
+	rng := rand.New(rand.NewSource(81))
+	g := NewGame(20, 10, rng)
+	g.Depth = finalDepth - 1
+	g.Player.Pos = tilePositions(g.Map, TileStairs)[0]
+
+	got := g.Descend(rng)
+
+	if got.Depth != finalDepth || got.Won {
+		t.Errorf("final-level entry depth/won = %d/%v, want %d/false", got.Depth, got.Won, finalDepth)
+	}
+	if gotLog, want := got.Log[len(got.Log)-1], "You descend to depth "+strconv.Itoa(finalDepth)+"."; gotLog != want {
+		t.Errorf("last log = %q, want %q", gotLog, want)
+	}
+}
+
+func TestDescendingFinalStairsWinsWithoutGeneratingAnotherLevel(t *testing.T) {
+	g := newTestGame(82)
+	g.Depth = finalDepth
+	g.Player.Pos = tilePositions(g.Map, TileStairs)[0]
+	g.Player.Health = 37
+	beforeMap := mapSignature(g.Map)
+	beforeEntities := append([]Entity(nil), g.Entities...)
+
+	got := g.Descend(rand.New(rand.NewSource(999)))
+
+	if !got.Won || got.GameOver {
+		t.Errorf("final descent won/game over = %v/%v, want true/false", got.Won, got.GameOver)
+	}
+	if got.Depth != finalDepth {
+		t.Errorf("depth after victory = %d, want %d", got.Depth, finalDepth)
+	}
+	if got.Player.Health != 37 || mapSignature(got.Map) != beforeMap || !reflect.DeepEqual(got.Entities, beforeEntities) {
+		t.Errorf("victory regenerated or changed the final level: health %d, entities %+v", got.Player.Health, got.Entities)
+	}
+	if gotLog, want := got.Log[len(got.Log)-1], "You escape the dungeon. Victory!"; gotLog != want {
+		t.Errorf("last log = %q, want %q", gotLog, want)
+	}
+	if after := got.Step(ActionMoveLeft); !reflect.DeepEqual(after, got) {
+		t.Errorf("won state changed on another turn:\ngot  %+v\nwant %+v", after, got)
+	}
+	if after := got.Descend(rand.New(rand.NewSource(1000))); !reflect.DeepEqual(after, got) {
+		t.Errorf("won state changed on another descent:\ngot  %+v\nwant %+v", after, got)
+	}
+}
+
 func TestDescentSequenceIsDeterministicForSeed(t *testing.T) {
 	descend := func(seed int64) GameState {
 		rng := rand.New(rand.NewSource(seed))

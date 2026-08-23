@@ -4,6 +4,25 @@ Completed milestones, newest first. This is the project's memory of what has
 already been built and tried — check here before "discovering" that something
 is missing.
 
+## 2026-08-23 — M3: A run worth finishing
+
+Turned the polished single-level fight into a complete, escalating run with
+tactical pickups, enemy variety, and an explicit ending.
+
+- Added deterministic reachable stairs and three dungeon depths while
+  preserving run health, inventory, equipment, log history, and fresh field
+  of view across descent.
+- Added health potions with capped healing plus an iron sword whose pickup and
+  turn-costing equip action raises player damage.
+- Added depth-scaled goblins, alternate-turn high-health ogres, and fast fragile
+  bats with stable ID-ordered movement, collision, combat, and named logs.
+- Gave stairs, items, and every monster archetype distinct one-cell rich/ASCII
+  glyphs and semantic colors.
+- Added final-stair escape, a frozen victory state, visible win guidance, and
+  one-key restart; state and headless tests cover progression through victory.
+
+Verified: `./scripts/verify.sh` — VERIFY OK.
+
 ## 2026-08-23 — M2: It looks like the pitch
 
 Turned the playable loop into a terminal presentation with depth, framing, and

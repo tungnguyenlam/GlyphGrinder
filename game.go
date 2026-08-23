@@ -127,12 +127,15 @@ type GameState struct {
 	HasSword     bool
 	Equipped     bool
 	GameOver     bool
+	Won          bool
 	MonsterTurns int
 }
 
+const finalDepth = 3
+
 // Step resolves a player action and returns the resulting game state.
 func (g GameState) Step(action Action) GameState {
-	if g.GameOver {
+	if g.GameOver || g.Won {
 		return g
 	}
 	if action == ActionUsePotion {
@@ -461,10 +464,15 @@ func NewGame(width, height int, rng *rand.Rand) GameState {
 // is standing on stairs. Run-level player stats and the message log survive.
 func (g GameState) Descend(rng *rand.Rand) GameState {
 	pos := g.Player.Pos
-	if g.GameOver || pos.X < 0 || pos.X >= g.Map.Width || pos.Y < 0 || pos.Y >= g.Map.Height {
+	if g.GameOver || g.Won || pos.X < 0 || pos.X >= g.Map.Width || pos.Y < 0 || pos.Y >= g.Map.Height {
 		return g
 	}
 	if g.Map.Tiles[pos.Y][pos.X] != TileStairs {
+		return g
+	}
+	if g.Depth >= finalDepth {
+		g.Won = true
+		g.Log = appendLog(g.Log, "You escape the dungeon. Victory!")
 		return g
 	}
 
