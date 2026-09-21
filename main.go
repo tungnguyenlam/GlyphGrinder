@@ -571,7 +571,7 @@ func renderSidebar(state GameState, showHelp bool, styles viewStyles) string {
 	sb.WriteByte('\n')
 	if showHelp {
 		sb.WriteString(styles.uiAccent.Render("? hide"))
-		sb.WriteString("\nWASD/hjkl move")
+		sb.WriteString("\narrows/WASD/hjkl")
 		sb.WriteString("\n. space  wait")
 		sb.WriteString("\np        drink")
 		sb.WriteString("\ne        equip")

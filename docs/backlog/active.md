@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-09-21 (wall/OOB bumps no longer spend a turn)
+**Last updated:** 2026-09-21 (failed p/e/> log why; help lists arrows)
 
 ## Current milestone
 
@@ -19,7 +19,7 @@ green outside the maintainer's machine.
 **Complete the external release checks after these commits are pushed** — local
 M4 engineering is green, including `--dump-frame`, `--help`, in-game `?`
 controls, wait/hjkl, low-HP danger HUD, wrapped sidebar logs, remembered
-items, diagonal FOV corner blocking, free wall/OOB bumps, and a
+items, diagonal FOV, free wall/OOB bumps, failed `p`/`e`/`>` log lines, and a
 `GlyphGrinder` make-build name. Remaining acceptance work cannot run in this
 environment:
 
@@ -77,6 +77,8 @@ death screens, camera easing, and seed replay stay in the parking lot.
       corner; a single adjacent wall still lets the glance land.
 - [x] **M4.15** Walking into a wall or off the map does not spend a turn;
       wait (`.`/space) and bump-attacks still do.
+- [x] **M4.16** Failed `p`/`e`/`>` append a reason and stay free; `?` help
+      lists arrows with WASD/hjkl.
 
 ## Acceptance criteria for M4
 
@@ -100,6 +102,17 @@ death screens, camera easing, and seed replay stay in the parking lot.
 ```
 ./scripts/verify.sh   —  2026-09-21  —  VERIFY OK (go1.27.0 darwin/arm64, /opt/homebrew/bin/go)
 ```
+
+Failed-action log batch (2026-09-21): off-stairs `>` logs `There are no stairs
+here.`; empty/full-health `p` logs `You have no potions.` /
+`You are already at full health.`; failed `e` logs
+`You have no sword to equip.` / `You already wield the sword.` None of these
+spend a monster turn. In-game help lists `arrows/WASD/hjkl`. Extra `>` after
+victory stays a no-op. Proven by `TestDescendRequiresPlayerToStandOnStairs`,
+`TestDescendKeyOffStairsLogsWithoutChangingDepth`,
+`TestUsePotionIsFreeWhenUnavailableOrAtFullHealth`,
+`TestEquipSwordIsFreeWhenUnavailableOrAlreadyEquipped`, and
+`TestInGameHelpTogglesWithoutSpendingATurn`.
 
 Wall-bump batch (2026-09-21): `resolvePlayerMove` returns `acted=false` on
 walls and map edges, so a missed corridor is free. Wait (`.`/space) and

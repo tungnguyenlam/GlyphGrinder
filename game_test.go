@@ -380,8 +380,17 @@ func TestDescendRequiresPlayerToStandOnStairs(t *testing.T) {
 
 	got := g.Descend(rand.New(rand.NewSource(99)))
 
-	if !reflect.DeepEqual(got, before) {
-		t.Errorf("descent away from stairs changed state:\ngot  %+v\nwant %+v", got, before)
+	if got.Depth != before.Depth || got.Won || got.MonsterTurns != before.MonsterTurns {
+		t.Errorf("descent away from stairs changed run = depth %d won %v turns %d", got.Depth, got.Won, got.MonsterTurns)
+	}
+	if got.Player != before.Player {
+		t.Errorf("descent away from stairs moved player:\ngot  %+v\nwant %+v", got.Player, before.Player)
+	}
+	if gotLog, want := got.Log, []string{"There are no stairs here."}; !reflect.DeepEqual(gotLog, want) {
+		t.Errorf("log = %q, want %q", gotLog, want)
+	}
+	if len(before.Log) != 0 {
+		t.Errorf("Descend mutated prior log to %q", before.Log)
 	}
 }
 
@@ -558,17 +567,36 @@ func TestEquipSwordSpendsTurnAndChangesCombatDamage(t *testing.T) {
 }
 
 func TestEquipSwordIsFreeWhenUnavailableOrAlreadyEquipped(t *testing.T) {
-	for _, g := range []GameState{openTestState(), func() GameState {
-		g := openTestState()
-		g.HasSword = true
-		g.Equipped = true
-		g.Player.Damage = swordDamage
-		return g
-	}()} {
-		g.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
-		if got := g.Step(ActionEquipWeapon); !reflect.DeepEqual(got, g) {
-			t.Errorf("invalid equip changed state:\ngot  %+v\nwant %+v", got, g)
-		}
+	tests := []struct {
+		name string
+		g    GameState
+		want string
+	}{
+		{name: "no sword", g: openTestState(), want: "You have no sword to equip."},
+		{name: "already equipped", g: func() GameState {
+			g := openTestState()
+			g.HasSword = true
+			g.Equipped = true
+			g.Player.Damage = swordDamage
+			return g
+		}(), want: "You already wield the sword."},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			g := tc.g
+			g.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
+			priorHealth := g.Player.Health
+			priorTurns := g.MonsterTurns
+
+			got := g.Step(ActionEquipWeapon)
+
+			if got.Player.Health != priorHealth || got.MonsterTurns != priorTurns {
+				t.Errorf("invalid equip spent a turn: health %d turns %d", got.Player.Health, got.MonsterTurns)
+			}
+			if gotLog, want := got.Log[len(got.Log)-1], tc.want; gotLog != want {
+				t.Errorf("last log entry = %q, want %q", gotLog, want)
+			}
+		})
 	}
 }
 
@@ -617,9 +645,10 @@ func TestUsePotionIsFreeWhenUnavailableOrAtFullHealth(t *testing.T) {
 		name    string
 		health  int
 		potions int
+		want    string
 	}{
-		{name: "no inventory", health: 50, potions: 0},
-		{name: "full health", health: 100, potions: 1},
+		{name: "no inventory", health: 50, potions: 0, want: "You have no potions."},
+		{name: "full health", health: 100, potions: 1, want: "You are already at full health."},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -630,8 +659,14 @@ func TestUsePotionIsFreeWhenUnavailableOrAtFullHealth(t *testing.T) {
 
 			got := g.Step(ActionUsePotion)
 
-			if !reflect.DeepEqual(got, g) {
-				t.Errorf("invalid potion use changed state:\ngot  %+v\nwant %+v", got, g)
+			if got.Player.Health != tc.health || got.Potions != tc.potions {
+				t.Errorf("invalid potion use changed health/inventory to %d/%d", got.Player.Health, got.Potions)
+			}
+			if got.MonsterTurns != g.MonsterTurns {
+				t.Errorf("invalid potion use advanced monster turns to %d", got.MonsterTurns)
+			}
+			if gotLog, want := got.Log[len(got.Log)-1], tc.want; gotLog != want {
+				t.Errorf("last log entry = %q, want %q", gotLog, want)
 			}
 		})
 	}

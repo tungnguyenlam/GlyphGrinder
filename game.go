@@ -178,7 +178,12 @@ func (g GameState) Step(action Action) GameState {
 const swordDamage = 15
 
 func (g GameState) equipWeapon() GameState {
-	if !g.HasSword || g.Equipped {
+	if !g.HasSword {
+		g.Log = appendLog(g.Log, "You have no sword to equip.")
+		return g
+	}
+	if g.Equipped {
+		g.Log = appendLog(g.Log, "You already wield the sword.")
 		return g
 	}
 	g.Equipped = true
@@ -190,7 +195,12 @@ func (g GameState) equipWeapon() GameState {
 const potionHealing = 25
 
 func (g GameState) usePotion() GameState {
-	if g.Potions == 0 || g.Player.Health >= g.Player.MaxHealth {
+	if g.Potions == 0 {
+		g.Log = appendLog(g.Log, "You have no potions.")
+		return g
+	}
+	if g.Player.Health >= g.Player.MaxHealth {
+		g.Log = appendLog(g.Log, "You are already at full health.")
 		return g
 	}
 	healing := min(potionHealing, g.Player.MaxHealth-g.Player.Health)
@@ -493,6 +503,7 @@ func (g GameState) Descend(rng *rand.Rand) GameState {
 		return g
 	}
 	if g.Map.Tiles[pos.Y][pos.X] != TileStairs {
+		g.Log = appendLog(g.Log, "There are no stairs here.")
 		return g
 	}
 	if g.Depth >= finalDepth {

@@ -504,6 +504,7 @@ func TestWrapLogLineFitsSidebarWidth(t *testing.T) {
 		want  []string
 	}{
 		{name: "short", in: "The fight begins.", width: sidebarWidth, want: []string{"The fight begins."}},
+		{name: "full health fail", in: "You are already at full health.", width: sidebarWidth, want: []string{"You are already at full health."}},
 		{name: "exact width", in: strings.Repeat("a", 32), width: 32, want: []string{strings.Repeat("a", 32)}},
 		{
 			name:  "potion message",
@@ -827,6 +828,23 @@ func TestDescendKeyRegeneratesAndRendersNextDepth(t *testing.T) {
 	}
 }
 
+func TestDescendKeyOffStairsLogsWithoutChangingDepth(t *testing.T) {
+	state := openTestState()
+	state.Entities = nil
+	state = state.refreshVisibility()
+	d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed)), glyphs: asciiGlyphs})
+
+	d.Key(">")
+	got := d.Model().(model).state
+	if got.Depth != state.Depth || got.Player.Pos != state.Player.Pos {
+		t.Errorf("off-stairs > changed depth/pos to %d/%+v", got.Depth, got.Player.Pos)
+	}
+	plain := stripANSI(d.View())
+	if !strings.Contains(plain, "There are no stairs here.") {
+		t.Errorf("off-stairs > did not log in the sidebar:\n%s", plain)
+	}
+}
+
 func TestFinalDescentRendersVictoryAndRestarts(t *testing.T) {
 	rng := rand.New(rand.NewSource(tuiTestSeed))
 	state := NewGame(20, 10, rng)
@@ -980,7 +998,7 @@ func TestInGameHelpTogglesWithoutSpendingATurn(t *testing.T) {
 		t.Errorf("? spent a turn: health = %d, want 100", got.state.Player.Health)
 	}
 	plain := stripANSI(d.View())
-	if !strings.Contains(plain, "? hide") || !strings.Contains(plain, "WASD/hjkl move") {
+	if !strings.Contains(plain, "? hide") || !strings.Contains(plain, "arrows/WASD/hjkl") {
 		t.Errorf("open help missing controls:\n%s", plain)
 	}
 	if strings.Contains(plain, "? help") {
