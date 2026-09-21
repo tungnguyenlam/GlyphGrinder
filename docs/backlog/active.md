@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-09-21 (stairs spend a monster turn; remaining M4 observations are blocked)
+**Last updated:** 2026-09-21 (no second iron sword; remaining M4 observations are blocked)
 
 ## Current milestone
 
@@ -21,8 +21,9 @@ M4 engineering is green, including `--dump-frame`, `--help`, in-game `?`
 controls (compact overlay that fits 9-row terminals), wait/hjkl, low-HP
 danger HUD, wrapped sidebar logs, remembered items, diagonal FOV, free
 wall/OOB bumps, failed `p`/`e`/`>` log lines, distance-faded torch lighting,
-stair uses that spend a monster turn, and a `GlyphGrinder` make-build name.
-Remaining acceptance work cannot run in this environment:
+stair uses that spend a monster turn, no duplicate iron sword, and a
+`GlyphGrinder` make-build name. Remaining acceptance work cannot run in this
+environment:
 
 - Confirm the `Verify` GitHub Actions workflow passes on the first pushed
   commit and that its only verification entry point is `./scripts/verify.sh`.
@@ -87,6 +88,8 @@ death screens, camera easing, and seed replay stay in the parking lot.
       clips to `windowHeight` so a 50x9 terminal stays 9 rows.
 - [x] **M4.19** Standing on `>` spends a monster turn before descent or
       escape; death cancels the floor change. Off-stairs `>` stays free.
+- [x] **M4.20** Later depths skip a ground sword when one is already
+      carried; walking onto a leftover logs `You already carry a sword.`
 
 ## Acceptance criteria for M4
 
@@ -110,6 +113,13 @@ death screens, camera easing, and seed replay stay in the parking lot.
 ```
 ./scripts/verify.sh   —  2026-09-21  —  VERIFY OK (go1.27.0 darwin/arm64, /opt/homebrew/bin/go)
 ```
+
+Duplicate-sword batch (2026-09-21): `placeItems` omits the ground sword when
+`hasSword` is set; depth 1 still places 2 potions and 1 sword. Stepping onto
+a leftover sword removes it and logs `You already carry a sword.` Proven by
+`TestDescendOmitsGroundSwordWhenAlreadyCarried`,
+`TestStepWalkingOntoSecondSwordDoesNotDuplicateCarry`, and
+`TestNewGamePlacesItemsOnDistinctUnoccupiedFloors`.
 
 Stairs-turn batch (2026-09-21): `useStairs` resolves monster turns before
 `Descend` when standing on `>`. A lethal hit stays on this floor (`You die.`);

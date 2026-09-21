@@ -222,6 +222,10 @@ func (g GameState) pickUpItem() GameState {
 			g.Potions++
 			g.Log = appendLog(g.Log, "You pick up a health potion.")
 		case ItemSword:
+			if g.HasSword {
+				g.Log = appendLog(g.Log, "You already carry a sword.")
+				return g
+			}
 			g.HasSword = true
 			g.Log = appendLog(g.Log, "You pick up an iron sword.")
 		}
@@ -549,7 +553,7 @@ func newDungeonLevel(width, height, depth int, player Entity, potions int, hasSw
 	g := GameState{
 		Map:      gameMap,
 		Entities: monsters,
-		Items:    placeItems(gameMap, playerPos, monsters, rng),
+		Items:    placeItems(gameMap, playerPos, monsters, rng, hasSword),
 		Player:   player,
 		Log:      log,
 		Depth:    depth,
@@ -560,7 +564,7 @@ func newDungeonLevel(width, height, depth int, player Entity, potions int, hasSw
 	return g.refreshVisibility()
 }
 
-func placeItems(m GameMap, playerPos Position, monsters []Entity, rng *rand.Rand) []Item {
+func placeItems(m GameMap, playerPos Position, monsters []Entity, rng *rand.Rand, hasSword bool) []Item {
 	occupied := make(map[Position]struct{}, len(monsters)+1)
 	occupied[playerPos] = struct{}{}
 	for _, monster := range monsters {
@@ -589,7 +593,7 @@ func placeItems(m GameMap, playerPos Position, monsters []Entity, rng *rand.Rand
 	for i := 0; i < potionCount; i++ {
 		items = append(items, Item{Type: ItemPotion, Pos: openFloors[i]})
 	}
-	if len(openFloors) > potionCount {
+	if !hasSword && len(openFloors) > potionCount {
 		items = append(items, Item{Type: ItemSword, Pos: openFloors[potionCount]})
 	}
 	return items

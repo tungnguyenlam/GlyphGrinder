@@ -613,6 +613,45 @@ func TestStepPicksUpAndEquipsSword(t *testing.T) {
 	}
 }
 
+func TestDescendOmitsGroundSwordWhenAlreadyCarried(t *testing.T) {
+	rng := rand.New(rand.NewSource(18))
+	g := NewGame(20, 10, rng)
+	g.Player.Pos = tilePositions(g.Map, TileStairs)[0]
+	g.HasSword = true
+
+	got := g.Descend(rng)
+
+	swords := 0
+	for _, item := range got.Items {
+		if item.Type == ItemSword {
+			swords++
+		}
+	}
+	if swords != 0 {
+		t.Errorf("next depth sword count = %d, want 0 when already carried", swords)
+	}
+	if !got.HasSword {
+		t.Error("descent dropped the carried sword")
+	}
+}
+
+func TestStepWalkingOntoSecondSwordDoesNotDuplicateCarry(t *testing.T) {
+	g := openTestState()
+	g.Player.Pos = Position{X: 2, Y: 3}
+	g.Entities = nil
+	g.HasSword = true
+	g.Items = []Item{{Type: ItemSword, Pos: Position{X: 3, Y: 3}}}
+
+	got := g.Step(ActionMoveRight)
+
+	if !got.HasSword || len(got.Items) != 0 {
+		t.Errorf("second sword pickup carried %v items %+v; want carried true and none", got.HasSword, got.Items)
+	}
+	if gotLog, want := got.Log[len(got.Log)-1], "You already carry a sword."; gotLog != want {
+		t.Errorf("last log entry = %q, want %q", gotLog, want)
+	}
+}
+
 func TestEquipSwordSpendsTurnAndChangesCombatDamage(t *testing.T) {
 	g := combatTestState(20)
 	g.HasSword = true
