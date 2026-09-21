@@ -21,6 +21,7 @@ type model struct {
 	motionSeq    uint64
 	windowWidth  int
 	windowHeight int
+	showHelp     bool
 }
 
 type actorMotion struct {
@@ -274,6 +275,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if len(key) == 1 {
 			key = strings.ToLower(key)
 		}
+		if key == "?" {
+			m.showHelp = !m.showHelp
+			return m, nil
+		}
+		if key != "ctrl+c" && key != "q" {
+			m.showHelp = false
+		}
 		switch key {
 		case "ctrl+c", "q":
 			return m, tea.Quit
@@ -475,10 +483,10 @@ func (m model) View() string {
 		}
 	}
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, sb.String(), "  ", renderSidebar(m.state, styles))
+	return lipgloss.JoinHorizontal(lipgloss.Top, sb.String(), "  ", renderSidebar(m.state, m.showHelp, styles))
 }
 
-func renderSidebar(state GameState, styles viewStyles) string {
+func renderSidebar(state GameState, showHelp bool, styles viewStyles) string {
 	const (
 		healthBarWidth  = 10
 		visibleLogLines = 4
@@ -526,6 +534,19 @@ func renderSidebar(state GameState, styles viewStyles) string {
 		sb.WriteString(styles.health.Render("VICTORY"))
 		sb.WriteByte('\n')
 		sb.WriteString(styles.uiAccent.Render("Press r to restart"))
+	}
+	sb.WriteByte('\n')
+	if showHelp {
+		sb.WriteString(styles.uiAccent.Render("? hide"))
+		sb.WriteString("\nWASD/hjkl move")
+		sb.WriteString("\n. space  wait")
+		sb.WriteString("\np        drink")
+		sb.WriteString("\ne        equip")
+		sb.WriteString("\n>        stairs")
+		sb.WriteString("\nr        restart")
+		sb.WriteString("\nq        quit")
+	} else {
+		sb.WriteString(styles.uiText.Render("? help"))
 	}
 	return sb.String()
 }

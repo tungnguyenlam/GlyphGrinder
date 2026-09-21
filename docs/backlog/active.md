@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-09-21 (wait/hjkl and GlyphGrinder binary name landed)
+**Last updated:** 2026-09-21 (in-game `?` help landed; remaining M4 observations are blocked)
 
 ## Current milestone
 
@@ -18,8 +18,8 @@ green outside the maintainer's machine.
 
 **Complete the external release checks after these commits are pushed** — local
 M4 engineering is green, including `--dump-frame`, `--help`, case-insensitive
-letter keys, wait/hjkl, and a `GlyphGrinder` make-build name. Remaining
-acceptance work cannot run in this environment:
+letter keys, wait/hjkl, in-game `?` help, and a `GlyphGrinder` make-build name.
+Remaining acceptance work cannot run in this environment:
 
 - Confirm the `Verify` GitHub Actions workflow passes on the first pushed
   commit and that its only verification entry point is `./scripts/verify.sh`.
@@ -34,9 +34,7 @@ require the remote repository or a real interactive terminal.
 
 If the next session cannot push or open a TTY, audit `GOAL.md` against tests
 and current code for another high-confidence local batch; park speculative
-ideas in `docs/backlog/parking-lot.md`. A 2026-09-21 audit parked GOAL.md's
-door glyphs (the dungeon has none) and left title/death screens, camera
-easing, and seed replay in the parking lot.
+ideas in `docs/backlog/parking-lot.md`.
 
 ## Milestone plan
 
@@ -63,6 +61,8 @@ easing, and seed replay in the parking lot.
       message to stderr; a missing TTY also hints at `--help` / `--dump-frame`.
 - [x] **M4.9** `.` / space wait a turn; `hjkl` move; `make build` emits
       `./GlyphGrinder` to match `go install`.
+- [x] **M4.10** In-game `?` toggles controls without spending a turn; sidebar
+      shows `? help` when closed. Hunger-clock parking-lot item restored.
 
 ## Acceptance criteria for M4
 
@@ -86,6 +86,12 @@ easing, and seed replay in the parking lot.
 ```
 ./scripts/verify.sh   —  2026-09-21  —  VERIFY OK (go1.27.0 darwin/arm64, /opt/homebrew/bin/go)
 ```
+
+In-game help batch (2026-09-21): `?` toggles `model.showHelp` without calling
+`Step`; other non-quit keys dismiss the overlay. Sidebar keeps a one-line
+`? help` cue (8 rows with the default log, still fits the 50x9 resize test)
+and expands to WASD/hjkl/wait/item/stairs/restart/quit. Hunger-clock parking
+item restored after `ea61434` replaced it.
 
 Wait/hjkl/binary-name batch (2026-09-21): `ActionWait` spends a monster turn
 without moving; `.` and space map to it; `ActionNone` still freezes time.

@@ -35,6 +35,7 @@ heal but consume a turn, and the iron sword also costs a turn to equip.
 | --- | --- |
 | Arrow keys, `WASD`, or `hjkl` | Move; bump a monster to attack |
 | `.` or space | Wait a turn |
+| `?` | Toggle in-game controls |
 | `p` | Drink a carried health potion |
 | `e` | Equip a carried iron sword |
 | `>` | Descend or escape while standing on stairs |

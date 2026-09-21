@@ -457,6 +457,9 @@ func TestViewRendersHealthAndRecentLog(t *testing.T) {
 	if !strings.Contains(plain, "A test event.") {
 		t.Errorf("view does not contain recent log entry:\n%s", plain)
 	}
+	if !strings.Contains(plain, "? help") {
+		t.Errorf("view does not advertise in-game help:\n%s", plain)
+	}
 }
 
 func TestPaletteStylesKeepSemanticRolesDistinct(t *testing.T) {
@@ -828,6 +831,50 @@ func TestUppercaseLetterKeysMatchLowercaseActions(t *testing.T) {
 			t.Errorf("after R won/game over/depth = %v/%v/%d, want false/false/1", restarted.Won, restarted.GameOver, restarted.Depth)
 		}
 	})
+}
+
+func TestInGameHelpTogglesWithoutSpendingATurn(t *testing.T) {
+	state := openTestState()
+	state.Player.Pos = Position{X: 3, Y: 3}
+	state.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
+	state = state.refreshVisibility()
+	d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed)), glyphs: asciiGlyphs})
+
+	d.Key("?")
+	got := d.Model().(model)
+	if !got.showHelp {
+		t.Fatal("? did not open help")
+	}
+	if got.state.Player.Health != 100 {
+		t.Errorf("? spent a turn: health = %d, want 100", got.state.Player.Health)
+	}
+	plain := stripANSI(d.View())
+	if !strings.Contains(plain, "? hide") || !strings.Contains(plain, "WASD/hjkl move") {
+		t.Errorf("open help missing controls:\n%s", plain)
+	}
+	if strings.Contains(plain, "? help") {
+		t.Errorf("open help still shows the closed cue:\n%s", plain)
+	}
+
+	d.Key("?")
+	got = d.Model().(model)
+	if got.showHelp {
+		t.Fatal("second ? did not close help")
+	}
+	plain = stripANSI(d.View())
+	if !strings.Contains(plain, "? help") || strings.Contains(plain, "? hide") {
+		t.Errorf("closed help overlay:\n%s", plain)
+	}
+
+	d.Key("?")
+	d.Key(".")
+	got = d.Model().(model)
+	if got.showHelp {
+		t.Error("wait did not dismiss help")
+	}
+	if got.state.Player.Health != 95 {
+		t.Errorf("`.` after help health = %d, want 95", got.state.Player.Health)
+	}
 }
 
 func TestWaitKeySpendsATurn(t *testing.T) {

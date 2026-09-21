@@ -22,6 +22,7 @@ lingering as a fuzzy reminder.
 
 - Doors that block movement and sight until opened — GOAL.md names door
   glyphs, but generation is open rooms and corridors today.
+- Hunger clock, or an explicit decision not to have one.
 - Ranged attacks and line-of-sight targeting UI.
 - Status effects (poison, slow, confusion).
 - Character classes or a skill tree.
