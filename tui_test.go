@@ -845,6 +845,31 @@ func TestDescendKeyOffStairsLogsWithoutChangingDepth(t *testing.T) {
 	}
 }
 
+func TestFailedPotionAndEquipKeysLogWithoutSpendingATurn(t *testing.T) {
+	state := openTestState()
+	state.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
+	state = state.refreshVisibility()
+	d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed)), glyphs: asciiGlyphs})
+
+	d.Key("p")
+	got := d.Model().(model).state
+	if got.Player.Health != 100 {
+		t.Errorf("p with no potions spent a turn: health %d", got.Player.Health)
+	}
+	if !strings.Contains(stripANSI(d.View()), "You have no potions.") {
+		t.Errorf("p with no potions missing log:\n%s", stripANSI(d.View()))
+	}
+
+	d.Key("e")
+	got = d.Model().(model).state
+	if got.Player.Health != 100 {
+		t.Errorf("e with no sword spent a turn: health %d", got.Player.Health)
+	}
+	if !strings.Contains(stripANSI(d.View()), "You have no sword to equip.") {
+		t.Errorf("e with no sword missing log:\n%s", stripANSI(d.View()))
+	}
+}
+
 func TestFinalDescentRendersVictoryAndRestarts(t *testing.T) {
 	rng := rand.New(rand.NewSource(tuiTestSeed))
 	state := NewGame(20, 10, rng)

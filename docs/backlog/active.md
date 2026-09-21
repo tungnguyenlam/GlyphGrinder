@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-09-21 (failed p/e/> log why; help lists arrows)
+**Last updated:** 2026-09-21 (failed p/e/> logs landed; next is torch falloff)
 
 ## Current milestone
 
@@ -16,12 +16,23 @@ green outside the maintainer's machine.
 
 ## Exact next action
 
-**Complete the external release checks after these commits are pushed** — local
-M4 engineering is green, including `--dump-frame`, `--help`, in-game `?`
-controls, wait/hjkl, low-HP danger HUD, wrapped sidebar logs, remembered
-items, diagonal FOV, free wall/OOB bumps, failed `p`/`e`/`>` log lines, and a
-`GlyphGrinder` make-build name. Remaining acceptance work cannot run in this
-environment:
+**Current batch — visible terrain falls off with torch distance:**
+
+1. Add `torchBand` (same Euclidean metric as FOV) and `lerpHex` in `main.go`.
+   Four bands; the outer band blends 55% toward memory colors so the FOV
+   edge stays distinct from exploration memory.
+2. Visible floor, wall, stairs, and items use the band of the *animated*
+   player cell (the pool slides with `@`). Memory glyphs, player, and
+   monsters stay at full semantic colors.
+3. Prove it: `TestTorchBandIncreasesWithDistance`, `TestLerpHexMixesChannels`,
+   `TestViewTorchFallsOffWithDistance` (truecolor near ≠ far; colorless
+   glyphs unchanged; memory style is still darker than the dimmest lit band).
+
+Why this batch next: remaining M4 observations need a push or a TTY.
+GOAL.md's torch pool is still a binary lit/memory cut; distance falloff is
+a local, testable step toward that image.
+
+After this batch, re-evaluate blocked external release checks:
 
 - Confirm the `Verify` GitHub Actions workflow passes on the first pushed
   commit and that its only verification entry point is `./scripts/verify.sh`.
@@ -111,7 +122,8 @@ spend a monster turn. In-game help lists `arrows/WASD/hjkl`. Extra `>` after
 victory stays a no-op. Proven by `TestDescendRequiresPlayerToStandOnStairs`,
 `TestDescendKeyOffStairsLogsWithoutChangingDepth`,
 `TestUsePotionIsFreeWhenUnavailableOrAtFullHealth`,
-`TestEquipSwordIsFreeWhenUnavailableOrAlreadyEquipped`, and
+`TestEquipSwordIsFreeWhenUnavailableOrAlreadyEquipped`,
+`TestFailedPotionAndEquipKeysLogWithoutSpendingATurn`, and
 `TestInGameHelpTogglesWithoutSpendingATurn`.
 
 Wall-bump batch (2026-09-21): `resolvePlayerMove` returns `acted=false` on
