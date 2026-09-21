@@ -525,10 +525,21 @@ func renderSidebar(state GameState, styles viewStyles) string {
 }
 
 func main() {
-	if hasDumpFrameArg(os.Args[1:]) {
+	cmd, err := parseArgs(os.Args[1:])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "glyphgrinder: %v\n", err)
+		writeUsage(os.Stderr)
+		os.Exit(2)
+	}
+	switch cmd {
+	case cliHelp:
+		writeUsage(os.Stdout)
+		return
+	case cliDumpFrame:
 		dumpFrame(os.Stdout, rand.New(rand.NewSource(time.Now().UnixNano())))
 		return
 	}
+
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	p := tea.NewProgram(initialModel(rng), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
@@ -537,18 +548,48 @@ func main() {
 	}
 }
 
+type cliCommand int
+
+const (
+	cliPlay cliCommand = iota
+	cliDumpFrame
+	cliHelp
+)
+
+const usageText = `GlyphGrinder is a terminal roguelike.
+
+Usage:
+  GlyphGrinder              start a run (needs a TTY)
+  GlyphGrinder --dump-frame print one starting frame and exit
+  GlyphGrinder -h, --help   show this help
+
+See README.md for controls, install, and terminal requirements.
+`
+
+func writeUsage(out io.Writer) {
+	fmt.Fprint(out, usageText)
+}
+
+func parseArgs(args []string) (cliCommand, error) {
+	cmd := cliPlay
+	for _, arg := range args {
+		switch arg {
+		case "--dump-frame":
+			if cmd != cliHelp {
+				cmd = cliDumpFrame
+			}
+		case "-h", "--help":
+			cmd = cliHelp
+		default:
+			return cliPlay, fmt.Errorf("unknown argument: %s", arg)
+		}
+	}
+	return cmd, nil
+}
+
 // dumpFrame renders one production View to out without starting Bubble Tea.
 // Used by --dump-frame so CI and agents can smoke-test the real binary with
 // no TTY.
 func dumpFrame(out io.Writer, rng *rand.Rand) {
 	fmt.Fprintln(out, initialModel(rng).View())
-}
-
-func hasDumpFrameArg(args []string) bool {
-	for _, arg := range args {
-		if arg == "--dump-frame" {
-			return true
-		}
-	}
-	return false
 }

@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-09-21 (`--dump-frame` landed; next batch is headless CLI help)
+**Last updated:** 2026-09-21 (headless `--help` landed; next batch is Caps Lock keys)
 
 ## Current milestone
 
@@ -16,24 +16,18 @@ green outside the maintainer's machine.
 
 ## Exact next action
 
-**Current batch — make the binary self-describing without a TTY:**
+**Current batch — accept uppercase letter keys so Caps Lock is not a trap:**
 
-1. Parse `--help`/`-h` in `main.go` so those flags print usage to stdout and
-   exit 0 without calling `tea.NewProgram`.
-2. Reject unknown arguments with a stderr usage line and a non-zero status
-   instead of falling through into the TTY-only interactive path.
-3. Cover both paths in `main_flag_test.go`; keep `--dump-frame` working as the
-   production-frame smoke test.
-4. Mention `--help` and `--dump-frame` in the README Develop (or Install)
-   section so a first-run TTY failure is not the only documented non-play
-   invocation.
+1. In `main.go` `Update`, treat `W`/`A`/`S`/`D`, `P`, `E`, `Q`, and `R` as
+   aliases of the documented lowercase controls (Caps Lock / accidental Shift).
+2. Extend `TestMovementKeys` and `TestQuitKeys` (and potion/equip/restart
+   coverage) so uppercase paths stay wired.
+3. Note in the README controls table that letter keys are case-insensitive.
 
-Why this batch next: `--dump-frame` made the real binary headless-verifiable,
-but `GlyphGrinder --help` and typos still open alt-screen and die with
-`could not open a new TTY`. That is a first-impression M4 gap on ordinary
-machines without a controlling terminal (pipes, CI, `go install` smoke).
-External release checks remain blocked (see Blockers) and cannot be the next
-executable action.
+Why this batch next: remaining M4 release observations need a push or a real
+TTY. `Update` matches only lowercase letters, so Caps Lock silently drops
+movement, drink, equip, restart, and quit — a first-session trap on ordinary
+keyboards. External checks stay blocked (see Blockers).
 
 After this batch, re-evaluate blocked external release checks:
 
@@ -61,6 +55,9 @@ After this batch, re-evaluate blocked external release checks:
 - [x] **M4.5** `--dump-frame` renders one production frame without a TTY;
       `verify.sh` exercises the installed binary and `go run . --dump-frame`
       and keeps `TestViewRendersFullGrid` as the pure-View guard.
+- [x] **M4.6** `--help`/`-h` print usage without a TTY; unknown arguments
+      exit 2 with usage on stderr; `verify.sh` checks `--help` on the
+      isolated install.
 
 ## Acceptance criteria for M4
 
@@ -85,8 +82,14 @@ After this batch, re-evaluate blocked external release checks:
 ./scripts/verify.sh   —  2026-09-21  —  VERIFY OK (go1.27.0 darwin/arm64, /opt/homebrew/bin/go)
 ```
 
+Headless CLI help batch (2026-09-21): `parseArgs` accepts `--help`/`-h`
+(stdout usage, exit 0) and `--dump-frame`; unknown arguments print usage to
+stderr and exit 2. `verify.sh` checks `--help` on the isolated install.
+Proven: `--help` exit 0, `--not-a-flag` exit 2 with `unknown argument` on
+stderr.
+
 `--dump-frame` batch (2026-09-21): `main.dumpFrame` prints one `View()` frame
-without `tea.NewProgram`; `hasDumpFrameArg` is unit-tested; `verify.sh` checks
+without `tea.NewProgram`; `parseArgs` recognizes `--dump-frame`; `verify.sh` checks
 the isolated `go install` binary and `go run . --dump-frame` for `HP ` / `Depth 1`
 after stripping CSI; HUD grep is ANSI-safe; README Develop and the TTY notice
 document the flag. Parking-lot `--dump-frame` item removed.

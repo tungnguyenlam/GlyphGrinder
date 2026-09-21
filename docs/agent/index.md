@@ -22,7 +22,7 @@ One command, referenced by every doc here:
 ./scripts/verify.sh     # or: make verify
 ```
 
-Runs gofmt check → `go vet` → `go build` → isolated `go install` + `--dump-frame` → headless `View` + `go run --dump-frame` smoke test → full test suite → `go mod tidy` check. Add new checks to that script, never to a doc.
+Runs gofmt check → `go vet` → `go build` → isolated `go install` + `--dump-frame` + `--help` → headless `View` + `go run --dump-frame` smoke test → full test suite → `go mod tidy` check. Add new checks to that script, never to a doc.
 
 ## Backlog
 
@@ -39,7 +39,7 @@ Small, dated, durable context with an expiry condition.
 
 | Notice | Summary |
 | --- | --- |
-| [2026-07-26-tui-needs-a-tty](notices/2026-07-26-tui-needs-a-tty.md) | Interactive binary needs a TTY; `--dump-frame` and `internal/tuitest` cover headless smoke tests. |
+| [2026-07-26-tui-needs-a-tty](notices/2026-07-26-tui-needs-a-tty.md) | Interactive binary needs a TTY; `--help`, `--dump-frame`, and `internal/tuitest` cover headless use. |
 | [2026-07-26-styled-output-breaks-len](notices/2026-07-26-styled-output-breaks-len.md) | Lip Gloss escapes mean `len(line)` ≠ column count; strip ANSI before asserting. |
 | [2026-07-26-go-mod-must-stay-tidy](notices/2026-07-26-go-mod-must-stay-tidy.md) | Direct deps were mislabelled `// indirect`; `verify.sh` now enforces tidiness. |
 

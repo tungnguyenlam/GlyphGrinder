@@ -74,9 +74,10 @@ Sharp edges found during real work. Prune entries that stop being true.
 - **Interactive `main()` still needs a real TTY.** Bare `go run .` or the built
   binary with `tea.WithAltScreen()` fails with
   `could not open a new TTY: open /dev/tty: device not configured` and exit 1.
-  Use `internal/tuitest` for UI behavior and `go run . --dump-frame` (or
-  `GlyphGrinder --dump-frame`) for a headless smoke test of the real binary.
-  Ask the user to run `make run` if a change genuinely needs human eyes.
+  Use `internal/tuitest` for UI behavior, `GlyphGrinder --help` for usage, and
+  `go run . --dump-frame` (or `GlyphGrinder --dump-frame`) for a headless smoke
+  test of the real binary. Ask the user to run `make run` if a change genuinely
+  needs human eyes.
 - **Bounds checks in `GameState.Step` are load-bearing but redundant.** `NewGame`
   always walls the border, so the `Pos.Y > 0`-style checks never fire today.
   They will matter the moment map generation stops guaranteeing a wall ring —

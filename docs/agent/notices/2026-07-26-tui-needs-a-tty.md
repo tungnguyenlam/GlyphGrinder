@@ -1,6 +1,6 @@
 # The game binary needs a TTY for interactive play
 
-**Status:** Active — interactive mode still requires a TTY; `--dump-frame` covers headless smoke testing
+**Status:** Active — interactive mode still requires a TTY; `--help` and `--dump-frame` cover headless invocations
 **Scope:** `main.go` (`main`), `scripts/verify.sh`, any attempt to "just run it and see"
 **Related:** [`internal/tuitest/AGENTS.md`](../../../internal/tuitest/AGENTS.md), [ADR-0003](../../decisions/ADR-0003-view-is-pure.md)
 
@@ -29,8 +29,9 @@ change broke the game" and start debugging something that was never broken.
 - For a headless smoke test of the real binary, use the explicit flag:
   `go run . --dump-frame` or `GlyphGrinder --dump-frame` — it builds the
   initial model and prints one `View()` frame to stdout without calling
-  `tea.NewProgram`. `./scripts/verify.sh` exercises this in both its
-  `go install` and `go run` smoke steps.
+  `tea.NewProgram`. `GlyphGrinder --help` (or `-h`) prints usage and exits 0.
+  Unknown arguments print usage to stderr and exit 2. `./scripts/verify.sh`
+  exercises `--dump-frame` and `--help` on the isolated `go install` binary.
 - Verify interactive UI behavior through `internal/tuitest`, which drives
   `Init`, `Update` and `View` in-process with no terminal involved. See
   `tui_test.go` for the pattern.

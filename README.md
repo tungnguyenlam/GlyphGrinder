@@ -45,11 +45,11 @@ bats can take two actions. Enemy health and damage rise with dungeon depth.
 
 ## Terminal support
 
-The game needs an interactive terminal (TTY). A UTF-8 terminal with truecolor
-and a Nerd Font gives the intended rich glyphs and palette, but no configuration
-is required: non-UTF-8 locales and `TERM=dumb` automatically use one-cell ASCII
-glyphs. The camera adapts to terminal resizing and remains usable in small
-windows.
+The game needs an interactive terminal (TTY) to play. `--help` and
+`--dump-frame` run without one. A UTF-8 terminal with truecolor and a Nerd Font
+gives the intended rich glyphs and palette, but no configuration is required:
+non-UTF-8 locales and `TERM=dumb` automatically use one-cell ASCII glyphs. The
+camera adapts to terminal resizing and remains usable in small windows.
 
 If the command is not found after installation, add Go's bin directory to
 `PATH`; `go env GOBIN` shows an explicitly configured location, while the
@@ -62,9 +62,9 @@ default is the `bin` directory under `go env GOPATH`.
 ```
 
 Runs the formatting check, `go vet`, build, an isolated `go install` plus
-`--dump-frame` of the installed binary, a matching `go run . --dump-frame`
-smoke render, the full test suite, and a `go mod tidy` check. No test requires
-a TTY.
+`--dump-frame` and `--help` of the installed binary, a matching
+`go run . --dump-frame` smoke render, the full test suite, and a `go mod tidy`
+check. No test requires a TTY.
 
 [GOAL.md](GOAL.md) describes the product direction and
 [docs/backlog/active.md](docs/backlog/active.md) tracks the current engineering

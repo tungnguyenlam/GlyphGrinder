@@ -55,7 +55,7 @@ go build ./...
 step "go install (isolated binary)"
 install_dir="$(mktemp -d "${TMPDIR:-/tmp}/glyphgrinder-install.XXXXXX")"
 cleanup_install() {
-	rm -f "$install_dir/GlyphGrinder" "$install_dir/frame.txt"
+	rm -f "$install_dir/GlyphGrinder" "$install_dir/frame.txt" "$install_dir/help.txt"
 	rmdir "$install_dir" 2>/dev/null || true
 }
 trap cleanup_install EXIT
@@ -75,6 +75,16 @@ if ! frame_has_hud "$install_dir/frame.txt"; then
 	exit 1
 fi
 echo "GlyphGrinder --dump-frame produced a valid frame"
+if ! "$install_dir/GlyphGrinder" --help >"$install_dir/help.txt"; then
+	echo "GlyphGrinder --help failed" >&2
+	exit 1
+fi
+if ! grep -q -- "--dump-frame" "$install_dir/help.txt" || ! grep -q -- "--help" "$install_dir/help.txt"; then
+	echo "GlyphGrinder --help missing expected flags" >&2
+	cat "$install_dir/help.txt" >&2 || true
+	exit 1
+fi
+echo "GlyphGrinder --help produced usage"
 cleanup_install
 trap - EXIT
 

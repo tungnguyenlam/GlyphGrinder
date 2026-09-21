@@ -7,27 +7,61 @@ import (
 	"testing"
 )
 
-func TestHasDumpFrameArg(t *testing.T) {
+func TestParseArgs(t *testing.T) {
 	tests := []struct {
-		name string
-		args []string
-		want bool
+		name    string
+		args    []string
+		want    cliCommand
+		wantErr string
 	}{
-		{name: "no args", args: nil, want: false},
-		{name: "empty slice", args: []string{}, want: false},
-		{name: "flag alone", args: []string{"--dump-frame"}, want: true},
-		{name: "flag with others", args: []string{"--dump-frame", "extra"}, want: true},
-		{name: "flag after other", args: []string{"other", "--dump-frame"}, want: true},
-		{name: "single dash not accepted", args: []string{"-dump-frame"}, want: false},
-		{name: "underscore not accepted", args: []string{"--dump_frame"}, want: false},
-		{name: "missing dash", args: []string{"dump-frame"}, want: false},
+		{name: "no args", args: nil, want: cliPlay},
+		{name: "empty slice", args: []string{}, want: cliPlay},
+		{name: "dump-frame alone", args: []string{"--dump-frame"}, want: cliDumpFrame},
+		{name: "help long", args: []string{"--help"}, want: cliHelp},
+		{name: "help short", args: []string{"-h"}, want: cliHelp},
+		{name: "help wins over dump-frame", args: []string{"--dump-frame", "--help"}, want: cliHelp},
+		{name: "help before dump-frame still help", args: []string{"--help", "--dump-frame"}, want: cliHelp},
+		{name: "short help wins over dump-frame", args: []string{"-h", "--dump-frame"}, want: cliHelp},
+		{name: "unknown alone", args: []string{"--foo"}, wantErr: "unknown argument: --foo"},
+		{name: "unknown after dump-frame", args: []string{"--dump-frame", "extra"}, wantErr: "unknown argument: extra"},
+		{name: "unknown before dump-frame", args: []string{"other", "--dump-frame"}, wantErr: "unknown argument: other"},
+		{name: "single dash dump-frame is unknown", args: []string{"-dump-frame"}, wantErr: "unknown argument: -dump-frame"},
+		{name: "underscore dump-frame is unknown", args: []string{"--dump_frame"}, wantErr: "unknown argument: --dump_frame"},
+		{name: "missing dashes dump-frame is unknown", args: []string{"dump-frame"}, wantErr: "unknown argument: dump-frame"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := hasDumpFrameArg(tc.args); got != tc.want {
-				t.Errorf("hasDumpFrameArg(%q) = %v, want %v", tc.args, got, tc.want)
+			got, err := parseArgs(tc.args)
+			if tc.wantErr != "" {
+				if err == nil {
+					t.Fatalf("parseArgs(%q) = %v, nil; want error %q", tc.args, got, tc.wantErr)
+				}
+				if got := err.Error(); got != tc.wantErr {
+					t.Errorf("error = %q, want %q", got, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseArgs(%q) error = %v, want %v", tc.args, err, tc.want)
+			}
+			if got != tc.want {
+				t.Errorf("parseArgs(%q) = %v, want %v", tc.args, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestWriteUsageMentionsHeadlessFlags(t *testing.T) {
+	var buf bytes.Buffer
+	writeUsage(&buf)
+	got := buf.String()
+	for _, want := range []string{"--dump-frame", "--help", "-h", "TTY"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("usage missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "tea.NewProgram") {
+		t.Errorf("usage leaked implementation detail")
 	}
 }
 
