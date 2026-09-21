@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-09-21 (remembered items landed; remaining M4 observations are blocked)
+**Last updated:** 2026-09-21 (diagonal FOV corner-peek landed)
 
 ## Current milestone
 
@@ -19,8 +19,8 @@ green outside the maintainer's machine.
 **Complete the external release checks after these commits are pushed** — local
 M4 engineering is green, including `--dump-frame`, `--help`, in-game `?`
 controls, wait/hjkl, low-HP danger HUD, wrapped sidebar logs, remembered
-items, and a `GlyphGrinder` make-build name. Remaining acceptance work cannot
-run in this environment:
+items, diagonal FOV corner blocking, and a `GlyphGrinder` make-build name.
+Remaining acceptance work cannot run in this environment:
 
 - Confirm the `Verify` GitHub Actions workflow passes on the first pushed
   commit and that its only verification entry point is `./scripts/verify.sh`.
@@ -72,6 +72,8 @@ death screens, camera easing, and seed replay stay in the parking lot.
       unchanged.
 - [x] **M4.13** Explored-but-unseen potions and swords render as faint memory
       glyphs; unexplored items and unseen monsters stay hidden.
+- [x] **M4.14** Bresenham FOV cannot peek through a closed diagonal wall
+      corner; a single adjacent wall still lets the glance land.
 
 ## Acceptance criteria for M4
 
@@ -95,6 +97,15 @@ death screens, camera easing, and seed replay stay in the parking lot.
 ```
 ./scripts/verify.sh   —  2026-09-21  —  VERIFY OK (go1.27.0 darwin/arm64, /opt/homebrew/bin/go)
 ```
+
+Diagonal FOV batch (2026-09-21): a simultaneous Bresenham X/Y step is blocked
+when both cardinal neighbors are walls, so a torch cannot see through a closed
+corner. Cardinal occlusion and “the wall itself is visible” are unchanged. A
+single adjacent wall still lets the glance land. Proven by
+`TestVisibilityDoesNotPeekThroughDiagonalWallGap`,
+`TestVisibilityDoesNotPeekThroughDistantDiagonalWallGap`,
+`TestVisibilityCanGlancePastSingleWallCorner`, and
+`TestVisibilityStopsBehindWalls`.
 
 Remembered items batch (2026-09-21): explored-but-unseen potions/swords use
 faint memory styles on `MemoryBG`; unexplored tiles stay blank; monsters stay

@@ -232,6 +232,56 @@ func TestVisibilityStopsBehindWalls(t *testing.T) {
 	}
 }
 
+func TestVisibilityDoesNotPeekThroughDiagonalWallGap(t *testing.T) {
+	g := openTestState()
+	g.Player.Pos = Position{X: 2, Y: 2}
+	g.Map.Tiles[2][3] = TileWall // (3,2)
+	g.Map.Tiles[3][2] = TileWall // (2,3)
+	g.Map.Visible = nil
+	g.Map.Explored = nil
+	g = g.refreshVisibility()
+
+	if !g.Map.Visible[2][3] || !g.Map.Visible[3][2] {
+		t.Fatal("the blocking walls themselves should be visible")
+	}
+	if g.Map.Visible[3][3] {
+		t.Error("tile (3,3) is visible through a diagonal wall corner")
+	}
+	if g.Map.Explored[3][3] {
+		t.Error("tile (3,3) was explored through a diagonal wall corner")
+	}
+}
+
+func TestVisibilityCanGlancePastSingleWallCorner(t *testing.T) {
+	g := openTestState()
+	g.Player.Pos = Position{X: 2, Y: 2}
+	g.Map.Tiles[2][3] = TileWall // only (3,2)
+	g.Map.Visible = nil
+	g.Map.Explored = nil
+	g = g.refreshVisibility()
+
+	if !g.Map.Visible[3][3] {
+		t.Error("floor past a single wall corner should stay visible")
+	}
+}
+
+func TestVisibilityDoesNotPeekThroughDistantDiagonalWallGap(t *testing.T) {
+	g := openTestState()
+	g.Player.Pos = Position{X: 2, Y: 2}
+	g.Map.Tiles[3][4] = TileWall // (4,3)
+	g.Map.Tiles[4][3] = TileWall // (3,4)
+	g.Map.Visible = nil
+	g.Map.Explored = nil
+	g = g.refreshVisibility()
+
+	if g.Map.Visible[4][4] {
+		t.Error("tile (4,4) is visible through a later diagonal wall corner")
+	}
+	if g.Map.Explored[4][4] {
+		t.Error("tile (4,4) was explored through a later diagonal wall corner")
+	}
+}
+
 func TestVisibilityRefreshPreservesExplorationMemory(t *testing.T) {
 	g := openTestStateSized(17, 7)
 	g.Player.Pos = Position{X: 2, Y: 3}

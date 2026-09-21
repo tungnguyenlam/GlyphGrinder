@@ -425,6 +425,10 @@ func cloneBoolGrid(source [][]bool, width, height int) [][]bool {
 	return clone
 }
 
+// hasLineOfSight walks Bresenham from `from` to `to` and fails on a wall
+// before the destination. A simultaneous X/Y step also fails when both
+// cardinal neighbors are walls, so a torch cannot peek through a closed
+// diagonal corner. A single adjacent wall still lets the glance land.
 func hasLineOfSight(m GameMap, from, to Position) bool {
 	x, y := from.X, from.Y
 	dx := abs(to.X - from.X)
@@ -442,15 +446,27 @@ func hasLineOfSight(m GameMap, from, to Position) bool {
 		}
 
 		twiceError := 2 * err
-		if twiceError > -dy {
+		stepX := twiceError > -dy
+		stepY := twiceError < dx
+		if stepX && stepY && isWallAt(m, x+sx, y) && isWallAt(m, x, y+sy) {
+			return false
+		}
+		if stepX {
 			err -= dy
 			x += sx
 		}
-		if twiceError < dx {
+		if stepY {
 			err += dx
 			y += sy
 		}
 	}
+}
+
+func isWallAt(m GameMap, x, y int) bool {
+	if x < 0 || x >= m.Width || y < 0 || y >= m.Height {
+		return true
+	}
+	return m.Tiles[y][x] == TileWall
 }
 
 // NewGame generates the first dungeon level for a new run.
