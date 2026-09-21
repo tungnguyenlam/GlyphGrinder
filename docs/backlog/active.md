@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-09-21 (in-game `?` help landed; remaining M4 observations are blocked)
+**Last updated:** 2026-09-21 (low-HP danger HUD landed; remaining M4 observations are blocked)
 
 ## Current milestone
 
@@ -17,8 +17,8 @@ green outside the maintainer's machine.
 ## Exact next action
 
 **Complete the external release checks after these commits are pushed** — local
-M4 engineering is green, including `--dump-frame`, `--help`, case-insensitive
-letter keys, wait/hjkl, in-game `?` help, and a `GlyphGrinder` make-build name.
+M4 engineering is green, including `--dump-frame`, `--help`, in-game `?`
+controls, wait/hjkl, low-HP danger HUD, and a `GlyphGrinder` make-build name.
 Remaining acceptance work cannot run in this environment:
 
 - Confirm the `Verify` GitHub Actions workflow passes on the first pushed
@@ -65,6 +65,8 @@ death screens, camera easing, and seed replay stay in the parking lot.
       `./GlyphGrinder` to match `go install`.
 - [x] **M4.10** `?` toggles in-game controls without spending a turn; sidebar
       shows `? help` when closed. Hunger-clock parking-lot line restored.
+- [x] **M4.11** HP in `1..=10` uses danger styling; alive players keep a bar
+      sliver so 1–9 HP is not an empty bar.
 
 ## Acceptance criteria for M4
 
@@ -88,6 +90,11 @@ death screens, camera easing, and seed replay stay in the parking lot.
 ```
 ./scripts/verify.sh   —  2026-09-21  —  VERIFY OK (go1.27.0 darwin/arm64, /opt/homebrew/bin/go)
 ```
+
+Low-HP HUD batch (2026-09-21): health in `1..=10` styles the `HP` label, filled
+bar, and `n/max` fraction with `styles.danger`; alive players keep at least one
+`#` so 1–9 HP is not an empty bar. 0 HP stays empty plus GAME OVER. Proven by
+`TestViewSignalsDangerInLastTenHitPoints`.
 
 In-game help batch (2026-09-21): `?` toggles `model.showHelp` without calling
 `Step`; other non-quit keys dismiss the overlay. Sidebar keeps a one-line

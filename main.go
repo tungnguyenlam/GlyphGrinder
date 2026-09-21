@@ -496,13 +496,31 @@ func renderSidebar(state GameState, showHelp bool, styles viewStyles) string {
 		filled = state.Player.Health * healthBarWidth / state.Player.MaxHealth
 	}
 	filled = max(0, min(healthBarWidth, filled))
+	// Integer division hides 1–9 HP on a 10-cell bar; keep a sliver while alive.
+	if state.Player.Health > 0 && filled == 0 {
+		filled = 1
+	}
+	critical := state.Player.Health > 0 && state.Player.Health <= 10
+	hpLabel := styles.uiAccent
+	hpFill := styles.health
+	if critical {
+		hpLabel = styles.danger
+		hpFill = styles.danger
+	}
 
 	var sb strings.Builder
-	sb.WriteString(styles.uiAccent.Render("HP "))
+	sb.WriteString(hpLabel.Render("HP "))
 	sb.WriteByte('[')
-	sb.WriteString(styles.health.Render(strings.Repeat("#", filled)))
+	sb.WriteString(hpFill.Render(strings.Repeat("#", filled)))
 	sb.WriteString(styles.healthEmpty.Render(strings.Repeat(".", healthBarWidth-filled)))
-	fmt.Fprintf(&sb, "] %d/%d\n", state.Player.Health, state.Player.MaxHealth)
+	sb.WriteString("] ")
+	hpNums := fmt.Sprintf("%d/%d", state.Player.Health, state.Player.MaxHealth)
+	if critical {
+		sb.WriteString(styles.danger.Render(hpNums))
+	} else {
+		sb.WriteString(hpNums)
+	}
+	sb.WriteByte('\n')
 	fmt.Fprintf(&sb, "%s %d\n", styles.uiAccent.Render("Depth"), state.Depth)
 	if state.Depth < finalDepth {
 		fmt.Fprintf(&sb, "%s reach depth %d\n", styles.uiAccent.Render("Goal"), finalDepth)

@@ -462,6 +462,54 @@ func TestViewRendersHealthAndRecentLog(t *testing.T) {
 	}
 }
 
+func TestViewSignalsDangerInLastTenHitPoints(t *testing.T) {
+	const trueColorProfile = 0 // termenv.TrueColor, exposed through Lip Gloss.
+	renderer := lipgloss.NewRenderer(io.Discard)
+	renderer.SetColorProfile(trueColorProfile)
+	styles := newViewStyles(renderer, defaultPalette)
+	dangerFill := styles.danger.Render("#")
+	healthFill := styles.health.Render("#")
+	dangerLabel := styles.danger.Render("HP ")
+
+	state := openTestState()
+	state.Entities = nil
+	state.Player.Health = 10
+	low := model{state: state, renderer: renderer, glyphs: asciiGlyphs}
+	lowPlain := stripANSI(low.View())
+	if !strings.Contains(low.View(), dangerFill) || !strings.Contains(low.View(), dangerLabel) {
+		t.Errorf("10 HP view missing danger styling")
+	}
+	if !strings.Contains(lowPlain, "HP [#.........] 10/100") {
+		t.Errorf("10 HP bar = %q, want a single filled cell", lowPlain)
+	}
+
+	state.Player.Health = 11
+	okHP := model{state: state, renderer: renderer, glyphs: asciiGlyphs}
+	if strings.Contains(okHP.View(), dangerFill) || strings.Contains(okHP.View(), dangerLabel) {
+		t.Errorf("11 HP view used danger styling")
+	}
+	if !strings.Contains(okHP.View(), healthFill) {
+		t.Errorf("11 HP view missing normal health fill")
+	}
+
+	state.Player.Health = 1
+	sliver := model{state: state, renderer: renderer, glyphs: asciiGlyphs}
+	if got := stripANSI(sliver.View()); !strings.Contains(got, "HP [#.........] 1/100") {
+		t.Errorf("1 HP should keep a filled sliver, got:\n%s", got)
+	}
+	if !strings.Contains(sliver.View(), dangerFill) {
+		t.Errorf("1 HP view missing danger fill")
+	}
+
+	state.Player.Health = 0
+	state.GameOver = true
+	dead := model{state: state, renderer: renderer, glyphs: asciiGlyphs}
+	deadPlain := stripANSI(dead.View())
+	if !strings.Contains(deadPlain, "HP [..........] 0/100") {
+		t.Errorf("dead HP bar should be empty, got:\n%s", deadPlain)
+	}
+}
+
 func TestPaletteStylesKeepSemanticRolesDistinct(t *testing.T) {
 	styles := newViewStyles(lipgloss.DefaultRenderer(), defaultPalette)
 	semanticStyles := []lipgloss.Style{
