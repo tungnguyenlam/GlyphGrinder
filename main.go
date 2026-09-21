@@ -5,6 +5,7 @@ import (
 	"io"
 	"math/rand"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -55,6 +56,8 @@ const (
 	mapSidebarGap           = 2
 	animationFrames         = 3
 	animationFrameDuration  = time.Second / 60
+	torchBands              = 4
+	torchEdgeBlend          = 55
 )
 
 type glyphProfile struct {
@@ -145,6 +148,11 @@ type viewStyles struct {
 	sword        lipgloss.Style
 	memoryPotion lipgloss.Style
 	memorySword  lipgloss.Style
+	floors       [torchBands]lipgloss.Style
+	walls        [torchBands]lipgloss.Style
+	stairsBands  [torchBands]lipgloss.Style
+	potionBands  [torchBands]lipgloss.Style
+	swordBands   [torchBands]lipgloss.Style
 	uiText       lipgloss.Style
 	uiAccent     lipgloss.Style
 	health       lipgloss.Style
@@ -153,7 +161,7 @@ type viewStyles struct {
 }
 
 func newViewStyles(renderer *lipgloss.Renderer, p colorPalette) viewStyles {
-	return viewStyles{
+	s := viewStyles{
 		player:       renderer.NewStyle().Foreground(p.Player).Bold(true),
 		playerTrail:  renderer.NewStyle().Foreground(p.Player).Faint(true),
 		monster:      renderer.NewStyle().Foreground(p.Monster).Bold(true),
@@ -178,6 +186,84 @@ func newViewStyles(renderer *lipgloss.Renderer, p colorPalette) viewStyles {
 		healthEmpty:  renderer.NewStyle().Foreground(p.HealthEmpty),
 		danger:       renderer.NewStyle().Foreground(p.Danger).Bold(true),
 	}
+	s.floors[0] = s.floor
+	s.walls[0] = s.wall
+	s.stairsBands[0] = s.stairs
+	s.potionBands[0] = s.potion
+	s.swordBands[0] = s.sword
+	for band := 1; band < torchBands; band++ {
+		blend := band * torchEdgeBlend / (torchBands - 1)
+		floorBG := lerpHex(p.LitFloorBG, p.MemoryBG, blend, 100)
+		s.floors[band] = renderer.NewStyle().
+			Foreground(lerpHex(p.LitFloor, p.MemoryFloor, blend, 100)).
+			Background(floorBG)
+		s.walls[band] = renderer.NewStyle().
+			Foreground(lerpHex(p.LitWall, p.MemoryWall, blend, 100)).
+			Background(lerpHex(p.LitWallBG, p.MemoryBG, blend, 100))
+		s.stairsBands[band] = renderer.NewStyle().
+			Foreground(p.UIAccent).
+			Background(floorBG).
+			Bold(true)
+		s.potionBands[band] = renderer.NewStyle().
+			Foreground(p.Potion).
+			Background(floorBG).
+			Bold(true)
+		s.swordBands[band] = renderer.NewStyle().
+			Foreground(p.Sword).
+			Background(floorBG).
+			Bold(true)
+	}
+	return s
+}
+
+// torchBand maps Euclidean distance² onto 0..torchBands-1 using the same
+// radius as field of view. Band 0 is at the player's feet.
+func torchBand(dx, dy int) int {
+	dist2 := dx*dx + dy*dy
+	radius2 := visibilityRadius * visibilityRadius
+	if dist2 <= 0 {
+		return 0
+	}
+	band := dist2 * torchBands / (radius2 + 1)
+	if band >= torchBands {
+		return torchBands - 1
+	}
+	return band
+}
+
+func lerpHex(from, to lipgloss.Color, num, den int) lipgloss.Color {
+	if den <= 0 || num <= 0 {
+		return from
+	}
+	if num >= den {
+		return to
+	}
+	fr, fg, fb, okFrom := parseHexColor(from)
+	tr, tg, tb, okTo := parseHexColor(to)
+	if !okFrom || !okTo {
+		return from
+	}
+	return lipgloss.Color(fmt.Sprintf("#%02X%02X%02X",
+		lerpU8(fr, tr, num, den),
+		lerpU8(fg, tg, num, den),
+		lerpU8(fb, tb, num, den),
+	))
+}
+
+func parseHexColor(c lipgloss.Color) (r, g, b uint8, ok bool) {
+	s := string(c)
+	if len(s) != 7 || s[0] != '#' {
+		return 0, 0, 0, false
+	}
+	n, err := strconv.ParseUint(s[1:], 16, 32)
+	if err != nil {
+		return 0, 0, 0, false
+	}
+	return uint8(n >> 16), uint8(n >> 8), uint8(n), true
+}
+
+func lerpU8(from, to uint8, num, den int) uint8 {
+	return uint8(int(from) + (int(to)-int(from))*num/den)
 }
 
 func initialModel(rng *rand.Rand) model {
@@ -406,14 +492,17 @@ func (m model) View() string {
 
 	styles := newViewStyles(renderer, defaultPalette)
 	player := styles.player.Render(glyphs.Player)
-	floor := styles.floor.Render(glyphs.Floor)
-	wall := styles.wall.Render(glyphs.Wall)
+	var floors, walls, stairsLit, potions, swords [torchBands]string
+	for band := 0; band < torchBands; band++ {
+		floors[band] = styles.floors[band].Render(glyphs.Floor)
+		walls[band] = styles.walls[band].Render(glyphs.Wall)
+		stairsLit[band] = styles.stairsBands[band].Render(glyphs.Stairs)
+		potions[band] = styles.potionBands[band].Render(glyphs.Potion)
+		swords[band] = styles.swordBands[band].Render(glyphs.Sword)
+	}
 	memoryFloor := styles.memoryFloor.Render(glyphs.Floor)
 	memoryWall := styles.memoryWall.Render(glyphs.Wall)
-	stairs := styles.stairs.Render(glyphs.Stairs)
 	memoryStairs := styles.memoryStairs.Render(glyphs.Stairs)
-	potion := styles.potion.Render(glyphs.Potion)
-	sword := styles.sword.Render(glyphs.Sword)
 	memoryPotion := styles.memoryPotion.Render(glyphs.Potion)
 	memorySword := styles.memorySword.Render(glyphs.Sword)
 	entityGlyphs := make(map[Position]string, len(m.state.Entities))
@@ -423,15 +512,14 @@ func (m model) View() string {
 		entityGlyphs[pos] = styles.monsterStyle(entity.Archetype, false).Render(glyphs.monsterGlyph(entity.Archetype))
 		monsterArchetypes[entity.ID] = entity.Archetype
 	}
-	itemGlyphs := make(map[Position]string, len(m.state.Items))
+	itemTypes := make(map[Position]ItemType, len(m.state.Items))
 	memoryItemGlyphs := make(map[Position]string, len(m.state.Items))
 	for _, item := range m.state.Items {
+		itemTypes[item.Pos] = item.Type
 		switch item.Type {
 		case ItemPotion:
-			itemGlyphs[item.Pos] = potion
 			memoryItemGlyphs[item.Pos] = memoryPotion
 		case ItemSword:
-			itemGlyphs[item.Pos] = sword
 			memoryItemGlyphs[item.Pos] = memorySword
 		}
 	}
@@ -457,6 +545,7 @@ func (m model) View() string {
 		for x := viewport.X; x < viewport.X+viewport.Width; x++ {
 			visible := m.state.Map.Visible[y][x]
 			explored := m.state.Map.Explored[y][x]
+			band := torchBand(x-playerPos.X, y-playerPos.Y)
 			if !explored {
 				sb.WriteByte(' ')
 			} else if x == playerPos.X && y == playerPos.Y {
@@ -465,8 +554,12 @@ func (m model) View() string {
 				sb.WriteString(entity)
 			} else if trail, ok := trailGlyphs[Position{X: x, Y: y}]; ok && (trail.isPlayer || visible) {
 				sb.WriteString(trail.glyph)
-			} else if item, ok := itemGlyphs[Position{X: x, Y: y}]; visible && ok {
-				sb.WriteString(item)
+			} else if itemType, ok := itemTypes[Position{X: x, Y: y}]; visible && ok {
+				if itemType == ItemPotion {
+					sb.WriteString(potions[band])
+				} else {
+					sb.WriteString(swords[band])
+				}
 			} else if item, ok := memoryItemGlyphs[Position{X: x, Y: y}]; ok {
 				sb.WriteString(item)
 			} else if !visible {
@@ -481,11 +574,11 @@ func (m model) View() string {
 			} else {
 				switch m.state.Map.Tiles[y][x] {
 				case TileWall:
-					sb.WriteString(wall)
+					sb.WriteString(walls[band])
 				case TileStairs:
-					sb.WriteString(stairs)
+					sb.WriteString(stairsLit[band])
 				default:
-					sb.WriteString(floor)
+					sb.WriteString(floors[band])
 				}
 			}
 		}

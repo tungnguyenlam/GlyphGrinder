@@ -15,11 +15,12 @@ turns; `main.go` maps input and renders the dungeon plus health/log UI. A run
 spans three escalating depths with goblins/ogres/bats, health potions, an
 equippable iron sword, stairs-driven descent and a final-stair victory, with
 `r` to restart either death or victory. Field of view, exploration memory,
-semantic truecolor and Nerd Font/ASCII glyph profiles, a resize-aware camera,
-and tick-driven actor motion render a 96x48 dungeon. M3 completed the full
-playable loop; M4's local shipping checks (isolated `go install`, degradation
-matrix, frame budget, CI workflow) are green — only the pushed-workflow and
-TTY-screenshot observations remain blocked.
+a distance-faded torch pool, semantic truecolor and Nerd Font/ASCII glyph
+profiles, a resize-aware camera, and tick-driven actor motion render a
+96x48 dungeon. M3 completed the full playable loop; M4's local shipping
+checks (isolated `go install`, degradation matrix, frame budget, CI
+workflow) are green — only the pushed-workflow and TTY-screenshot
+observations remain blocked.
 
 The north star is [GOAL.md](GOAL.md) — read it before planning work, and check
 every task against it.

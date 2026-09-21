@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-09-21 (failed p/e/> logs landed; next is torch falloff)
+**Last updated:** 2026-09-21 (torch falloff landed; remaining M4 observations are blocked)
 
 ## Current milestone
 
@@ -16,23 +16,12 @@ green outside the maintainer's machine.
 
 ## Exact next action
 
-**Current batch — visible terrain falls off with torch distance:**
-
-1. Add `torchBand` (same Euclidean metric as FOV) and `lerpHex` in `main.go`.
-   Four bands; the outer band blends 55% toward memory colors so the FOV
-   edge stays distinct from exploration memory.
-2. Visible floor, wall, stairs, and items use the band of the *animated*
-   player cell (the pool slides with `@`). Memory glyphs, player, and
-   monsters stay at full semantic colors.
-3. Prove it: `TestTorchBandIncreasesWithDistance`, `TestLerpHexMixesChannels`,
-   `TestViewTorchFallsOffWithDistance` (truecolor near ≠ far; colorless
-   glyphs unchanged; memory style is still darker than the dimmest lit band).
-
-Why this batch next: remaining M4 observations need a push or a TTY.
-GOAL.md's torch pool is still a binary lit/memory cut; distance falloff is
-a local, testable step toward that image.
-
-After this batch, re-evaluate blocked external release checks:
+**Complete the external release checks after these commits are pushed** — local
+M4 engineering is green, including `--dump-frame`, `--help`, in-game `?`
+controls, wait/hjkl, low-HP danger HUD, wrapped sidebar logs, remembered
+items, diagonal FOV, free wall/OOB bumps, failed `p`/`e`/`>` log lines,
+distance-faded torch lighting, and a `GlyphGrinder` make-build name.
+Remaining acceptance work cannot run in this environment:
 
 - Confirm the `Verify` GitHub Actions workflow passes on the first pushed
   commit and that its only verification entry point is `./scripts/verify.sh`.
@@ -90,6 +79,9 @@ death screens, camera easing, and seed replay stay in the parking lot.
       wait (`.`/space) and bump-attacks still do.
 - [x] **M4.16** Failed `p`/`e`/`>` append a reason and stay free; `?` help
       lists arrows with WASD/hjkl.
+- [x] **M4.17** Visible floor/wall/stairs/items fade across four torch bands
+      toward memory colors (55% at the FOV edge); actors and memory stay full
+      semantic colors. Colorless profiles stay unstyled.
 
 ## Acceptance criteria for M4
 
@@ -113,6 +105,14 @@ death screens, camera easing, and seed replay stay in the parking lot.
 ```
 ./scripts/verify.sh   —  2026-09-21  —  VERIFY OK (go1.27.0 darwin/arm64, /opt/homebrew/bin/go)
 ```
+
+Torch falloff batch (2026-09-21): visible floor, wall, stairs, and items use
+four Euclidean torch bands from the animated player cell, blending up to 55%
+toward memory colors at the FOV edge so the pool stays distinct from
+exploration memory. Player, monsters, and unseen memory glyphs stay at full
+semantic colors. Colorless terminals stay unstyled. Proven by
+`TestTorchBandIncreasesWithDistance`, `TestLerpHexMixesChannels`, and
+`TestViewTorchFallsOffWithDistance`.
 
 Failed-action log batch (2026-09-21): off-stairs `>` logs `There are no stairs
 here.`; empty/full-health `p` logs `You have no potions.` /

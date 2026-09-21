@@ -619,6 +619,86 @@ func TestPaletteStylesKeepSemanticRolesDistinct(t *testing.T) {
 	}
 }
 
+func TestTorchBandIncreasesWithDistance(t *testing.T) {
+	if got := torchBand(0, 0); got != 0 {
+		t.Errorf("torchBand(0, 0) = %d, want 0", got)
+	}
+	if got := torchBand(1, 0); got != 0 {
+		t.Errorf("adjacent torchBand(1, 0) = %d, want 0", got)
+	}
+	if got := torchBand(visibilityRadius, 0); got != torchBands-1 {
+		t.Errorf("torchBand at FOV radius = %d, want %d", got, torchBands-1)
+	}
+	if torchBand(2, 0) > torchBand(visibilityRadius, 0) {
+		t.Error("near torch band is dimmer than the FOV edge")
+	}
+	if torchBand(-visibilityRadius, 0) != torchBand(0, visibilityRadius) {
+		t.Error("torch bands are not symmetric on the axes")
+	}
+}
+
+func TestLerpHexMixesChannels(t *testing.T) {
+	black := lipgloss.Color("#000000")
+	white := lipgloss.Color("#FFFFFF")
+	if got, want := lerpHex(black, white, 0, 100), black; got != want {
+		t.Errorf("lerp 0/100 = %q, want %q", got, want)
+	}
+	if got, want := lerpHex(black, white, 100, 100), white; got != want {
+		t.Errorf("lerp 100/100 = %q, want %q", got, want)
+	}
+	if got, want := lerpHex(black, white, 50, 100), lipgloss.Color("#7F7F7F"); got != want {
+		t.Errorf("lerp 50/100 = %q, want %q", got, want)
+	}
+	slate := lipgloss.Color("#64748B")
+	if got := lerpHex(slate, slate, 55, 100); got != slate {
+		t.Errorf("lerp of identical colors = %q, want %q", got, slate)
+	}
+}
+
+func TestViewTorchFallsOffWithDistance(t *testing.T) {
+	const (
+		trueColorProfile  = 0 // termenv.TrueColor, exposed through Lip Gloss.
+		asciiColorProfile = 3 // termenv.Ascii, exposed through Lip Gloss.
+	)
+	renderer := lipgloss.NewRenderer(io.Discard)
+	renderer.SetColorProfile(trueColorProfile)
+	styles := newViewStyles(renderer, defaultPalette)
+	nearGlyph := styles.floors[0].Render(".")
+	farGlyph := styles.floors[torchBands-1].Render(".")
+	memoryGlyph := styles.memoryFloor.Render(".")
+	if nearGlyph == farGlyph {
+		t.Fatal("torch bands 0 and last render identically")
+	}
+	if farGlyph == memoryGlyph {
+		t.Fatal("dimmest lit floor matches memory floor")
+	}
+
+	state := openTestStateSized(15, 15)
+	state.Player.Pos = Position{X: 7, Y: 7}
+	state.Entities = nil
+	state.Items = nil
+	state.Map.Visible = nil
+	state.Map.Explored = nil
+	state = state.refreshVisibility()
+	view := model{state: state, renderer: renderer, glyphs: asciiGlyphs}.View()
+	if !strings.Contains(view, nearGlyph) {
+		t.Error("view missing nearest torch floor style")
+	}
+	if !strings.Contains(view, farGlyph) {
+		t.Error("view missing farthest torch floor style")
+	}
+
+	asciiRenderer := lipgloss.NewRenderer(io.Discard)
+	asciiRenderer.SetColorProfile(asciiColorProfile)
+	colorless := model{state: state, renderer: asciiRenderer, glyphs: asciiGlyphs}.View()
+	if strings.ContainsRune(colorless, '\x1b') {
+		t.Error("colorless torch view still has ANSI")
+	}
+	if got := playerAt(t, strings.Split(colorless, "\n")); got != state.Player.Pos {
+		t.Errorf("colorless player at %+v, want %+v", got, state.Player.Pos)
+	}
+}
+
 func TestMovementKeys(t *testing.T) {
 	cases := []struct {
 		name    string
