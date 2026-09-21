@@ -164,12 +164,15 @@ func (g GameState) Step(action Action) GameState {
 	}
 
 	previousPlayerPos := g.Player.Pos
-	g = g.resolvePlayerMove(dx, dy)
-	if g.Player.Pos != previousPlayerPos {
-		g = g.pickUpItem()
-		g = g.refreshVisibility()
+	next, acted := g.resolvePlayerMove(dx, dy)
+	if !acted {
+		return next
 	}
-	return g.resolveMonsterTurns()
+	if next.Player.Pos != previousPlayerPos {
+		next = next.pickUpItem()
+		next = next.refreshVisibility()
+	}
+	return next.resolveMonsterTurns()
 }
 
 const swordDamage = 15
@@ -217,23 +220,25 @@ func (g GameState) pickUpItem() GameState {
 	return g
 }
 
-func (g GameState) resolvePlayerMove(dx, dy int) GameState {
+// resolvePlayerMove tries to walk or bump-attack. The bool is whether the
+// action spent a turn: walls and map edges do not, because wait is `.`/space.
+func (g GameState) resolvePlayerMove(dx, dy int) (GameState, bool) {
 	newX := g.Player.Pos.X + dx
 	newY := g.Player.Pos.Y + dy
 	if newX < 0 || newX >= g.Map.Width || newY < 0 || newY >= g.Map.Height {
-		return g
+		return g, false
 	}
 	if g.Map.Tiles[newY][newX] == TileWall {
-		return g
+		return g, false
 	}
 	for i, entity := range g.Entities {
 		if entity.Pos == (Position{X: newX, Y: newY}) {
-			return g.attackMonster(i)
+			return g.attackMonster(i), true
 		}
 	}
 
 	g.Player.Pos = Position{X: newX, Y: newY}
-	return g
+	return g, true
 }
 
 func (g GameState) resolveMonsterTurns() GameState {

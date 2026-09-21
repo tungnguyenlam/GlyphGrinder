@@ -685,6 +685,48 @@ func TestStepRejectsBlockedMovement(t *testing.T) {
 	})
 }
 
+func TestStepBlockedMovementDoesNotSpendATurn(t *testing.T) {
+	t.Run("wall", func(t *testing.T) {
+		g := openTestState()
+		g.Player.Pos = Position{X: 1, Y: 1}
+		g.Entities = []Entity{testMonster(1, Position{X: 2, Y: 1})}
+		priorMonster := g.Entities[0]
+
+		got := g.Step(ActionMoveUp)
+
+		if got.Player.Pos != g.Player.Pos {
+			t.Errorf("player pos = %+v, want %+v", got.Player.Pos, g.Player.Pos)
+		}
+		if got.MonsterTurns != g.MonsterTurns {
+			t.Errorf("wall bump advanced monster turns to %d, want %d", got.MonsterTurns, g.MonsterTurns)
+		}
+		if got.Player.Health != g.Player.Health {
+			t.Errorf("wall bump changed health to %d, want %d", got.Player.Health, g.Player.Health)
+		}
+		if got.Entities[0] != priorMonster {
+			t.Errorf("wall bump moved monster: got %+v, want %+v", got.Entities[0], priorMonster)
+		}
+	})
+
+	t.Run("map bounds", func(t *testing.T) {
+		g := openTestState()
+		g.Player.Pos = Position{X: 0, Y: 1}
+		g.Entities = []Entity{testMonster(1, Position{X: 1, Y: 1})}
+
+		got := g.Step(ActionMoveLeft)
+
+		if got.Player.Pos != g.Player.Pos {
+			t.Errorf("player pos = %+v, want %+v", got.Player.Pos, g.Player.Pos)
+		}
+		if got.MonsterTurns != g.MonsterTurns {
+			t.Errorf("bounds bump advanced monster turns to %d, want %d", got.MonsterTurns, g.MonsterTurns)
+		}
+		if got.Player.Health != g.Player.Health {
+			t.Errorf("bounds bump changed health to %d, want %d", got.Player.Health, g.Player.Health)
+		}
+	})
+}
+
 func TestStepIgnoresNoAction(t *testing.T) {
 	g := newTestGame(6)
 	priorTurns := g.MonsterTurns
@@ -810,16 +852,15 @@ func TestMonsterArchetypesUseDistinctMovementCadences(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			g := openTestState()
 			g.Player.Pos = Position{X: 1, Y: 3}
-			g.Map.Tiles[2][1] = TileWall
 			monster := testMonster(1, Position{X: 5, Y: 3})
 			monster.Archetype = tc.archetype
 			g.Entities = []Entity{monster}
 
-			first := g.Step(ActionMoveUp)
+			first := g.Step(ActionWait)
 			if first.Entities[0].Pos != tc.wantFirst {
 				t.Errorf("first turn position = %+v, want %+v", first.Entities[0].Pos, tc.wantFirst)
 			}
-			second := first.Step(ActionMoveUp)
+			second := first.Step(ActionWait)
 			if second.Entities[0].Pos != tc.wantSecond {
 				t.Errorf("second turn position = %+v, want %+v", second.Entities[0].Pos, tc.wantSecond)
 			}
@@ -830,13 +871,12 @@ func TestMonsterArchetypesUseDistinctMovementCadences(t *testing.T) {
 func TestFastBatCanCloseDistanceAndAttackInOneTurn(t *testing.T) {
 	g := openTestState()
 	g.Player.Pos = Position{X: 2, Y: 3}
-	g.Map.Tiles[2][2] = TileWall
 	bat := testMonster(7, Position{X: 4, Y: 3})
 	bat.Archetype = MonsterBat
 	bat.Damage = 3
 	g.Entities = []Entity{bat}
 
-	got := g.Step(ActionMoveUp)
+	got := g.Step(ActionWait)
 
 	if got.Entities[0].Pos != (Position{X: 3, Y: 3}) {
 		t.Errorf("bat position = %+v, want {3 3}", got.Entities[0].Pos)
@@ -868,14 +908,13 @@ func TestMonsterTurnAvoidsWallsAndActors(t *testing.T) {
 	}
 }
 
-func TestMonsterTurnAttacksAfterBlockedPlayerAction(t *testing.T) {
+func TestMonsterAttackDoesNotMutatePriorHealthOrLog(t *testing.T) {
 	g := openTestState()
 	g.Player.Pos = Position{X: 3, Y: 3}
-	g.Map.Tiles[3][4] = TileWall
 	g.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
 	priorLogBacking := g.Log[:cap(g.Log)]
 
-	got := g.Step(ActionMoveRight)
+	got := g.Step(ActionWait)
 
 	if got.Player.Health != 95 {
 		t.Errorf("player health = %d, want 95", got.Player.Health)
@@ -894,7 +933,6 @@ func TestMonsterTurnAttacksAfterBlockedPlayerAction(t *testing.T) {
 func TestMonsterTurnsResolveInStableIDOrder(t *testing.T) {
 	g := openTestState()
 	g.Player.Pos = Position{X: 3, Y: 3}
-	g.Map.Tiles[3][4] = TileWall
 	g.Entities = []Entity{
 		testMonster(2, Position{X: 3, Y: 4}),
 		testMonster(1, Position{X: 3, Y: 2}),
@@ -902,7 +940,7 @@ func TestMonsterTurnsResolveInStableIDOrder(t *testing.T) {
 	g.Entities[0].Archetype = MonsterBat
 	g.Entities[1].Archetype = MonsterOgre
 
-	got := g.Step(ActionMoveRight)
+	got := g.Step(ActionWait)
 
 	want := []string{
 		"The fight begins.",
@@ -918,10 +956,9 @@ func TestMonsterAttackEndsRunAndFreezesState(t *testing.T) {
 	g := openTestState()
 	g.Player.Pos = Position{X: 3, Y: 3}
 	g.Player.Health = 5
-	g.Map.Tiles[3][4] = TileWall
 	g.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
 
-	dead := g.Step(ActionMoveRight)
+	dead := g.Step(ActionWait)
 
 	if !dead.GameOver {
 		t.Fatal("lethal monster attack did not mark game over")

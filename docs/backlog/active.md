@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-09-21 (diagonal FOV corner-peek landed)
+**Last updated:** 2026-09-21 (wall/OOB bumps no longer spend a turn)
 
 ## Current milestone
 
@@ -19,8 +19,9 @@ green outside the maintainer's machine.
 **Complete the external release checks after these commits are pushed** — local
 M4 engineering is green, including `--dump-frame`, `--help`, in-game `?`
 controls, wait/hjkl, low-HP danger HUD, wrapped sidebar logs, remembered
-items, diagonal FOV corner blocking, and a `GlyphGrinder` make-build name.
-Remaining acceptance work cannot run in this environment:
+items, diagonal FOV corner blocking, free wall/OOB bumps, and a
+`GlyphGrinder` make-build name. Remaining acceptance work cannot run in this
+environment:
 
 - Confirm the `Verify` GitHub Actions workflow passes on the first pushed
   commit and that its only verification entry point is `./scripts/verify.sh`.
@@ -74,6 +75,8 @@ death screens, camera easing, and seed replay stay in the parking lot.
       glyphs; unexplored items and unseen monsters stay hidden.
 - [x] **M4.14** Bresenham FOV cannot peek through a closed diagonal wall
       corner; a single adjacent wall still lets the glance land.
+- [x] **M4.15** Walking into a wall or off the map does not spend a turn;
+      wait (`.`/space) and bump-attacks still do.
 
 ## Acceptance criteria for M4
 
@@ -97,6 +100,14 @@ death screens, camera easing, and seed replay stay in the parking lot.
 ```
 ./scripts/verify.sh   —  2026-09-21  —  VERIFY OK (go1.27.0 darwin/arm64, /opt/homebrew/bin/go)
 ```
+
+Wall-bump batch (2026-09-21): `resolvePlayerMove` returns `acted=false` on
+walls and map edges, so a missed corridor is free. Wait (`.`/space) and
+bump-attacks still spend a turn. Monster cadence, lethal-hit, and TUI tests
+that used a wall as a wait now call `ActionWait` / `.`. Proven by
+`TestStepBlockedMovementDoesNotSpendATurn`, `TestWallBumpDoesNotSpendATurn`,
+`TestStepWaitAdvancesMonsterTurnsWithoutMoving`, and
+`TestStepBumpAttackDamagesMonster`.
 
 Diagonal FOV batch (2026-09-21): a simultaneous Bresenham X/Y step is blocked
 when both cardinal neighbors are walls, so a torch cannot see through a closed

@@ -1032,6 +1032,26 @@ func TestWaitKeySpendsATurn(t *testing.T) {
 	}
 }
 
+func TestWallBumpDoesNotSpendATurn(t *testing.T) {
+	state := openTestState()
+	state.Player.Pos = Position{X: 1, Y: 1}
+	state.Entities = []Entity{testMonster(1, Position{X: 2, Y: 1})}
+	state = state.refreshVisibility()
+	d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed)), glyphs: asciiGlyphs})
+
+	d.Key("up")
+	got := d.Model().(model).state
+	if got.Player.Pos != state.Player.Pos {
+		t.Errorf("wall bump moved player to %+v, want %+v", got.Player.Pos, state.Player.Pos)
+	}
+	if got.Player.Health != state.Player.Health {
+		t.Errorf("health after wall bump = %d, want %d", got.Player.Health, state.Player.Health)
+	}
+	if got.MonsterTurns != state.MonsterTurns {
+		t.Errorf("wall bump advanced monster turns to %d, want %d", got.MonsterTurns, state.MonsterTurns)
+	}
+}
+
 func TestPlayerCannotWalkThroughWalls(t *testing.T) {
 	d := tuitest.New(t, newTUITestModel())
 	want := d.Model().(model).state
@@ -1080,11 +1100,10 @@ func TestBumpAttackSurvivesUpdateRoundTrip(t *testing.T) {
 func TestMonsterAttackSurvivesUpdateRoundTrip(t *testing.T) {
 	state := openTestState()
 	state.Player.Pos = Position{X: 3, Y: 3}
-	state.Map.Tiles[3][4] = TileWall
 	state.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
 	d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed))})
 
-	d.Key("right")
+	d.Key(".")
 	got := d.Model().(model).state
 	if got.Player.Health != 95 {
 		t.Errorf("player health after key = %d, want 95", got.Player.Health)
@@ -1105,11 +1124,10 @@ func TestGameOverAndRestartSurviveUpdateRoundTrip(t *testing.T) {
 	state.HasSword = true
 	state.Equipped = true
 	state.Player.Damage = swordDamage
-	state.Map.Tiles[3][4] = TileWall
 	state.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
 	d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed))})
 
-	d.Key("right")
+	d.Key(".")
 	deadModel := d.Model().(model)
 	dead := deadModel.state
 	if !dead.GameOver {
