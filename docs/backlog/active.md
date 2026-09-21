@@ -34,7 +34,9 @@ require the remote repository or a real interactive terminal.
 
 If the next session cannot push or open a TTY, audit `GOAL.md` against tests
 and current code for another high-confidence local batch; park speculative
-ideas in `docs/backlog/parking-lot.md`.
+ideas in `docs/backlog/parking-lot.md`. A 2026-09-21 audit parked GOAL.md's
+door glyphs (the dungeon has none) and left title/death screens, camera
+easing, and seed replay in the parking lot.
 
 ## Milestone plan
 

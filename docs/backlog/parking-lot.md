@@ -20,7 +20,8 @@ lingering as a fuzzy reminder.
 
 ## Game design
 
-- Hunger clock, or an explicit decision not to have one.
+- Doors that block movement and sight until opened — GOAL.md names door
+  glyphs, but generation is open rooms and corridors today.
 - Ranged attacks and line-of-sight targeting UI.
 - Status effects (poison, slow, confusion).
 - Character classes or a skill tree.
