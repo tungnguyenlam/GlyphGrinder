@@ -496,8 +496,11 @@ func TestMovementKeys(t *testing.T) {
 		{"arrow right", []string{"right"}, []Action{ActionMoveRight}},
 		{"wasd", []string{"w", "a"}, []Action{ActionMoveUp, ActionMoveLeft}},
 		{"wasd uppercase", []string{"W", "A"}, []Action{ActionMoveUp, ActionMoveLeft}},
+		{"hjkl", []string{"k", "h"}, []Action{ActionMoveUp, ActionMoveLeft}},
+		{"hjkl uppercase", []string{"K", "H"}, []Action{ActionMoveUp, ActionMoveLeft}},
 		{"round trip", []string{"w", "s", "a", "d"}, []Action{ActionMoveUp, ActionMoveDown, ActionMoveLeft, ActionMoveRight}},
 		{"round trip uppercase", []string{"W", "S", "A", "D"}, []Action{ActionMoveUp, ActionMoveDown, ActionMoveLeft, ActionMoveRight}},
+		{"hjkl round trip", []string{"k", "j", "h", "l"}, []Action{ActionMoveUp, ActionMoveDown, ActionMoveLeft, ActionMoveRight}},
 	}
 
 	for _, tc := range cases {
@@ -825,6 +828,30 @@ func TestUppercaseLetterKeysMatchLowercaseActions(t *testing.T) {
 			t.Errorf("after R won/game over/depth = %v/%v/%d, want false/false/1", restarted.Won, restarted.GameOver, restarted.Depth)
 		}
 	})
+}
+
+func TestWaitKeySpendsATurn(t *testing.T) {
+	state := openTestState()
+	state.Player.Pos = Position{X: 3, Y: 3}
+	state.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
+	state = state.refreshVisibility()
+	d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed)), glyphs: asciiGlyphs})
+
+	d.Key(".")
+	got := d.Model().(model).state
+	if got.Player.Pos != state.Player.Pos {
+		t.Errorf("`.` moved player to %+v, want %+v", got.Player.Pos, state.Player.Pos)
+	}
+	if got.Player.Health != 95 {
+		t.Errorf("health after `.` = %d, want 95", got.Player.Health)
+	}
+
+	d = tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed)), glyphs: asciiGlyphs})
+	d.Key(" ")
+	got = d.Model().(model).state
+	if got.Player.Health != 95 {
+		t.Errorf("health after space = %d, want 95", got.Player.Health)
+	}
 }
 
 func TestPlayerCannotWalkThroughWalls(t *testing.T) {

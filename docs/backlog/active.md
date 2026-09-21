@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-09-21 (TTY-error hint landed; remaining M4 observations are blocked)
+**Last updated:** 2026-09-21 (wait/hjkl and GlyphGrinder binary name landed)
 
 ## Current milestone
 
@@ -18,8 +18,8 @@ green outside the maintainer's machine.
 
 **Complete the external release checks after these commits are pushed** — local
 M4 engineering is green, including `--dump-frame`, `--help`, case-insensitive
-letter keys, and a TTY-error hint. Remaining acceptance work cannot run in this
-environment:
+letter keys, wait/hjkl, and a `GlyphGrinder` make-build name. Remaining
+acceptance work cannot run in this environment:
 
 - Confirm the `Verify` GitHub Actions workflow passes on the first pushed
   commit and that its only verification entry point is `./scripts/verify.sh`.
@@ -59,6 +59,8 @@ ideas in `docs/backlog/parking-lot.md`.
       so Caps Lock does not silently drop input.
 - [x] **M4.8** Interactive `Run` errors still print the Bubble Tea TTY
       message to stderr; a missing TTY also hints at `--help` / `--dump-frame`.
+- [x] **M4.9** `.` / space wait a turn; `hjkl` move; `make build` emits
+      `./GlyphGrinder` to match `go install`.
 
 ## Acceptance criteria for M4
 
@@ -82,6 +84,11 @@ ideas in `docs/backlog/parking-lot.md`.
 ```
 ./scripts/verify.sh   —  2026-09-21  —  VERIFY OK (go1.27.0 darwin/arm64, /opt/homebrew/bin/go)
 ```
+
+Wait/hjkl/binary-name batch (2026-09-21): `ActionWait` spends a monster turn
+without moving; `.` and space map to it; `ActionNone` still freezes time.
+Vim `hjkl` aliases the move keys. `make build` writes `./GlyphGrinder`;
+`make clean` also removes leftover `glyphgrinder`. README controls updated.
 
 TTY-error hint batch (2026-09-21): `formatRunError` keeps the original
 `glyphgrinder: could not open a new TTY: ...` line and adds

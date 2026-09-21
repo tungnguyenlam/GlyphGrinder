@@ -75,6 +75,7 @@ const (
 	ActionMoveRight
 	ActionUsePotion
 	ActionEquipWeapon
+	ActionWait
 )
 
 // GameMap holds the grid.
@@ -143,6 +144,9 @@ func (g GameState) Step(action Action) GameState {
 	}
 	if action == ActionEquipWeapon {
 		return g.equipWeapon()
+	}
+	if action == ActionWait {
+		return g.resolveMonsterTurns()
 	}
 
 	dx, dy := 0, 0

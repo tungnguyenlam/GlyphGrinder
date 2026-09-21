@@ -637,10 +637,40 @@ func TestStepRejectsBlockedMovement(t *testing.T) {
 
 func TestStepIgnoresNoAction(t *testing.T) {
 	g := newTestGame(6)
+	priorTurns := g.MonsterTurns
+	priorHealth := g.Player.Health
 
 	got := g.Step(ActionNone)
 	if got.Player.Pos != g.Player.Pos {
 		t.Errorf("player pos = %+v, want %+v", got.Player.Pos, g.Player.Pos)
+	}
+	if got.MonsterTurns != priorTurns {
+		t.Errorf("ActionNone advanced monster turns to %d, want %d", got.MonsterTurns, priorTurns)
+	}
+	if got.Player.Health != priorHealth {
+		t.Errorf("ActionNone changed health to %d, want %d", got.Player.Health, priorHealth)
+	}
+}
+
+func TestStepWaitAdvancesMonsterTurnsWithoutMoving(t *testing.T) {
+	g := openTestState()
+	g.Player.Pos = Position{X: 3, Y: 3}
+	g.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
+	start := g.Player.Pos
+
+	got := g.Step(ActionWait)
+
+	if got.Player.Pos != start {
+		t.Errorf("wait moved player to %+v, want %+v", got.Player.Pos, start)
+	}
+	if got.MonsterTurns != g.MonsterTurns+1 {
+		t.Errorf("wait monster turns = %d, want %d", got.MonsterTurns, g.MonsterTurns+1)
+	}
+	if got.Player.Health != 95 {
+		t.Errorf("player health after wait = %d, want 95", got.Player.Health)
+	}
+	if gotLog, want := got.Log, []string{"The fight begins.", "Goblin 1 hits you for 5 damage."}; !reflect.DeepEqual(gotLog, want) {
+		t.Errorf("log = %q, want %q", gotLog, want)
 	}
 }
 

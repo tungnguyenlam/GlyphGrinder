@@ -11,7 +11,7 @@ a real terminal. In an agent session, CI, or any piped shell there is no
 controlling TTY, so the interactive binary fails immediately:
 
 ```
-$ printf 'q' | ./glyphgrinder
+$ printf 'q' | ./GlyphGrinder
 glyphgrinder: could not open a new TTY: open /dev/tty: device not configured
 glyphgrinder: play needs a TTY; try --help or --dump-frame
 $ echo $?

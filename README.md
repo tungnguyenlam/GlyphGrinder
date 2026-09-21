@@ -33,14 +33,15 @@ heal but consume a turn, and the iron sword also costs a turn to equip.
 
 | Key | Action |
 | --- | --- |
-| Arrow keys or `WASD` | Move; bump a monster to attack |
+| Arrow keys, `WASD`, or `hjkl` | Move; bump a monster to attack |
+| `.` or space | Wait a turn |
 | `p` | Drink a carried health potion |
 | `e` | Equip a carried iron sword |
 | `>` | Descend or escape while standing on stairs |
 | `r` | Start a fresh run after death or victory |
 | `q` or `Ctrl+C` | Quit |
 
-Letter keys (`WASD`, `p`, `e`, `r`, `q`) are case-insensitive.
+Letter keys (`WASD`, `hjkl`, `p`, `e`, `r`, `q`) are case-insensitive.
 
 Goblins pursue every turn, high-health ogres act every other turn, and fragile
 bats can take two actions. Enemy health and damage rise with dungeon depth.

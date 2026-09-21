@@ -1,4 +1,4 @@
-BINARY := glyphgrinder
+BINARY := GlyphGrinder
 
 .PHONY: verify
 verify: ## Run the canonical verification suite (fmt, vet, build, smoke, tests, tidy)
@@ -22,7 +22,7 @@ fmt: ## Format all Go files
 
 .PHONY: clean
 clean:
-	rm -f $(BINARY)
+	rm -f $(BINARY) glyphgrinder
 
 .PHONY: help
 help:

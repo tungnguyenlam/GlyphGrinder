@@ -292,18 +292,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.motion = actorMotionState{}
 			}
 			return m, nil
-		case "up", "w":
+		case "up", "w", "k":
 			action = ActionMoveUp
-		case "down", "s":
+		case "down", "s", "j":
 			action = ActionMoveDown
-		case "left", "a":
+		case "left", "a", "h":
 			action = ActionMoveLeft
-		case "right", "d":
+		case "right", "d", "l":
 			action = ActionMoveRight
 		case "p":
 			action = ActionUsePotion
 		case "e":
 			action = ActionEquipWeapon
+		case ".", " ", "space":
+			action = ActionWait
 		}
 		if action == ActionNone {
 			return m, nil
