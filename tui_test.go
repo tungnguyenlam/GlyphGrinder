@@ -462,6 +462,55 @@ func TestViewRendersHealthAndRecentLog(t *testing.T) {
 	}
 }
 
+func TestWrapLogLineFitsSidebarWidth(t *testing.T) {
+	tests := []struct {
+		name  string
+		in    string
+		width int
+		want  []string
+	}{
+		{name: "short", in: "The fight begins.", width: sidebarWidth, want: []string{"The fight begins."}},
+		{name: "exact width", in: strings.Repeat("a", 32), width: 32, want: []string{strings.Repeat("a", 32)}},
+		{
+			name:  "potion message",
+			in:    "You drink a potion and recover 25 health.",
+			width: sidebarWidth,
+			want:  []string{"You drink a potion and recover", "25 health."},
+		},
+		{name: "hard break long token", in: "abcdefghijklmnopqrstuvwxyz0123456789", width: 10, want: []string{"abcdefghij", "klmnopqrst", "uvwxyz0123", "456789"}},
+		{name: "empty", in: "   ", width: 8, want: []string{""}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := wrapLogLine(tc.in, tc.width)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("wrapLogLine(%q, %d) = %q, want %q", tc.in, tc.width, got, tc.want)
+			}
+			for _, line := range got {
+				if lipgloss.Width(line) > tc.width {
+					t.Errorf("line %q is %d cells, want <= %d", line, lipgloss.Width(line), tc.width)
+				}
+			}
+		})
+	}
+}
+
+func TestSidebarLogLinesFitReservedWidth(t *testing.T) {
+	state := openTestState()
+	state.Log = append(state.Log, "You drink a potion and recover 25 health.")
+	d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed)), glyphs: asciiGlyphs})
+	plain := stripANSI(d.View())
+	if !strings.Contains(plain, "You drink a potion and recover") || !strings.Contains(plain, "25 health.") {
+		t.Errorf("wrapped potion log missing from view:\n%s", plain)
+	}
+	maxWidth := state.Map.Width + mapSidebarGap + sidebarWidth
+	for i, line := range d.Lines() {
+		if got := len([]rune(stripANSI(line))); got > maxWidth {
+			t.Errorf("line %d width %d exceeds map+gap+sidebar %d: %q", i, got, maxWidth, stripANSI(line))
+		}
+	}
+}
+
 func TestViewSignalsDangerInLastTenHitPoints(t *testing.T) {
 	const trueColorProfile = 0 // termenv.TrueColor, exposed through Lip Gloss.
 	renderer := lipgloss.NewRenderer(io.Discard)

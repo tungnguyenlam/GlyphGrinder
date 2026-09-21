@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-09-21 (low-HP danger HUD landed; remaining M4 observations are blocked)
+**Last updated:** 2026-09-21 (sidebar log wrap landed; remaining M4 observations are blocked)
 
 ## Current milestone
 
@@ -18,8 +18,9 @@ green outside the maintainer's machine.
 
 **Complete the external release checks after these commits are pushed** — local
 M4 engineering is green, including `--dump-frame`, `--help`, in-game `?`
-controls, wait/hjkl, low-HP danger HUD, and a `GlyphGrinder` make-build name.
-Remaining acceptance work cannot run in this environment:
+controls, wait/hjkl, low-HP danger HUD, wrapped sidebar logs, and a
+`GlyphGrinder` make-build name. Remaining acceptance work cannot run in this
+environment:
 
 - Confirm the `Verify` GitHub Actions workflow passes on the first pushed
   commit and that its only verification entry point is `./scripts/verify.sh`.
@@ -67,6 +68,8 @@ death screens, camera easing, and seed replay stay in the parking lot.
       shows `? help` when closed. Hunger-clock parking-lot line restored.
 - [x] **M4.11** HP in `1..=10` uses danger styling; alive players keep a bar
       sliver so 1–9 HP is not an empty bar.
+- [x] **M4.12** Sidebar log lines wrap to `sidebarWidth`; stored log text is
+      unchanged.
 
 ## Acceptance criteria for M4
 
@@ -90,6 +93,11 @@ death screens, camera easing, and seed replay stay in the parking lot.
 ```
 ./scripts/verify.sh   —  2026-09-21  —  VERIFY OK (go1.27.0 darwin/arm64, /opt/homebrew/bin/go)
 ```
+
+Sidebar log wrap batch (2026-09-21): `wrapLogLine` word-wraps HUD log text to
+32 cells (hard-break only for overlong tokens). `GameState.Log` stays intact.
+Proven by `TestWrapLogLineFitsSidebarWidth` and
+`TestSidebarLogLinesFitReservedWidth` (potion recover message).
 
 Low-HP HUD batch (2026-09-21): health in `1..=10` styles the `HP` label, filled
 bar, and `n/max` fraction with `styles.danger`; alive players keep at least one

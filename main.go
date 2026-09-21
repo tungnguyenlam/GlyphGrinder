@@ -537,10 +537,14 @@ func renderSidebar(state GameState, showHelp bool, styles viewStyles) string {
 	}
 	fmt.Fprintf(&sb, "%s %s, %d dmg\n", styles.uiAccent.Render("Weapon"), styles.uiText.Render(weapon), state.Player.Damage)
 	sb.WriteString(styles.uiAccent.Render("Log:"))
-	logStart := max(0, len(state.Log)-visibleLogLines)
-	for _, entry := range state.Log[logStart:] {
+	var visualLog []string
+	for _, entry := range state.Log {
+		visualLog = append(visualLog, wrapLogLine(entry, sidebarWidth)...)
+	}
+	logStart := max(0, len(visualLog)-visibleLogLines)
+	for _, line := range visualLog[logStart:] {
 		sb.WriteByte('\n')
-		sb.WriteString(styles.uiText.Render(entry))
+		sb.WriteString(styles.uiText.Render(line))
 	}
 	if state.GameOver {
 		sb.WriteByte('\n')
@@ -567,6 +571,44 @@ func renderSidebar(state GameState, showHelp bool, styles viewStyles) string {
 		sb.WriteString(styles.uiText.Render("? help"))
 	}
 	return sb.String()
+}
+
+// wrapLogLine word-wraps s to at most width display cells. Tokens longer than
+// width are hard-broken. Empty input becomes a single empty line.
+func wrapLogLine(s string, width int) []string {
+	if width <= 0 {
+		return []string{s}
+	}
+	remaining := []rune(strings.TrimSpace(s))
+	if len(remaining) == 0 {
+		return []string{""}
+	}
+	var lines []string
+	for len(remaining) > 0 {
+		if len(remaining) <= width {
+			lines = append(lines, string(remaining))
+			break
+		}
+		cut := width
+		if space := lastSpaceIndex(remaining[:width]); space > 0 {
+			cut = space
+		}
+		lines = append(lines, string(remaining[:cut]))
+		remaining = remaining[cut:]
+		for len(remaining) > 0 && remaining[0] == ' ' {
+			remaining = remaining[1:]
+		}
+	}
+	return lines
+}
+
+func lastSpaceIndex(runes []rune) int {
+	for i := len(runes) - 1; i >= 0; i-- {
+		if runes[i] == ' ' {
+			return i
+		}
+	}
+	return -1
 }
 
 func main() {
