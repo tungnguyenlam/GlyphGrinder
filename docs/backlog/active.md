@@ -34,7 +34,9 @@ require the remote repository or a real interactive terminal.
 
 If the next session cannot push or open a TTY, audit `GOAL.md` against tests
 and current code for another high-confidence local batch; park speculative
-ideas in `docs/backlog/parking-lot.md`.
+ideas in `docs/backlog/parking-lot.md`. A 2026-09-21 audit parked GOAL.md's
+door glyphs (the dungeon has none) and restored the hunger-clock line; title/
+death screens, camera easing, and seed replay stay in the parking lot.
 
 ## Milestone plan
 
@@ -61,8 +63,8 @@ ideas in `docs/backlog/parking-lot.md`.
       message to stderr; a missing TTY also hints at `--help` / `--dump-frame`.
 - [x] **M4.9** `.` / space wait a turn; `hjkl` move; `make build` emits
       `./GlyphGrinder` to match `go install`.
-- [x] **M4.10** In-game `?` toggles controls without spending a turn; sidebar
-      shows `? help` when closed. Hunger-clock parking-lot item restored.
+- [x] **M4.10** `?` toggles in-game controls without spending a turn; sidebar
+      shows `? help` when closed. Hunger-clock parking-lot line restored.
 
 ## Acceptance criteria for M4
 
