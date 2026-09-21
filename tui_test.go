@@ -423,6 +423,40 @@ func TestViewDistinguishesHiddenAndRememberedTiles(t *testing.T) {
 	}
 }
 
+func TestViewRemembersSeenItems(t *testing.T) {
+	state := openTestStateSized(11, 7)
+	state.Player.Pos = Position{X: 2, Y: 3}
+	state.Map.Tiles[3][3] = TileWall
+	potionPos := Position{X: 9, Y: 3}
+	swordPos := Position{X: 9, Y: 1}
+	state.Items = []Item{
+		{Type: ItemPotion, Pos: potionPos},
+		{Type: ItemSword, Pos: swordPos},
+	}
+	state.Entities = nil
+	state.Map.Visible = nil
+	state.Map.Explored = nil
+	state = state.refreshVisibility()
+	if state.Map.Visible[potionPos.Y][potionPos.X] || state.Map.Visible[swordPos.Y][swordPos.X] {
+		t.Fatal("setup: items should be outside current FOV")
+	}
+
+	unexplored := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed)), glyphs: asciiGlyphs})
+	if got := renderedCell(t, unexplored.Lines(), potionPos); got != " " {
+		t.Errorf("unexplored potion tile rendered as %q, want blank", got)
+	}
+
+	state.Map.Explored[potionPos.Y][potionPos.X] = true
+	state.Map.Explored[swordPos.Y][swordPos.X] = true
+	remembered := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed)), glyphs: asciiGlyphs})
+	if got := renderedCell(t, remembered.Lines(), potionPos); got != "!" {
+		t.Errorf("remembered potion rendered as %q, want !", got)
+	}
+	if got := renderedCell(t, remembered.Lines(), swordPos); got != "/" {
+		t.Errorf("remembered sword rendered as %q, want /", got)
+	}
+}
+
 func renderedCell(t *testing.T, lines []string, pos Position) string {
 	t.Helper()
 	if pos.Y < 0 || pos.Y >= len(lines) {

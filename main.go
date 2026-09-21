@@ -143,6 +143,8 @@ type viewStyles struct {
 	memoryStairs lipgloss.Style
 	potion       lipgloss.Style
 	sword        lipgloss.Style
+	memoryPotion lipgloss.Style
+	memorySword  lipgloss.Style
 	uiText       lipgloss.Style
 	uiAccent     lipgloss.Style
 	health       lipgloss.Style
@@ -168,6 +170,8 @@ func newViewStyles(renderer *lipgloss.Renderer, p colorPalette) viewStyles {
 		memoryStairs: renderer.NewStyle().Foreground(p.MemoryWall).Background(p.MemoryBG),
 		potion:       renderer.NewStyle().Foreground(p.Potion).Background(p.LitFloorBG).Bold(true),
 		sword:        renderer.NewStyle().Foreground(p.Sword).Background(p.LitFloorBG).Bold(true),
+		memoryPotion: renderer.NewStyle().Foreground(p.Potion).Faint(true).Background(p.MemoryBG),
+		memorySword:  renderer.NewStyle().Foreground(p.Sword).Faint(true).Background(p.MemoryBG),
 		uiText:       renderer.NewStyle().Foreground(p.UIText),
 		uiAccent:     renderer.NewStyle().Foreground(p.UIAccent).Bold(true),
 		health:       renderer.NewStyle().Foreground(p.Health),
@@ -410,6 +414,8 @@ func (m model) View() string {
 	memoryStairs := styles.memoryStairs.Render(glyphs.Stairs)
 	potion := styles.potion.Render(glyphs.Potion)
 	sword := styles.sword.Render(glyphs.Sword)
+	memoryPotion := styles.memoryPotion.Render(glyphs.Potion)
+	memorySword := styles.memorySword.Render(glyphs.Sword)
 	entityGlyphs := make(map[Position]string, len(m.state.Entities))
 	monsterArchetypes := make(map[int]MonsterArchetype, len(m.state.Entities))
 	for _, entity := range m.state.Entities {
@@ -418,12 +424,15 @@ func (m model) View() string {
 		monsterArchetypes[entity.ID] = entity.Archetype
 	}
 	itemGlyphs := make(map[Position]string, len(m.state.Items))
+	memoryItemGlyphs := make(map[Position]string, len(m.state.Items))
 	for _, item := range m.state.Items {
 		switch item.Type {
 		case ItemPotion:
 			itemGlyphs[item.Pos] = potion
+			memoryItemGlyphs[item.Pos] = memoryPotion
 		case ItemSword:
 			itemGlyphs[item.Pos] = sword
+			memoryItemGlyphs[item.Pos] = memorySword
 		}
 	}
 	playerPos := m.animatedPosition(0, true, m.state.Player.Pos)
@@ -457,6 +466,8 @@ func (m model) View() string {
 			} else if trail, ok := trailGlyphs[Position{X: x, Y: y}]; ok && (trail.isPlayer || visible) {
 				sb.WriteString(trail.glyph)
 			} else if item, ok := itemGlyphs[Position{X: x, Y: y}]; visible && ok {
+				sb.WriteString(item)
+			} else if item, ok := memoryItemGlyphs[Position{X: x, Y: y}]; ok {
 				sb.WriteString(item)
 			} else if !visible {
 				switch m.state.Map.Tiles[y][x] {
