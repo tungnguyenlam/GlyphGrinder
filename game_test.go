@@ -508,6 +508,68 @@ func TestDescentSequenceIsDeterministicForSeed(t *testing.T) {
 	}
 }
 
+func TestUseStairsLetsAdjacentMonsterStrikeThenDescends(t *testing.T) {
+	rng := rand.New(rand.NewSource(21))
+	g := openTestState()
+	g.Map.Tiles[3][3] = TileStairs
+	g.Player.Pos = Position{X: 3, Y: 3}
+	g.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
+
+	got := g.useStairs(rng)
+
+	if got.Depth != 2 {
+		t.Errorf("depth after surviving stairs = %d, want 2", got.Depth)
+	}
+	if got.Player.Health != 95 {
+		t.Errorf("health after stair strike = %d, want 95", got.Player.Health)
+	}
+	if got.GameOver || got.Won {
+		t.Errorf("surviving stairs set game over/won = %v/%v", got.GameOver, got.Won)
+	}
+	if g.Player.Health != 100 || g.Depth != 1 {
+		t.Errorf("useStairs mutated prior state: health %d depth %d", g.Player.Health, g.Depth)
+	}
+}
+
+func TestUseStairsDeathCancelsDescent(t *testing.T) {
+	g := openTestState()
+	g.Map.Tiles[3][3] = TileStairs
+	g.Player.Pos = Position{X: 3, Y: 3}
+	g.Player.Health = 5
+	g.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
+
+	got := g.useStairs(rand.New(rand.NewSource(22)))
+
+	if !got.GameOver || got.Won || got.Depth != 1 {
+		t.Errorf("lethal stairs game over/won/depth = %v/%v/%d, want true/false/1", got.GameOver, got.Won, got.Depth)
+	}
+	if got.Player.Health != 0 {
+		t.Errorf("health after lethal stairs = %d, want 0", got.Player.Health)
+	}
+	if got.Map.Tiles[3][3] != TileStairs {
+		t.Error("lethal stairs regenerated the floor")
+	}
+	if gotLog, want := got.Log[len(got.Log)-1], "You die."; gotLog != want {
+		t.Errorf("last log = %q, want %q", gotLog, want)
+	}
+}
+
+func TestUseStairsOffStairsStillFree(t *testing.T) {
+	g := openTestState()
+	g.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
+	priorHealth := g.Player.Health
+	priorTurns := g.MonsterTurns
+
+	got := g.useStairs(rand.New(rand.NewSource(23)))
+
+	if got.Depth != g.Depth || got.MonsterTurns != priorTurns || got.Player.Health != priorHealth {
+		t.Errorf("off-stairs useStairs spent a turn: depth %d turns %d health %d", got.Depth, got.MonsterTurns, got.Player.Health)
+	}
+	if gotLog, want := got.Log[len(got.Log)-1], "There are no stairs here."; gotLog != want {
+		t.Errorf("last log = %q, want %q", gotLog, want)
+	}
+}
+
 func TestStepPicksUpPotion(t *testing.T) {
 	g := openTestState()
 	g.Player.Pos = Position{X: 2, Y: 3}

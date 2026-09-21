@@ -28,8 +28,9 @@ make run
 ## Play
 
 Survive three increasingly dangerous dungeon depths. Walk onto `>` and press
-`>` to descend; the staircase on depth 3 is the exit and wins the run. Potions
-heal but consume a turn, and the iron sword also costs a turn to equip.
+`>` to descend — that costs a turn, so standing next to a monster is risky.
+The staircase on depth 3 is the exit and wins the run. Potions heal but
+consume a turn, and the iron sword also costs a turn to equip.
 
 | Key | Action |
 | --- | --- |
@@ -38,7 +39,7 @@ heal but consume a turn, and the iron sword also costs a turn to equip.
 | `?` | Toggle in-game controls |
 | `p` | Drink a carried health potion |
 | `e` | Equip a carried iron sword |
-| `>` | Descend or escape while standing on stairs |
+| `>` | Descend or escape while standing on stairs (costs a turn) |
 | `r` | Start a fresh run after death or victory |
 | `q` or `Ctrl+C` | Quit |
 

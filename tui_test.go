@@ -889,6 +889,7 @@ func TestDescendKeyRegeneratesAndRendersNextDepth(t *testing.T) {
 	state.HasSword = true
 	state.Equipped = true
 	state.Player.Damage = swordDamage
+	state.Entities = nil
 	state = state.refreshVisibility()
 	m := model{
 		state:  state,
@@ -954,6 +955,44 @@ func TestDescendKeyOffStairsLogsWithoutChangingDepth(t *testing.T) {
 	}
 }
 
+func TestDescendKeyLetsAdjacentMonsterStrikeThenDescends(t *testing.T) {
+	state := openTestState()
+	state.Map.Tiles[3][3] = TileStairs
+	state.Player.Pos = Position{X: 3, Y: 3}
+	state.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
+	state = state.refreshVisibility()
+	d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed)), glyphs: asciiGlyphs})
+
+	d.Key(">")
+	got := d.Model().(model).state
+	if got.Depth != 2 {
+		t.Fatalf("surviving > depth = %d, want 2", got.Depth)
+	}
+	if got.Player.Health != 95 {
+		t.Errorf("health after stair strike = %d, want 95", got.Player.Health)
+	}
+}
+
+func TestDescendKeyDeathOnStairsCancelsDescent(t *testing.T) {
+	state := openTestState()
+	state.Map.Tiles[3][3] = TileStairs
+	state.Player.Pos = Position{X: 3, Y: 3}
+	state.Player.Health = 5
+	state.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
+	state = state.refreshVisibility()
+	d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed)), glyphs: asciiGlyphs})
+
+	d.Key(">")
+	got := d.Model().(model)
+	if !got.state.GameOver || got.state.Won || got.state.Depth != 1 {
+		t.Errorf("lethal > game over/won/depth = %v/%v/%d, want true/false/1", got.state.GameOver, got.state.Won, got.state.Depth)
+	}
+	plain := stripANSI(d.View())
+	if !strings.Contains(plain, "GAME OVER") {
+		t.Errorf("lethal stairs missing GAME OVER:\n%s", plain)
+	}
+}
+
 func TestFailedPotionAndEquipKeysLogWithoutSpendingATurn(t *testing.T) {
 	state := openTestState()
 	state.Entities = []Entity{testMonster(1, Position{X: 3, Y: 2})}
@@ -984,6 +1023,7 @@ func TestFinalDescentRendersVictoryAndRestarts(t *testing.T) {
 	state := NewGame(20, 10, rng)
 	state.Depth = finalDepth
 	state.Player.Pos = tilePositions(state.Map, TileStairs)[0]
+	state.Entities = nil
 	state = state.refreshVisibility()
 	d := tuitest.New(t, model{state: state, rng: rng, glyphs: asciiGlyphs})
 
@@ -1102,6 +1142,7 @@ func TestUppercaseLetterKeysMatchLowercaseActions(t *testing.T) {
 		state := NewGame(20, 10, rng)
 		state.Depth = finalDepth
 		state.Player.Pos = tilePositions(state.Map, TileStairs)[0]
+		state.Entities = nil
 		state = state.refreshVisibility()
 		d := tuitest.New(t, model{state: state, rng: rng, glyphs: asciiGlyphs})
 		d.Key(">")

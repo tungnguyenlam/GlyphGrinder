@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-09-21 (in-game help fits a 9-row terminal)
+**Last updated:** 2026-09-21 (stairs spend a monster turn; remaining M4 observations are blocked)
 
 ## Current milestone
 
@@ -21,8 +21,8 @@ M4 engineering is green, including `--dump-frame`, `--help`, in-game `?`
 controls (compact overlay that fits 9-row terminals), wait/hjkl, low-HP
 danger HUD, wrapped sidebar logs, remembered items, diagonal FOV, free
 wall/OOB bumps, failed `p`/`e`/`>` log lines, distance-faded torch lighting,
-and a `GlyphGrinder` make-build name. Remaining acceptance work cannot run
-in this environment:
+stair uses that spend a monster turn, and a `GlyphGrinder` make-build name.
+Remaining acceptance work cannot run in this environment:
 
 - Confirm the `Verify` GitHub Actions workflow passes on the first pushed
   commit and that its only verification entry point is `./scripts/verify.sh`.
@@ -85,6 +85,8 @@ death screens, camera easing, and seed replay stay in the parking lot.
       semantic colors. Colorless profiles stay unstyled.
 - [x] **M4.18** Open `?` help omits log/goal, uses compact control lines, and
       clips to `windowHeight` so a 50x9 terminal stays 9 rows.
+- [x] **M4.19** Standing on `>` spends a monster turn before descent or
+      escape; death cancels the floor change. Off-stairs `>` stays free.
 
 ## Acceptance criteria for M4
 
@@ -109,10 +111,20 @@ death screens, camera easing, and seed replay stay in the parking lot.
 ./scripts/verify.sh   —  2026-09-21  —  VERIFY OK (go1.27.0 darwin/arm64, /opt/homebrew/bin/go)
 ```
 
+Stairs-turn batch (2026-09-21): `useStairs` resolves monster turns before
+`Descend` when standing on `>`. A lethal hit stays on this floor (`You die.`);
+a survivor still changes depth (or wins) with the damage. Off-stairs `>`
+still only logs `There are no stairs here.` Proven by
+`TestUseStairsLetsAdjacentMonsterStrikeThenDescends`,
+`TestUseStairsDeathCancelsDescent`, `TestUseStairsOffStairsStillFree`,
+`TestDescendKeyLetsAdjacentMonsterStrikeThenDescends`, and
+`TestDescendKeyDeathOnStairsCancelsDescent`.
+
 Tiny-terminal help batch (2026-09-21): open `?` omits the log and goal lines,
 pairs `p`/`e` and `>`/`r`, puts `q` on the `? hide` row, and `clipLines` trims
-the sidebar to `windowHeight`. A 50x9 window stays 9 rows with help open.
-Proven by `TestInGameHelpFitsTinyTerminal` and
+the sidebar to `windowHeight`. Skip the blank line above the overlay so all
+controls including `> stairs` fit 9 rows without clipping. Proven by
+`TestInGameHelpFitsTinyTerminal` and
 `TestResizeClipsViewportAndPreservesSidebar`.
 
 Torch falloff batch (2026-09-21): visible floor, wall, stairs, and items use

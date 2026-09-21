@@ -517,6 +517,27 @@ func (g GameState) Descend(rng *rand.Rand) GameState {
 	return newDungeonLevel(g.Map.Width, g.Map.Height, nextDepth, g.Player, g.Potions, g.HasSword, g.Equipped, log, rng)
 }
 
+// useStairs spends a monster turn when the player is standing on stairs,
+// then descends or escapes if they survive. Off-stairs still logs without
+// spending a turn. Frozen death and victory runs stay no-ops.
+func (g GameState) useStairs(rng *rand.Rand) GameState {
+	if g.GameOver || g.Won {
+		return g
+	}
+	pos := g.Player.Pos
+	if pos.X < 0 || pos.X >= g.Map.Width || pos.Y < 0 || pos.Y >= g.Map.Height {
+		return g
+	}
+	if g.Map.Tiles[pos.Y][pos.X] != TileStairs {
+		return g.Descend(rng)
+	}
+	g = g.resolveMonsterTurns()
+	if g.GameOver {
+		return g
+	}
+	return g.Descend(rng)
+}
+
 func newDungeonLevel(width, height, depth int, player Entity, potions int, hasSword, equipped bool, log []string, rng *rand.Rand) GameState {
 	gameMap, rooms := generateDungeon(width, height, rng)
 	playerPos := rooms[0].center()

@@ -382,12 +382,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		case ">":
+			previous := m.state
 			previousDepth := m.state.Depth
 			previousWon := m.state.Won
-			m.state = m.state.Descend(m.rng)
+			m.state = m.state.useStairs(m.rng)
 			if m.state.Depth != previousDepth || m.state.Won != previousWon {
 				m.motionSeq++
 				m.motion = actorMotionState{}
+				return m, nil
+			}
+			if m.state.MonsterTurns == previous.MonsterTurns {
+				return m, nil
+			}
+			m.motionSeq++
+			m.motion = newActorMotion(previous, m.state, m.motionSeq)
+			if len(m.motion.Actors) > 0 {
+				return m, animationTick(m.motion.Sequence)
 			}
 			return m, nil
 		case "up", "w", "k":
