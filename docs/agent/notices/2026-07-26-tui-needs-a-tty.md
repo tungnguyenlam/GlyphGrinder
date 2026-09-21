@@ -13,11 +13,13 @@ controlling TTY, so the interactive binary fails immediately:
 ```
 $ printf 'q' | ./glyphgrinder
 glyphgrinder: could not open a new TTY: open /dev/tty: device not configured
+glyphgrinder: play needs a TTY; try --help or --dump-frame
 $ echo $?
 1
 ```
 
-(The message goes to stderr; the exit status is still 1.)
+(The original Bubble Tea message still goes to stderr with a trailing newline;
+a second line points at `--help` / `--dump-frame`. The exit status is still 1.)
 
 An agent that tries `go run .` to check a change will read that exit-1 as "my
 change broke the game" and start debugging something that was never broken.

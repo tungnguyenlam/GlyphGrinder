@@ -547,7 +547,7 @@ func main() {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	p := tea.NewProgram(initialModel(rng), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "glyphgrinder: %v\n", err)
+		fmt.Fprint(os.Stderr, formatRunError(err))
 		os.Exit(1)
 	}
 }
@@ -596,4 +596,16 @@ func parseArgs(args []string) (cliCommand, error) {
 // no TTY.
 func dumpFrame(out io.Writer, rng *rand.Rand) {
 	fmt.Fprintln(out, initialModel(rng).View())
+}
+
+func formatRunError(err error) string {
+	msg := fmt.Sprintf("glyphgrinder: %v\n", err)
+	if isNoTTYError(err) {
+		msg += "glyphgrinder: play needs a TTY; try --help or --dump-frame\n"
+	}
+	return msg
+}
+
+func isNoTTYError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "could not open a new TTY")
 }

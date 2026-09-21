@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"math/rand"
 	"strings"
 	"testing"
@@ -82,5 +83,27 @@ func TestDumpFrameRendersHeadlesslyWithoutTTY(t *testing.T) {
 	lines := strings.Split(strings.TrimSuffix(plain, "\n"), "\n")
 	if got, want := len(lines), productionDungeonHeight; got != want {
 		t.Errorf("dumped frame has %d rows, want %d", got, want)
+	}
+}
+
+func TestFormatRunErrorHintsOnMissingTTY(t *testing.T) {
+	ttyErr := fmt.Errorf("could not open a new TTY: open /dev/tty: device not configured")
+	got := formatRunError(ttyErr)
+	if !strings.HasPrefix(got, "glyphgrinder: could not open a new TTY:") {
+		t.Errorf("TTY error lost the original message:\n%s", got)
+	}
+	if !strings.HasSuffix(got, "\n") {
+		t.Errorf("TTY error missing trailing newline: %q", got)
+	}
+	if !strings.Contains(got, "--help") || !strings.Contains(got, "--dump-frame") {
+		t.Errorf("TTY error missing headless-flag hint:\n%s", got)
+	}
+
+	other := formatRunError(fmt.Errorf("boom"))
+	if got, want := other, "glyphgrinder: boom\n"; got != want {
+		t.Errorf("non-TTY error = %q, want %q", got, want)
+	}
+	if strings.Contains(other, "--help") {
+		t.Errorf("non-TTY error should not hint at flags: %q", other)
 	}
 }
