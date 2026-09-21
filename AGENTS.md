@@ -12,10 +12,14 @@ GlyphGrinder is a terminal roguelike written in Go, built on Bubble Tea
 `package main` at the repo root holds the game: `game.go` owns the flat state,
 seeded room-and-corridor generation, bump combat, and deterministic monster
 turns; `main.go` maps input and renders the dungeon plus health/log UI. A run
-has three monsters, player and monster damage, death, and `r` to restart. Field
-of view, exploration memory, semantic color/glyph profiles, and a resize-aware
-camera now render a 96x48 dungeon with tick-driven actor motion. Multi-level
-progression, items, enemy variety, and a win condition are the current M3 work.
+spans three escalating depths with goblins/ogres/bats, health potions, an
+equippable iron sword, stairs-driven descent and a final-stair victory, with
+`r` to restart either death or victory. Field of view, exploration memory,
+semantic truecolor and Nerd Font/ASCII glyph profiles, a resize-aware camera,
+and tick-driven actor motion render a 96x48 dungeon. M3 completed the full
+playable loop; M4's local shipping checks (isolated `go install`, degradation
+matrix, frame budget, CI workflow) are green — only the pushed-workflow and
+TTY-screenshot observations remain blocked.
 
 The north star is [GOAL.md](GOAL.md) — read it before planning work, and check
 every task against it.
@@ -67,11 +71,12 @@ sessions safer or faster. Rules:
 
 Sharp edges found during real work. Prune entries that stop being true.
 
-- **You cannot run the game to check your work.** `tea.WithAltScreen()` in
-  `main()` requires a real TTY; piping input gives
+- **Interactive `main()` still needs a real TTY.** Bare `go run .` or the built
+  binary with `tea.WithAltScreen()` fails with
   `could not open a new TTY: open /dev/tty: device not configured` and exit 1.
-  Use `internal/tuitest` instead. Ask the user to run `make run` if a change
-  genuinely needs human eyes.
+  Use `internal/tuitest` for UI behavior and `go run . --dump-frame` (or
+  `GlyphGrinder --dump-frame`) for a headless smoke test of the real binary.
+  Ask the user to run `make run` if a change genuinely needs human eyes.
 - **Bounds checks in `GameState.Step` are load-bearing but redundant.** `NewGame`
   always walls the border, so the `Pos.Y > 0`-style checks never fire today.
   They will matter the moment map generation stops guaranteeing a wall ring —

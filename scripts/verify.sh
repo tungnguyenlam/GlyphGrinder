@@ -11,6 +11,16 @@ cd "$(dirname "$0")/.."
 
 step() { printf '\n\033[1;36m==> %s\033[0m\n' "$1"; }
 
+# HUD strings survive Lip Gloss styling because CSI SGR wraps the label, not
+# the characters inside it — except "Depth 1", where the number sits outside
+# the styled "Depth". Strip escapes so a color-capable renderer cannot split
+# that check.
+frame_has_hud() {
+	local plain
+	plain="$(sed $'s/\x1b\\[[0-9;]*m//g' "$1")"
+	grep -q "HP " <<<"$plain" && grep -q "Depth 1" <<<"$plain"
+}
+
 # A verification that cannot run its tools must fail loudly, never pass
 # vacuously: check the toolchain exists before any step relies on it.
 for tool in go gofmt; do
@@ -45,7 +55,7 @@ go build ./...
 step "go install (isolated binary)"
 install_dir="$(mktemp -d "${TMPDIR:-/tmp}/glyphgrinder-install.XXXXXX")"
 cleanup_install() {
-	rm -f "$install_dir/GlyphGrinder"
+	rm -f "$install_dir/GlyphGrinder" "$install_dir/frame.txt"
 	rmdir "$install_dir" 2>/dev/null || true
 }
 trap cleanup_install EXIT
@@ -55,13 +65,37 @@ if [[ ! -x "$install_dir/GlyphGrinder" ]]; then
 	exit 1
 fi
 echo "go install produced an executable GlyphGrinder command"
+if ! "$install_dir/GlyphGrinder" --dump-frame >"$install_dir/frame.txt"; then
+	echo "GlyphGrinder --dump-frame failed" >&2
+	exit 1
+fi
+if ! frame_has_hud "$install_dir/frame.txt"; then
+	echo "GlyphGrinder --dump-frame output missing expected HUD" >&2
+	cat "$install_dir/frame.txt" >&2 || true
+	exit 1
+fi
+echo "GlyphGrinder --dump-frame produced a valid frame"
 cleanup_install
 trap - EXIT
 
-step "smoke test (renders one frame headlessly)"
-# The real binary needs a TTY and cannot run in CI or under an agent; the
-# headless driver in internal/tuitest is the smoke test. See
-# docs/agent/notices/2026-07-26-tui-needs-a-tty.md
+step "smoke test (--dump-frame and headless View)"
+# The real binary renders headlessly via --dump-frame so CI and agents can
+# smoke-test it without a TTY; View is also exercised directly via tuitest.
+# See docs/agent/notices/2026-07-26-tui-needs-a-tty.md
+dump_file="$(mktemp "${TMPDIR:-/tmp}/glyphgrinder-dump.XXXXXX")"
+if ! go run . --dump-frame >"$dump_file"; then
+	echo "go run --dump-frame failed" >&2
+	rm -f "$dump_file"
+	exit 1
+fi
+if ! frame_has_hud "$dump_file"; then
+	echo "go run --dump-frame output missing expected HUD" >&2
+	cat "$dump_file" >&2 || true
+	rm -f "$dump_file"
+	exit 1
+fi
+echo "go run --dump-frame produced a valid frame"
+rm -f "$dump_file"
 go test -count=1 -run 'TestViewRendersFullGrid' .
 
 step "full test suite"

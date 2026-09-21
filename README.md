@@ -61,9 +61,10 @@ default is the `bin` directory under `go env GOPATH`.
 ./scripts/verify.sh    # or: make verify — the one verification command
 ```
 
-Runs the formatting check, `go vet`, build, an isolated `go install`, a
-headless smoke render, the full test suite, and a `go mod tidy` check. No test
-requires a TTY.
+Runs the formatting check, `go vet`, build, an isolated `go install` plus
+`--dump-frame` of the installed binary, a matching `go run . --dump-frame`
+smoke render, the full test suite, and a `go mod tidy` check. No test requires
+a TTY.
 
 [GOAL.md](GOAL.md) describes the product direction and
 [docs/backlog/active.md](docs/backlog/active.md) tracks the current engineering

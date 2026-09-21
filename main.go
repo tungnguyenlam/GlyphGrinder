@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"math/rand"
 	"os"
 	"strings"
@@ -524,10 +525,30 @@ func renderSidebar(state GameState, styles viewStyles) string {
 }
 
 func main() {
+	if hasDumpFrameArg(os.Args[1:]) {
+		dumpFrame(os.Stdout, rand.New(rand.NewSource(time.Now().UnixNano())))
+		return
+	}
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	p := tea.NewProgram(initialModel(rng), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "glyphgrinder: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// dumpFrame renders one production View to out without starting Bubble Tea.
+// Used by --dump-frame so CI and agents can smoke-test the real binary with
+// no TTY.
+func dumpFrame(out io.Writer, rng *rand.Rand) {
+	fmt.Fprintln(out, initialModel(rng).View())
+}
+
+func hasDumpFrameArg(args []string) bool {
+	for _, arg := range args {
+		if arg == "--dump-frame" {
+			return true
+		}
+	}
+	return false
 }

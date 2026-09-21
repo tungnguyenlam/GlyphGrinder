@@ -34,5 +34,3 @@ lingering as a fuzzy reminder.
 - Replay from a seed plus an input log — would make bug reports reproducible
   and is cheap given ADR-0003's pure `View`.
 - Golden-frame testing: snapshot `View` output and diff it.
-- A `--dump-frame` flag so the real binary can be smoke-tested without a TTY
-  (would resolve the TTY notice).
