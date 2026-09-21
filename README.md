@@ -40,6 +40,8 @@ heal but consume a turn, and the iron sword also costs a turn to equip.
 | `r` | Start a fresh run after death or victory |
 | `q` or `Ctrl+C` | Quit |
 
+Letter keys (`WASD`, `p`, `e`, `r`, `q`) are case-insensitive.
+
 Goblins pursue every turn, high-health ogres act every other turn, and fragile
 bats can take two actions. Enemy health and damage rise with dungeon depth.
 

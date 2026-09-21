@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-09-21 (headless `--help` landed; next batch is Caps Lock keys)
+**Last updated:** 2026-09-21 (Caps Lock keys landed; remaining M4 observations are blocked)
 
 ## Current milestone
 
@@ -16,20 +16,9 @@ green outside the maintainer's machine.
 
 ## Exact next action
 
-**Current batch — accept uppercase letter keys so Caps Lock is not a trap:**
-
-1. In `main.go` `Update`, treat `W`/`A`/`S`/`D`, `P`, `E`, `Q`, and `R` as
-   aliases of the documented lowercase controls (Caps Lock / accidental Shift).
-2. Extend `TestMovementKeys` and `TestQuitKeys` (and potion/equip/restart
-   coverage) so uppercase paths stay wired.
-3. Note in the README controls table that letter keys are case-insensitive.
-
-Why this batch next: remaining M4 release observations need a push or a real
-TTY. `Update` matches only lowercase letters, so Caps Lock silently drops
-movement, drink, equip, restart, and quit — a first-session trap on ordinary
-keyboards. External checks stay blocked (see Blockers).
-
-After this batch, re-evaluate blocked external release checks:
+**Complete the external release checks after these commits are pushed** — local
+M4 engineering is green, including `--dump-frame`, `--help`, and case-insensitive
+letter keys. Remaining acceptance work cannot run in this environment:
 
 - Confirm the `Verify` GitHub Actions workflow passes on the first pushed
   commit and that its only verification entry point is `./scripts/verify.sh`.
@@ -38,6 +27,13 @@ After this batch, re-evaluate blocked external release checks:
   branch contains these commits and confirm `GlyphGrinder` launches.
 - Run `make run` in a real terminal, capture a representative gameplay frame,
   add the image under `docs/assets/`, and embed it near the top of the README.
+
+Why next: every local M4 check is green. These last observations inherently
+require the remote repository or a real interactive terminal.
+
+If the next session cannot push or open a TTY, audit `GOAL.md` against tests
+and current code for another high-confidence local batch; park speculative
+ideas in `docs/backlog/parking-lot.md`.
 
 ## Milestone plan
 
@@ -58,6 +54,8 @@ After this batch, re-evaluate blocked external release checks:
 - [x] **M4.6** `--help`/`-h` print usage without a TTY; unknown arguments
       exit 2 with usage on stderr; `verify.sh` checks `--help` on the
       isolated install.
+- [x] **M4.7** Letter keys (`WASD`, `p`, `e`, `r`, `q`) are case-insensitive
+      so Caps Lock does not silently drop input.
 
 ## Acceptance criteria for M4
 
@@ -81,6 +79,11 @@ After this batch, re-evaluate blocked external release checks:
 ```
 ./scripts/verify.sh   —  2026-09-21  —  VERIFY OK (go1.27.0 darwin/arm64, /opt/homebrew/bin/go)
 ```
+
+Caps Lock keys batch (2026-09-21): `Update` lowercases single-character keys
+before matching, so `WASD`/`p`/`e`/`r`/`q` work with Caps Lock. Covered by
+`TestMovementKeys` uppercase cases, `TestUppercaseLetterKeysMatchLowercaseActions`,
+and `TestQuitKeys` `"Q"`. README notes letter keys are case-insensitive.
 
 Headless CLI help batch (2026-09-21): `parseArgs` accepts `--help`/`-h`
 (stdout usage, exit 0) and `--dump-frame`; unknown arguments print usage to

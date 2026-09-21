@@ -270,7 +270,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, animationTick(m.motion.Sequence)
 	case tea.KeyMsg:
 		action := ActionNone
-		switch msg.String() {
+		key := msg.String()
+		if len(key) == 1 {
+			key = strings.ToLower(key)
+		}
+		switch key {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 		case "r":

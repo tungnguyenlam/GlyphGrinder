@@ -495,7 +495,9 @@ func TestMovementKeys(t *testing.T) {
 		{"arrow left", []string{"left"}, []Action{ActionMoveLeft}},
 		{"arrow right", []string{"right"}, []Action{ActionMoveRight}},
 		{"wasd", []string{"w", "a"}, []Action{ActionMoveUp, ActionMoveLeft}},
+		{"wasd uppercase", []string{"W", "A"}, []Action{ActionMoveUp, ActionMoveLeft}},
 		{"round trip", []string{"w", "s", "a", "d"}, []Action{ActionMoveUp, ActionMoveDown, ActionMoveLeft, ActionMoveRight}},
+		{"round trip uppercase", []string{"W", "S", "A", "D"}, []Action{ActionMoveUp, ActionMoveDown, ActionMoveLeft, ActionMoveRight}},
 	}
 
 	for _, tc := range cases {
@@ -739,7 +741,7 @@ func TestSwordPickupAndEquipSurviveUpdateRoundTrip(t *testing.T) {
 	d.Key("e")
 	equipped := d.Model().(model).state
 	if !equipped.Equipped || equipped.Player.Damage != swordDamage {
-		t.Errorf("after e equipped = %v, damage = %d", equipped.Equipped, equipped.Player.Damage)
+		t.Errorf("after e equipped = %v, damage = %d; want true and %d", equipped.Equipped, equipped.Player.Damage, swordDamage)
 	}
 	if plain := stripANSI(d.View()); !strings.Contains(plain, "Weapon sword, 15 dmg") {
 		t.Errorf("equipped sword not rendered:\n%s", plain)
@@ -777,6 +779,52 @@ func TestPotionPickupAndUseSurviveUpdateRoundTrip(t *testing.T) {
 	if !strings.Contains(plain, "HP [########..] 85/100") || !strings.Contains(plain, "Potions 0 (p)") {
 		t.Errorf("potion use not reflected in view:\n%s", plain)
 	}
+}
+
+func TestUppercaseLetterKeysMatchLowercaseActions(t *testing.T) {
+	t.Run("equip E", func(t *testing.T) {
+		state := openTestState()
+		state.Player.Pos = Position{X: 2, Y: 3}
+		state.Entities = nil
+		state.HasSword = true
+		state = state.refreshVisibility()
+		d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed)), glyphs: asciiGlyphs})
+		d.Key("E")
+		got := d.Model().(model).state
+		if !got.Equipped || got.Player.Damage != swordDamage {
+			t.Errorf("after E equipped = %v, damage = %d; want true and %d", got.Equipped, got.Player.Damage, swordDamage)
+		}
+	})
+	t.Run("potion P", func(t *testing.T) {
+		state := openTestState()
+		state.Player.Health = 60
+		state.Potions = 1
+		state.Entities = nil
+		state = state.refreshVisibility()
+		d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed)), glyphs: asciiGlyphs})
+		d.Key("P")
+		got := d.Model().(model).state
+		if got.Player.Health != 85 || got.Potions != 0 {
+			t.Errorf("after P health = %d, potions = %d; want 85 and 0", got.Player.Health, got.Potions)
+		}
+	})
+	t.Run("restart R", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(tuiTestSeed))
+		state := NewGame(20, 10, rng)
+		state.Depth = finalDepth
+		state.Player.Pos = tilePositions(state.Map, TileStairs)[0]
+		state = state.refreshVisibility()
+		d := tuitest.New(t, model{state: state, rng: rng, glyphs: asciiGlyphs})
+		d.Key(">")
+		if !d.Model().(model).state.Won {
+			t.Fatal("setup: final > did not win")
+		}
+		d.Key("R")
+		restarted := d.Model().(model).state
+		if restarted.Won || restarted.GameOver || restarted.Depth != 1 {
+			t.Errorf("after R won/game over/depth = %v/%v/%d, want false/false/1", restarted.Won, restarted.GameOver, restarted.Depth)
+		}
+	})
 }
 
 func TestPlayerCannotWalkThroughWalls(t *testing.T) {
@@ -894,7 +942,7 @@ func TestGameOverAndRestartSurviveUpdateRoundTrip(t *testing.T) {
 }
 
 func TestQuitKeys(t *testing.T) {
-	for _, key := range []string{"q", "ctrl+c"} {
+	for _, key := range []string{"q", "Q", "ctrl+c"} {
 		t.Run(key, func(t *testing.T) {
 			d := tuitest.New(t, newTUITestModel())
 			if d.Quit() {
