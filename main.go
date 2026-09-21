@@ -587,7 +587,7 @@ func (m model) View() string {
 		}
 	}
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, sb.String(), "  ", renderSidebar(m.state, m.showHelp, styles))
+	return lipgloss.JoinHorizontal(lipgloss.Top, sb.String(), "  ", clipLines(renderSidebar(m.state, m.showHelp, styles), m.windowHeight))
 }
 
 func renderSidebar(state GameState, showHelp bool, styles viewStyles) string {
@@ -626,10 +626,12 @@ func renderSidebar(state GameState, showHelp bool, styles viewStyles) string {
 	}
 	sb.WriteByte('\n')
 	fmt.Fprintf(&sb, "%s %d\n", styles.uiAccent.Render("Depth"), state.Depth)
-	if state.Depth < finalDepth {
-		fmt.Fprintf(&sb, "%s reach depth %d\n", styles.uiAccent.Render("Goal"), finalDepth)
-	} else {
-		fmt.Fprintf(&sb, "%s escape via >\n", styles.uiAccent.Render("Goal"))
+	if !showHelp {
+		if state.Depth < finalDepth {
+			fmt.Fprintf(&sb, "%s reach depth %d\n", styles.uiAccent.Render("Goal"), finalDepth)
+		} else {
+			fmt.Fprintf(&sb, "%s escape via >\n", styles.uiAccent.Render("Goal"))
+		}
 	}
 	fmt.Fprintf(&sb, "%s %d %s\n", styles.uiAccent.Render("Potions"), state.Potions, styles.uiText.Render("(p)"))
 	weapon := "fists"
@@ -640,15 +642,17 @@ func renderSidebar(state GameState, showHelp bool, styles viewStyles) string {
 		weapon = "sword"
 	}
 	fmt.Fprintf(&sb, "%s %s, %d dmg\n", styles.uiAccent.Render("Weapon"), styles.uiText.Render(weapon), state.Player.Damage)
-	sb.WriteString(styles.uiAccent.Render("Log:"))
-	var visualLog []string
-	for _, entry := range state.Log {
-		visualLog = append(visualLog, wrapLogLine(entry, sidebarWidth)...)
-	}
-	logStart := max(0, len(visualLog)-visibleLogLines)
-	for _, line := range visualLog[logStart:] {
-		sb.WriteByte('\n')
-		sb.WriteString(styles.uiText.Render(line))
+	if !showHelp {
+		sb.WriteString(styles.uiAccent.Render("Log:"))
+		var visualLog []string
+		for _, entry := range state.Log {
+			visualLog = append(visualLog, wrapLogLine(entry, sidebarWidth)...)
+		}
+		logStart := max(0, len(visualLog)-visibleLogLines)
+		for _, line := range visualLog[logStart:] {
+			sb.WriteByte('\n')
+			sb.WriteString(styles.uiText.Render(line))
+		}
 	}
 	if state.GameOver {
 		sb.WriteByte('\n')
@@ -661,20 +665,30 @@ func renderSidebar(state GameState, showHelp bool, styles viewStyles) string {
 		sb.WriteByte('\n')
 		sb.WriteString(styles.uiAccent.Render("Press r to restart"))
 	}
-	sb.WriteByte('\n')
 	if showHelp {
 		sb.WriteString(styles.uiAccent.Render("? hide"))
+		sb.WriteString(styles.uiText.Render("  q quit"))
 		sb.WriteString("\narrows/WASD/hjkl")
 		sb.WriteString("\n. space  wait")
-		sb.WriteString("\np        drink")
-		sb.WriteString("\ne        equip")
-		sb.WriteString("\n>        stairs")
-		sb.WriteString("\nr        restart")
-		sb.WriteString("\nq        quit")
+		sb.WriteString("\np drink  e equip")
+		sb.WriteString("\n> stairs  r restart")
 	} else {
+		sb.WriteByte('\n')
 		sb.WriteString(styles.uiText.Render("? help"))
 	}
 	return sb.String()
+}
+
+// clipLines keeps the first height lines of s. height <= 0 leaves s unchanged.
+func clipLines(s string, height int) string {
+	if height <= 0 {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	if len(lines) <= height {
+		return s
+	}
+	return strings.Join(lines[:height], "\n")
 }
 
 // wrapLogLine word-wraps s to at most width display cells. Tokens longer than

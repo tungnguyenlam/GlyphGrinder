@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-09-21 (torch falloff landed; remaining M4 observations are blocked)
+**Last updated:** 2026-09-21 (in-game help fits a 9-row terminal)
 
 ## Current milestone
 
@@ -18,10 +18,11 @@ green outside the maintainer's machine.
 
 **Complete the external release checks after these commits are pushed** — local
 M4 engineering is green, including `--dump-frame`, `--help`, in-game `?`
-controls, wait/hjkl, low-HP danger HUD, wrapped sidebar logs, remembered
-items, diagonal FOV, free wall/OOB bumps, failed `p`/`e`/`>` log lines,
-distance-faded torch lighting, and a `GlyphGrinder` make-build name.
-Remaining acceptance work cannot run in this environment:
+controls (compact overlay that fits 9-row terminals), wait/hjkl, low-HP
+danger HUD, wrapped sidebar logs, remembered items, diagonal FOV, free
+wall/OOB bumps, failed `p`/`e`/`>` log lines, distance-faded torch lighting,
+and a `GlyphGrinder` make-build name. Remaining acceptance work cannot run
+in this environment:
 
 - Confirm the `Verify` GitHub Actions workflow passes on the first pushed
   commit and that its only verification entry point is `./scripts/verify.sh`.
@@ -82,6 +83,8 @@ death screens, camera easing, and seed replay stay in the parking lot.
 - [x] **M4.17** Visible floor/wall/stairs/items fade across four torch bands
       toward memory colors (55% at the FOV edge); actors and memory stay full
       semantic colors. Colorless profiles stay unstyled.
+- [x] **M4.18** Open `?` help omits log/goal, uses compact control lines, and
+      clips to `windowHeight` so a 50x9 terminal stays 9 rows.
 
 ## Acceptance criteria for M4
 
@@ -105,6 +108,12 @@ death screens, camera easing, and seed replay stay in the parking lot.
 ```
 ./scripts/verify.sh   —  2026-09-21  —  VERIFY OK (go1.27.0 darwin/arm64, /opt/homebrew/bin/go)
 ```
+
+Tiny-terminal help batch (2026-09-21): open `?` omits the log and goal lines,
+pairs `p`/`e` and `>`/`r`, puts `q` on the `? hide` row, and `clipLines` trims
+the sidebar to `windowHeight`. A 50x9 window stays 9 rows with help open.
+Proven by `TestInGameHelpFitsTinyTerminal` and
+`TestResizeClipsViewportAndPreservesSidebar`.
 
 Torch falloff batch (2026-09-21): visible floor, wall, stairs, and items use
 four Euclidean torch bands from the animated player cell, blending up to 55%

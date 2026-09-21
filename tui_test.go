@@ -115,6 +115,35 @@ func TestResizeClipsViewportAndPreservesSidebar(t *testing.T) {
 	}
 }
 
+func TestInGameHelpFitsTinyTerminal(t *testing.T) {
+	state := openTestStateSized(60, 30)
+	state.Player.Pos = Position{X: 30, Y: 15}
+	state.Entities = nil
+	state = state.refreshVisibility()
+	d := tuitest.New(t, model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed)), glyphs: asciiGlyphs})
+	d.Resize(50, 9)
+	d.Key("?")
+
+	got := d.Model().(model)
+	if !got.showHelp {
+		t.Fatal("? did not open help")
+	}
+	lines := d.Lines()
+	if got, want := len(lines), 9; got != want {
+		t.Fatalf("help-open view has %d rows, want %d", got, want)
+	}
+	plain := stripANSI(d.View())
+	if !strings.Contains(plain, "? hide") || !strings.Contains(plain, "arrows/WASD/hjkl") || !strings.Contains(plain, "q quit") {
+		t.Errorf("tiny-terminal help missing controls:\n%s", plain)
+	}
+	if !strings.Contains(plain, "p drink") || !strings.Contains(plain, "> stairs") {
+		t.Errorf("tiny-terminal help clipped action keys:\n%s", plain)
+	}
+	if strings.Contains(plain, "Log:") {
+		t.Errorf("open help still shows the log on a tiny terminal:\n%s", plain)
+	}
+}
+
 func TestViewportFollowsPlayerAndClampsAtMapEdges(t *testing.T) {
 	centered := openTestStateSized(60, 30)
 	centered.Player.Pos = Position{X: 30, Y: 15}
