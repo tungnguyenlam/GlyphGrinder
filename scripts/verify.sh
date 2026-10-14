@@ -109,7 +109,10 @@ rm -f "$dump_file"
 go test -count=1 -run 'TestViewRendersFullGrid' .
 
 step "full test suite"
-go test -count=1 ./...
+# The race detector guards the value-state slice isolation contract (ADR-0002)
+# and the synchronous tuitest driver (internal/tuitest/AGENTS.md); it stays
+# deterministic because nothing in the suite uses goroutines or timers.
+go test -count=1 -race ./...
 
 step "go.mod tidiness"
 cp go.mod go.mod.verifybak
