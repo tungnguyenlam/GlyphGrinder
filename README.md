@@ -4,6 +4,33 @@ A fast, turn-based Go roguelike that makes the terminal stop looking like a
 terminal. Explore procedural dungeons through a moving pool of light, build a
 small survival kit, and escape before depth-scaled monsters end the run.
 
+A real starting frame, rendered by the game's own view code in a 62x20
+ASCII-profile terminal (`@` you, `#` walls, `.` floor, `/` an iron sword):
+
+```
+                              HP [##########] 100/100
+                              Depth 1
+                              Goal reach depth 3
+                              Potions 0 (p)
+                              Weapon fists, 10 dmg
+                              Log:
+           .                  ? help
+           #      #
+         .##.####.#.
+         ...........
+         .........
+        ......@.#
+         .......#
+         .......#
+         /...###
+          ..
+           .
+```
+
+A UTF-8 terminal with truecolor and a Nerd Font shows the same scene with
+warm torchlight falloff, colored glyphs, and recognizable silhouettes — no
+configuration needed either way.
+
 ## Install
 
 GlyphGrinder requires Go 1.25 or newer. Install the latest version directly
@@ -68,8 +95,11 @@ default is the `bin` directory under `go env GOPATH`.
 
 Runs the formatting check, `go vet`, build, an isolated `go install` plus
 `--dump-frame` and `--help` of the installed binary, a matching
-`go run . --dump-frame` smoke render, the full test suite, and a `go mod tidy`
-check. No test requires a TTY.
+`go run . --dump-frame` smoke render, the full test suite under the race
+detector, and a `go mod tidy` check. No test requires a TTY. The suite
+includes a seeded full-run simulation that plays whole games end to end and
+fails if a run ever soft-locks, breaks the world's invariants, or the dungeon
+stops being escapable.
 
 [GOAL.md](GOAL.md) describes the product direction and
 [docs/backlog/active.md](docs/backlog/active.md) tracks the current engineering

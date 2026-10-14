@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-09-21 (no second iron sword; remaining M4 observations are blocked)
+**Last updated:** 2026-10-15 (local hardening batch landed and green)
 
 ## Current milestone
 
@@ -16,13 +16,15 @@ green outside the maintainer's machine.
 
 ## Exact next action
 
-**Complete the external release checks after these commits are pushed** — local
-M4 engineering is green, including `--dump-frame`, `--help`, in-game `?`
-controls (compact overlay that fits 9-row terminals), wait/hjkl, low-HP
-danger HUD, wrapped sidebar logs, remembered items, diagonal FOV, free
-wall/OOB bumps, failed `p`/`e`/`>` log lines, distance-faded torch lighting,
-stair uses that spend a monster turn, no duplicate iron sword, and a
-`GlyphGrinder` make-build name. Remaining acceptance work cannot run in this
+**Complete the external release checks when the environment allows** — the
+2026-10-15 local hardening batch is landed and `./scripts/verify.sh` is green
+under the race detector. Local M4 engineering is complete: `--dump-frame`,
+`--help`, in-game `?` controls, wait/hjkl, low-HP danger HUD, wrapped sidebar
+logs, remembered items, diagonal FOV, free wall/OOB bumps, failed
+`p`/`e`/`>` log lines, distance-faded torch lighting, stair uses that spend a
+monster turn, no duplicate iron sword, run-unique monster IDs, a seeded
+full-run simulation canary (14/200 naive-bot wins, all runs terminate), and
+race-detector coverage. Remaining acceptance work cannot run in this
 environment:
 
 - Confirm the `Verify` GitHub Actions workflow passes on the first pushed
@@ -31,16 +33,15 @@ environment:
   `go install github.com/tungnguyenlam/GlyphGrinder@latest` after the public
   branch contains these commits and confirm `GlyphGrinder` launches.
 - Run `make run` in a real terminal, capture a representative gameplay frame,
-  add the image under `docs/assets/`, and embed it near the top of the README.
+  add the image under `docs/assets/`, and embed it near the top of the README
+  (the README now carries a genuine ASCII-profile frame as an interim aid).
 
-Why next: every local M4 check is green. These last observations inherently
-require the remote repository or a real interactive terminal.
-
-If the next session cannot push or open a TTY, audit `GOAL.md` against tests
-and current code for another high-confidence local batch; park speculative
-ideas in `docs/backlog/parking-lot.md`. A 2026-09-21 audit parked GOAL.md's
-door glyphs (the dungeon has none) and restored the hunger-clock line; title/
-death screens, camera easing, and seed replay stay in the parking lot.
+If the next session cannot push or open a TTY: two GOAL.md audit passes
+(2026-09-21, 2026-10-15) have parked every remaining GOAL.md gap (doors,
+hunger clock, title/death screens, camera easing, seed replay, golden
+frames). Do not manufacture local work; prefer a re-verification, a
+reproduction of a newly reported bug, or promoting a committed roadmap
+milestone once one exists.
 
 ## Milestone plan
 
@@ -111,8 +112,24 @@ death screens, camera easing, and seed replay stay in the parking lot.
 ## Last verification
 
 ```
-./scripts/verify.sh   —  2026-09-21  —  VERIFY OK (go1.27.0 darwin/arm64, /opt/homebrew/bin/go)
+./scripts/verify.sh   —  2026-10-15  —  VERIFY OK (go1.27.0 darwin/arm64); suite now runs with -race (17.9s)
 ```
+
+Local hardening batch (2026-10-15): `GameState.NextMonsterID` continues across
+descents so the surviving log never reuses "goblin 1"; `newDungeonLevel` and
+`placeMonsters` allocate run-scoped contiguous IDs, restart resets them.
+Proven by `TestNewGameStartsRunScopedMonsterIDs` and
+`TestDescendContinuesMonsterIDsAcrossDepths`. `simulation_test.go` plays
+production-size seeded runs with a deterministic beeline bot: 200 seeds, all
+terminate in death or victory inside 1500 steps, world invariants hold after
+every turn, and 14/200 runs win (winnability canary). During bring-up the
+simulation surfaced that `MonsterTurns` is per-depth, not run-scoped — now
+documented on the field; `MonsterTurns` may only reset together with a
+descent (asserted). `verify.sh` runs the suite under `-race`
+(`internal/tuitest` is synchronous, so the suite stays deterministic). README
+now embeds a genuine ASCII-profile 62x20 starting frame (seed 42, produced by
+the game's own `View` via a window size message) with an honest caption about
+the rich truecolor/Nerd Font rendering.
 
 Duplicate-sword batch (2026-09-21): `placeItems` omits the ground sword when
 `hasSword` is set; depth 1 still places 2 potions and 1 sword. Stepping onto
