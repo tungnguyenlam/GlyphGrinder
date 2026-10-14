@@ -105,6 +105,59 @@ func TestNewGamePlacesMonstersOnDistinctFloors(t *testing.T) {
 	}
 }
 
+func TestNewGameStartsRunScopedMonsterIDs(t *testing.T) {
+	g := newTestGame(5)
+
+	for i, monster := range g.Entities {
+		if got, want := monster.ID, i+1; got != want {
+			t.Errorf("monster %d ID = %d, want %d", i, got, want)
+		}
+	}
+	if got, want := g.NextMonsterID, len(g.Entities)+1; got != want {
+		t.Errorf("NextMonsterID = %d, want %d", got, want)
+	}
+}
+
+func TestDescendContinuesMonsterIDsAcrossDepths(t *testing.T) {
+	rng := rand.New(rand.NewSource(31))
+	g := NewGame(20, 10, rng)
+	firstDepthMaxID := 0
+	for _, monster := range g.Entities {
+		firstDepthMaxID = max(firstDepthMaxID, monster.ID)
+	}
+
+	g.Player.Pos = tilePositions(g.Map, TileStairs)[0]
+	g = g.Descend(rng)
+	if g.Depth != 2 {
+		t.Fatalf("depth after descent = %d, want 2", g.Depth)
+	}
+	assertMonsterIDsAbove(t, g, firstDepthMaxID)
+
+	g.Player.Pos = tilePositions(g.Map, TileStairs)[0]
+	g = g.Descend(rng)
+	if g.Depth != 3 {
+		t.Fatalf("depth after second descent = %d, want 3", g.Depth)
+	}
+	assertMonsterIDsAbove(t, g, firstDepthMaxID)
+	if g.NextMonsterID <= firstDepthMaxID {
+		t.Errorf("NextMonsterID = %d, want an ID above the depth-1 range starting at %d", g.NextMonsterID, firstDepthMaxID+1)
+	}
+}
+
+func assertMonsterIDsAbove(t *testing.T, g GameState, floor int) {
+	t.Helper()
+	seen := make(map[int]bool, len(g.Entities))
+	for _, monster := range g.Entities {
+		if monster.ID <= floor {
+			t.Errorf("monster ID = %d, want an ID above the depth-1 maximum %d", monster.ID, floor)
+		}
+		if seen[monster.ID] {
+			t.Errorf("duplicate monster ID %d within one depth", monster.ID)
+		}
+		seen[monster.ID] = true
+	}
+}
+
 func TestGeneratedMonsterStatsScalePredictablyWithDepth(t *testing.T) {
 	m := openTestStateSized(12, 8).Map
 	tests := []struct {
@@ -124,7 +177,7 @@ func TestGeneratedMonsterStatsScalePredictablyWithDepth(t *testing.T) {
 	}
 	for _, tc := range tests {
 		depth := tc.depth
-		monsters := placeMonsters(m, Position{X: 1, Y: 1}, depth, rand.New(rand.NewSource(17)))
+		monsters := placeMonsters(m, Position{X: 1, Y: 1}, depth, 1, rand.New(rand.NewSource(17)))
 		if len(monsters) != 3 {
 			t.Fatalf("depth %d generated %d monsters, want 3", depth, len(monsters))
 		}

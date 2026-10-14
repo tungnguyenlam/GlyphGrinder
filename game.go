@@ -118,17 +118,24 @@ type Entity struct {
 
 // GameState is the flat root state of the game engine.
 type GameState struct {
-	Map          GameMap
-	Player       Entity
-	Entities     []Entity
-	Items        []Item
-	Log          []string
-	Depth        int
-	Potions      int
-	HasSword     bool
-	Equipped     bool
-	GameOver     bool
-	Won          bool
+	Map      GameMap
+	Player   Entity
+	Entities []Entity
+	Items    []Item
+	Log      []string
+	Depth    int
+	// NextMonsterID is the next ID to hand out. IDs are run-scoped, not
+	// depth-scoped, because the message log survives descents and would
+	// otherwise call different monsters by the same "goblin 1" name.
+	NextMonsterID int
+	Potions       int
+	HasSword      bool
+	Equipped      bool
+	GameOver      bool
+	Won           bool
+	// MonsterTurns counts turns resolved on the current depth only; it
+	// restarts at each new depth, which is what makes ogre cadence
+	// depth-local. Unlike NextMonsterID it is not run-scoped.
 	MonsterTurns int
 }
 
@@ -496,7 +503,7 @@ func NewGame(width, height int, rng *rand.Rand) GameState {
 		MaxHealth: 100,
 		Damage:    10,
 	}
-	return newDungeonLevel(width, height, 1, player, 0, false, false, nil, rng)
+	return newDungeonLevel(width, height, 1, player, 0, false, false, nil, 1, rng)
 }
 
 // Descend replaces the current map with the next dungeon level when the player
@@ -518,7 +525,7 @@ func (g GameState) Descend(rng *rand.Rand) GameState {
 
 	nextDepth := g.Depth + 1
 	log := appendLog(g.Log, fmt.Sprintf("You descend to depth %d.", nextDepth))
-	return newDungeonLevel(g.Map.Width, g.Map.Height, nextDepth, g.Player, g.Potions, g.HasSword, g.Equipped, log, rng)
+	return newDungeonLevel(g.Map.Width, g.Map.Height, nextDepth, g.Player, g.Potions, g.HasSword, g.Equipped, log, g.NextMonsterID, rng)
 }
 
 // useStairs spends a monster turn when the player is standing on stairs,
@@ -542,24 +549,25 @@ func (g GameState) useStairs(rng *rand.Rand) GameState {
 	return g.Descend(rng)
 }
 
-func newDungeonLevel(width, height, depth int, player Entity, potions int, hasSword, equipped bool, log []string, rng *rand.Rand) GameState {
+func newDungeonLevel(width, height, depth int, player Entity, potions int, hasSword, equipped bool, log []string, nextMonsterID int, rng *rand.Rand) GameState {
 	gameMap, rooms := generateDungeon(width, height, rng)
 	playerPos := rooms[0].center()
 	placeDownStairs(&gameMap, playerPos)
 	player.Pos = playerPos
 	player.IsPlayer = true
-	monsters := placeMonsters(gameMap, playerPos, depth, rng)
+	monsters := placeMonsters(gameMap, playerPos, depth, nextMonsterID, rng)
 
 	g := GameState{
-		Map:      gameMap,
-		Entities: monsters,
-		Items:    placeItems(gameMap, playerPos, monsters, rng, hasSword),
-		Player:   player,
-		Log:      log,
-		Depth:    depth,
-		Potions:  potions,
-		HasSword: hasSword,
-		Equipped: equipped,
+		Map:           gameMap,
+		Entities:      monsters,
+		Items:         placeItems(gameMap, playerPos, monsters, rng, hasSword),
+		Player:        player,
+		Log:           log,
+		Depth:         depth,
+		NextMonsterID: nextMonsterID + len(monsters),
+		Potions:       potions,
+		HasSword:      hasSword,
+		Equipped:      equipped,
 	}
 	return g.refreshVisibility()
 }
@@ -637,7 +645,9 @@ func placeDownStairs(m *GameMap, playerPos Position) {
 	m.Tiles[stairs.Y][stairs.X] = TileStairs
 }
 
-func placeMonsters(m GameMap, playerPos Position, depth int, rng *rand.Rand) []Entity {
+// placeMonsters spreads depth-scaled monsters over open floors. IDs run
+// contiguously from nextID so a whole run never reuses an ID in its log.
+func placeMonsters(m GameMap, playerPos Position, depth, nextID int, rng *rand.Rand) []Entity {
 	openFloors := make([]Position, 0, m.Width*m.Height)
 	for y := 1; y < m.Height-1; y++ {
 		for x := 1; x < m.Width-1; x++ {
@@ -657,7 +667,7 @@ func placeMonsters(m GameMap, playerPos Position, depth int, rng *rand.Rand) []E
 		archetype := [...]MonsterArchetype{MonsterGoblin, MonsterOgre, MonsterBat}[i]
 		health, damage := monsterStats(archetype, depth)
 		monsters[i] = Entity{
-			ID:        i + 1,
+			ID:        nextID + i,
 			Pos:       openFloors[i],
 			Archetype: archetype,
 			Health:    health,
