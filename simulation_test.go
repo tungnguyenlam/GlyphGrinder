@@ -64,6 +64,67 @@ func TestSimulatedRunsTerminateWithInvariants(t *testing.T) {
 	t.Logf("%d of %d seeded runs escaped the dungeon", wins, simulationSeedCount)
 }
 
+// The beeline canary proves runs terminate and stay winnable, but it walks one
+// shortest path every time. This second canary spends turns the way a
+// distracted player does — wandering off the route, waiting in the open,
+// bumping walls, drinking at full health, equipping nothing, and ducking into
+// stairs mid-fight — and re-checks the same invariants after every turn. It is
+// deterministic: fixed seeds, fixed action stream, fixed map RNG.
+const (
+	randomSimulationSeedCount = 40
+	randomSimulationMaxSteps  = 600
+)
+
+func TestRandomizedActionRunsKeepInvariants(t *testing.T) {
+	for seed := int64(1); seed <= randomSimulationSeedCount; seed++ {
+		rng := rand.New(rand.NewSource(seed))
+		brain := rand.New(rand.NewSource(seed*7919 + 1))
+		g := NewGame(productionDungeonWidth, productionDungeonHeight, rng)
+		for step := 0; step < randomSimulationMaxSteps; step++ {
+			checkRunInvariants(t, g, seed, step)
+			if g.GameOver || g.Won {
+				break
+			}
+			next := playRandomTurn(g, rng, brain)
+			if next.MonsterTurns < g.MonsterTurns && next.Depth == g.Depth {
+				t.Fatalf("seed %d step %d: MonsterTurns went backwards %d -> %d", seed, step, g.MonsterTurns, next.MonsterTurns)
+			}
+			g = next
+		}
+	}
+}
+
+// playRandomTurn spends one turn from a seeded action stream: drink, equip,
+// wait, take stairs, or step toward the stairs half the time and wander the
+// other half. Free and pointless actions are deliberate — they are exactly the
+// turns the beeline bot never takes.
+func playRandomTurn(g GameState, rng, brain *rand.Rand) GameState {
+	switch brain.Intn(20) {
+	case 0:
+		return g.Step(ActionUsePotion)
+	case 1:
+		return g.Step(ActionEquipWeapon)
+	case 2, 3:
+		return g.Step(ActionWait)
+	case 4:
+		return g.useStairs(rng)
+	}
+
+	delta := Position{}
+	if brain.Intn(2) == 0 {
+		if stairs := tilePositions(g.Map, TileStairs); len(stairs) == 1 {
+			if next, ok := nextCardinalStep(g.Map, g.Player.Pos, stairs[0]); ok {
+				delta = Position{X: next.X - g.Player.Pos.X, Y: next.Y - g.Player.Pos.Y}
+			}
+		}
+	}
+	if delta == (Position{}) {
+		dirs := [...]Position{{X: 1}, {Y: 1}, {X: -1}, {Y: -1}}
+		delta = dirs[brain.Intn(len(dirs))]
+	}
+	return g.Step(actionForDelta(delta))
+}
+
 // playSimulationTurn is the deterministic bot: drink when hurt, equip the
 // sword when carried, use the stairs when standing on them, otherwise walk one
 // cardinal step along the shortest path to the stairs (bump-attacking any
@@ -169,8 +230,14 @@ func checkRunInvariants(t *testing.T, g GameState, seed int64, step int) {
 	}
 
 	assertOpenTile("player", g.Player.Pos)
+	if !g.Map.Visible[g.Player.Pos.Y][g.Player.Pos.X] || !g.Map.Explored[g.Player.Pos.Y][g.Player.Pos.X] {
+		fail("the player's own tile is not visible and explored")
+	}
 	if g.Player.Health < 0 || g.Player.Health > g.Player.MaxHealth {
 		fail("player health %d outside 0..%d", g.Player.Health, g.Player.MaxHealth)
+	}
+	if g.Equipped && (!g.HasSword || g.Player.Damage != swordDamage) {
+		fail("equipped=%v sword=%v damage=%d is inconsistent", g.Equipped, g.HasSword, g.Player.Damage)
 	}
 	if g.Depth < 1 || g.Depth > finalDepth {
 		fail("depth %d outside 1..%d", g.Depth, finalDepth)
@@ -209,6 +276,12 @@ func checkRunInvariants(t *testing.T, g GameState, seed int64, step int) {
 			fail("two items share %+v", item.Pos)
 		}
 		items[item.Pos] = true
+		if item.Type == ItemSword && g.HasSword {
+			fail("a ground sword at %+v while the player already carries one", item.Pos)
+		}
+		if g.Map.Tiles[item.Pos.Y][item.Pos.X] == TileStairs {
+			fail("item %+v sits on the stairs", item.Pos)
+		}
 	}
 	if len(g.Items) > 3 {
 		fail("%d items on one floor, want at most 3", len(g.Items))

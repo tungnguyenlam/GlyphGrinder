@@ -417,6 +417,46 @@ func tilePositions(m GameMap, want TileType) []Position {
 	return positions
 }
 
+// TestVisibilityNeverLeaksOutsideRadiusOrExploration teleports the player to
+// random floors of a production dungeon and asserts the FOV contract after
+// each refresh: the player sees their own tile, every visible tile is inside
+// the torch radius, and it is remembered afterwards. Generated maps change
+// shape with every seed, and the radius check is the cheap half of the
+// occlusion contract (line of sight itself is unit-tested separately).
+func TestVisibilityNeverLeaksOutsideRadiusOrExploration(t *testing.T) {
+	rng := rand.New(rand.NewSource(2026))
+	g := NewGame(productionDungeonWidth, productionDungeonHeight, rng)
+	floors := tilePositions(g.Map, TileFloor)
+	if len(floors) == 0 {
+		t.Fatal("generated dungeon has no floors to stand on")
+	}
+	radiusSquared := visibilityRadius * visibilityRadius
+
+	for i := 0; i < 200; i++ {
+		g.Player.Pos = floors[rng.Intn(len(floors))]
+		g = g.refreshVisibility()
+		pos := g.Player.Pos
+		if !g.Map.Visible[pos.Y][pos.X] || !g.Map.Explored[pos.Y][pos.X] {
+			t.Fatalf("sample %d: player tile %+v is not visible and explored", i, pos)
+		}
+		for y, row := range g.Map.Visible {
+			for x, visible := range row {
+				if !visible {
+					continue
+				}
+				if !g.Map.Explored[y][x] {
+					t.Fatalf("sample %d: tile (%d,%d) is visible but not explored", i, x, y)
+				}
+				dx := x - pos.X
+				dy := y - pos.Y
+				if dx*dx+dy*dy > radiusSquared {
+					t.Fatalf("sample %d: tile (%d,%d) is visible at distance² %d beyond radius %d", i, x, y, dx*dx+dy*dy, visibilityRadius)
+				}
+			}
+		}
+	}
+}
+
 func mapSignature(m GameMap) string {
 	signature := make([]byte, 0, m.Width*m.Height)
 	for _, row := range m.Tiles {
