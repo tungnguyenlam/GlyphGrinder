@@ -55,7 +55,7 @@ go build ./...
 step "go install (isolated binary)"
 install_dir="$(mktemp -d "${TMPDIR:-/tmp}/glyphgrinder-install.XXXXXX")"
 cleanup_install() {
-	rm -f "$install_dir/GlyphGrinder" "$install_dir/frame.txt" "$install_dir/help.txt"
+	rm -f "$install_dir/GlyphGrinder" "$install_dir/frame.txt" "$install_dir/help.txt" "$install_dir/ascii.txt" "$install_dir/rich.txt"
 	rmdir "$install_dir" 2>/dev/null || true
 }
 trap cleanup_install EXIT
@@ -85,6 +85,30 @@ if ! grep -q -- "--dump-frame" "$install_dir/help.txt" || ! grep -q -- "--help" 
 	exit 1
 fi
 echo "GlyphGrinder --help produced usage"
+
+step "degradation matrix (installed binary)"
+# The real binary must pick its glyph profile from the environment without a
+# TTY: TERM=dumb and a POSIX locale fall back to one-cell ASCII, while a UTF-8
+# locale selects the Nerd Font glyphs. This is the startup-degradation check
+# M4 promises; glyphs never depend on the detected color profile.
+if ! TERM=dumb LC_ALL=C LANG=C "$install_dir/GlyphGrinder" --dump-frame >"$install_dir/ascii.txt"; then
+	echo "TERM=dumb GlyphGrinder --dump-frame failed" >&2
+	exit 1
+fi
+if LC_ALL=C grep -q '[^ -~]' "$install_dir/ascii.txt"; then
+	echo "TERM=dumb frame is not pure ASCII:" >&2
+	LC_ALL=C grep -n '[^ -~]' "$install_dir/ascii.txt" | head -3 >&2 || true
+	exit 1
+fi
+if ! TERM=xterm-256color LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 "$install_dir/GlyphGrinder" --dump-frame >"$install_dir/rich.txt"; then
+	echo "UTF-8 locale GlyphGrinder --dump-frame failed" >&2
+	exit 1
+fi
+if ! LC_ALL=C grep -q '[^ -~]' "$install_dir/rich.txt"; then
+	echo "UTF-8 locale frame has no rich glyphs" >&2
+	exit 1
+fi
+echo "TERM=dumb/POSIX renders ASCII; UTF-8 renders rich glyphs"
 cleanup_install
 trap - EXIT
 

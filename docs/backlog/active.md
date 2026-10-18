@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-10-19 (tiny-terminal frame batch landed and green)
+**Last updated:** 2026-10-19 (tiny-terminal frame + degradation-matrix batches landed and green)
 
 ## Current milestone
 
@@ -106,6 +106,9 @@ promoting a committed roadmap milestone once one exists.
       actions, off-stairs `>`), and a randomized key/resize canary keeps the
       frame inside its window through restart, help, stairs, death, and
       resize-during-animation.
+- [x] **M4.23** `verify.sh` enforces the installed binary's degradation matrix:
+      `TERM=dumb`/POSIX-locale `--dump-frame` output is pure ASCII, and a UTF-8
+      locale frame carries the rich glyphs.
 
 ## Acceptance criteria for M4
 
@@ -127,8 +130,18 @@ promoting a committed roadmap milestone once one exists.
 ## Last verification
 
 ```
-./scripts/verify.sh   —  2026-10-19  —  VERIFY OK (go1.27.2 darwin/arm64); suite under -race now 22.6s with the randomized-action and randomized-input canaries
+./scripts/verify.sh   —  2026-10-19  —  VERIFY OK (go1.27.2 darwin/arm64); suite under -race 23.4s with the randomized-action and randomized-input canaries; new installed-binary degradation matrix step
 ```
+
+Degradation-matrix batch (2026-10-19): `verify.sh` now renders the installed
+binary's `--dump-frame` under `TERM=dumb LC_ALL=C LANG=C` and asserts the frame
+is pure ASCII, then under `TERM=xterm-256color` with a UTF-8 locale and
+asserts rich glyphs are present. The check was proven to have teeth by forcing
+`glyphProfileForEnvironment` to return the rich profile, which fails it. Also
+measured while auditing the render path: a 600-entry log costs about 75 µs per
+frame (216 vs 140 µs) because `renderSidebar` wraps the whole history every
+frame — roughly 2% of the 16.7 ms frame budget, so no optimization was
+justified; revisit only if a run's log grows an order of magnitude longer.
 
 Tiny-terminal frame batch (2026-10-19): an audit pass over `View` found that a
 window narrower than the sidebar (roughly under 34 columns) produced rows wider

@@ -94,14 +94,15 @@ default is the `bin` directory under `go env GOPATH`.
 ```
 
 Runs the formatting check, `go vet`, build, an isolated `go install` plus
-`--dump-frame` and `--help` of the installed binary, a matching
-`go run . --dump-frame` smoke render, the full test suite under the race
-detector, and a `go mod tidy` check. No test requires a TTY. The suite
-includes seeded full-run simulations that play whole games end to end — a
-shortest-path bot that proves the dungeon stays escapable, and a wandering bot
-that spends turns the way a distracted player does — and fails if a run ever
-soft-locks, breaks the world's invariants, or the dungeon stops being
-escapable.
+`--dump-frame` and `--help` of the installed binary, a degradation matrix that
+renders that binary under `TERM=dumb`/POSIX (pure ASCII) and a UTF-8 locale
+(rich glyphs), a matching `go run . --dump-frame` smoke render, the full test
+suite under the race detector, and a `go mod tidy` check. No test requires a
+TTY. The suite includes seeded full-run simulations that play whole games end
+to end — a shortest-path bot that proves the dungeon stays escapable, and a
+wandering bot that spends turns the way a distracted player does — and fails
+if a run ever soft-locks, breaks the world's invariants, or the dungeon stops
+being escapable.
 
 [GOAL.md](GOAL.md) describes the product direction and
 [docs/backlog/active.md](docs/backlog/active.md) tracks the current engineering
