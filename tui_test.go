@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"math/rand"
 	"reflect"
@@ -187,6 +188,176 @@ func TestViewportFollowsPlayerAndClampsAtMapEdges(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestViewFitsWindowAcrossSizes pins the frame geometry contract: a rendered
+// frame must never be wider or taller than the terminal it was rendered for.
+// An over-wide row wraps in a real terminal, scrolls the layout, and leaves
+// stale cells behind, so a window narrower than map plus sidebar clips the
+// sidebar instead.
+func TestViewFitsWindowAcrossSizes(t *testing.T) {
+	sizes := []struct {
+		width  int
+		height int
+	}{
+		{1, 1}, {3, 2}, {20, 10}, {33, 12}, {34, 12}, {35, 12},
+		{50, 9}, {80, 24}, {96, 48}, {120, 40}, {200, 60},
+	}
+	profiles := []struct {
+		name   string
+		glyphs glyphProfile
+	}{
+		{"ascii", asciiGlyphs},
+		{"rich", richGlyphs},
+	}
+	for _, size := range sizes {
+		for _, profile := range profiles {
+			for _, help := range []bool{false, true} {
+				name := fmt.Sprintf("%dx%d_%s_help%v", size.width, size.height, profile.name, help)
+				t.Run(name, func(t *testing.T) {
+					m := newTUITestModel()
+					m.glyphs = profile.glyphs
+					d := tuitest.New(t, m)
+					d.Resize(size.width, size.height)
+					if help {
+						d.Key("?")
+					}
+
+					lines := d.Lines()
+					if len(lines) > size.height {
+						t.Fatalf("view has %d rows, want at most %d", len(lines), size.height)
+					}
+					for row, line := range lines {
+						plain := stripANSI(line)
+						if got := lipgloss.Width(line); got > size.width {
+							t.Errorf("row %d has %d display cells, want at most %d: %q", row, got, size.width, plain)
+						}
+						if got := len([]rune(plain)); got > size.width {
+							t.Errorf("row %d has %d glyphs, want at most %d: %q", row, got, size.width, plain)
+						}
+					}
+				})
+			}
+		}
+	}
+}
+
+// TestSidebarFitsReservedWidth pins the layout contract View relies on to skip
+// measuring the sidebar on normal terminals: every sidebar state stays within
+// sidebarWidth cells, so a window that leaves a full sidebar cannot overflow.
+func TestSidebarFitsReservedWidth(t *testing.T) {
+	base := openTestState()
+	tests := []struct {
+		name     string
+		mutate   func(GameState) GameState
+		showHelp bool
+	}{
+		{name: "default", mutate: func(g GameState) GameState { return g }},
+		{name: "help open", showHelp: true, mutate: func(g GameState) GameState { return g }},
+		{name: "wrapped log", mutate: func(g GameState) GameState {
+			g.Log = nil
+			for range 40 {
+				g.Log = append(g.Log, "You drink a potion and recover 25 health.")
+			}
+			return g
+		}},
+		{name: "sword carried and equipped", mutate: func(g GameState) GameState {
+			g.HasSword, g.Equipped = true, true
+			g.Player.Damage = swordDamage
+			return g
+		}},
+		{name: "critical health", mutate: func(g GameState) GameState {
+			g.Player.Health = 1
+			return g
+		}},
+		{name: "final depth", mutate: func(g GameState) GameState {
+			g.Depth = finalDepth
+			return g
+		}},
+		{name: "game over", mutate: func(g GameState) GameState {
+			g.GameOver = true
+			g.Player.Health = 0
+			return g
+		}},
+		{name: "victory", mutate: func(g GameState) GameState {
+			g.Won = true
+			g.Depth = finalDepth
+			return g
+		}},
+	}
+	styles := newViewStyles(lipgloss.DefaultRenderer(), defaultPalette)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			sidebar := renderSidebar(tc.mutate(base), tc.showHelp, styles)
+			if got := lipgloss.Width(sidebar); got > sidebarWidth {
+				t.Fatalf("sidebar is %d cells wide, want at most %d:\n%s", got, sidebarWidth, stripANSI(sidebar))
+			}
+		})
+	}
+}
+
+// TestRandomizedKeysAndResizesKeepFrameValid drives the real Update loop with
+// seeded keys, window resizes, and animation ticks, then asserts the frame
+// still fits its window and that the camera and player stay inside the map.
+// One deterministic canary covers restart, help, stairs, death, and
+// resize-during-animation instead of enumerating those interactions by hand.
+func TestRandomizedKeysAndResizesKeepFrameValid(t *testing.T) {
+	const (
+		randomizedSeeds = 10
+		randomizedSteps = 400
+	)
+	keys := []string{"up", "down", "left", "right", "w", "a", "s", "d", "h", "j", "k", "l", "p", "e", ">", ".", " ", "?", "r", "x", "Q"}
+
+	for seed := int64(1); seed <= randomizedSeeds; seed++ {
+		m := initialModel(rand.New(rand.NewSource(seed)))
+		m.glyphs = asciiGlyphs
+		brain := rand.New(rand.NewSource(seed*31 + 5))
+		width, height := 60, 20
+		m, _ = applyMsg(t, m, tea.WindowSizeMsg{Width: width, Height: height})
+
+		for step := 0; step < randomizedSteps; step++ {
+			if brain.Intn(10) == 0 {
+				width = 1 + brain.Intn(130)
+				height = 1 + brain.Intn(50)
+				m, _ = applyMsg(t, m, tea.WindowSizeMsg{Width: width, Height: height})
+			}
+			if brain.Intn(4) != 0 {
+				key := keys[brain.Intn(len(keys))]
+				m, _ = applyMsg(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)})
+			}
+			if len(m.motion.Actors) > 0 && brain.Intn(2) == 0 {
+				m, _ = applyMsg(t, m, animationTickMsg{Sequence: m.motion.Sequence})
+			}
+
+			lines := strings.Split(m.View(), "\n")
+			if len(lines) > height {
+				t.Fatalf("seed %d step %d: frame has %d rows for height %d", seed, step, len(lines), height)
+			}
+			for row, line := range lines {
+				if got := lipgloss.Width(line); got > width {
+					t.Fatalf("seed %d step %d: row %d has %d cells for width %d: %q", seed, step, row, got, width, stripANSI(line))
+				}
+			}
+			if vp := m.viewport(); vp.Width < 1 || vp.Height < 1 ||
+				vp.X < 0 || vp.Y < 0 ||
+				vp.X+vp.Width > m.state.Map.Width || vp.Y+vp.Height > m.state.Map.Height {
+				t.Fatalf("seed %d step %d: viewport %+v outside map %dx%d", seed, step, vp, m.state.Map.Width, m.state.Map.Height)
+			}
+			if pos := m.state.Player.Pos; pos.X < 0 || pos.X >= m.state.Map.Width || pos.Y < 0 || pos.Y >= m.state.Map.Height {
+				t.Fatalf("seed %d step %d: player %+v outside map", seed, step, pos)
+			}
+		}
+	}
+}
+
+func applyMsg(t *testing.T, m model, msg tea.Msg) (model, tea.Cmd) {
+	t.Helper()
+	next, cmd := m.Update(msg)
+	updated, ok := next.(model)
+	if !ok {
+		t.Fatalf("Update(%T) returned %T, want model", msg, next)
+	}
+	return updated, cmd
 }
 
 func TestTinyResizeKeepsViewportValid(t *testing.T) {

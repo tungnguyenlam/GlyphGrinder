@@ -597,7 +597,20 @@ func (m model) View() string {
 		}
 	}
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, sb.String(), "  ", clipLines(renderSidebar(m.state, m.showHelp, styles), m.windowHeight))
+	footer := clipLines(renderSidebar(m.state, m.showHelp, styles), m.windowHeight)
+	if m.windowWidth > 0 {
+		// The map keeps every column it was given; the sidebar yields first.
+		// renderSidebar never exceeds sidebarWidth cells, so a window that
+		// leaves a full sidebar only needs clipping when it is narrower still.
+		available := m.windowWidth - viewport.Width - mapSidebarGap
+		if available <= 0 {
+			return sb.String()
+		}
+		if available < sidebarWidth {
+			footer = clipColumns(footer, available)
+		}
+	}
+	return lipgloss.JoinHorizontal(lipgloss.Top, sb.String(), "  ", footer)
 }
 
 func renderSidebar(state GameState, showHelp bool, styles viewStyles) string {
@@ -699,6 +712,77 @@ func clipLines(s string, height int) string {
 		return s
 	}
 	return strings.Join(lines[:height], "\n")
+}
+
+// clipColumns limits every line of s to width display cells. A window narrower
+// than the map plus the sidebar would otherwise emit rows the terminal wraps
+// onto the next physical line, scrolling the frame and leaving stale cells.
+// Only lines that actually overflow are rebuilt.
+func clipColumns(s string, width int) string {
+	if width <= 0 {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	clipped := false
+	for i, line := range lines {
+		if lipgloss.Width(line) <= width {
+			continue
+		}
+		lines[i] = clipLineToWidth(line, width)
+		clipped = true
+	}
+	if !clipped {
+		return s
+	}
+	return strings.Join(lines, "\n")
+}
+
+const sgrReset = "\x1b[0m"
+
+// clipLineToWidth keeps at most width cells of printable text plus the
+// complete escape sequences that precede them. It stops only on a printable
+// rune, so a cut never splits an escape sequence, and it ends with a style
+// reset so the dropped tail cannot leak color into the following line.
+func clipLineToWidth(line string, width int) string {
+	const (
+		escapeNone = iota
+		escapeStart
+		escapeCSI
+	)
+	var sb strings.Builder
+	cells := 0
+	state := escapeNone
+	for _, r := range line {
+		switch state {
+		case escapeStart:
+			sb.WriteRune(r)
+			if r == '[' {
+				state = escapeCSI
+			} else {
+				state = escapeNone
+			}
+			continue
+		case escapeCSI:
+			sb.WriteRune(r)
+			if r >= 0x40 && r <= 0x7E {
+				state = escapeNone
+			}
+			continue
+		}
+		if r == '\x1b' {
+			state = escapeStart
+			sb.WriteRune(r)
+			continue
+		}
+		cellWidth := lipgloss.Width(string(r))
+		if cells+cellWidth > width {
+			break
+		}
+		cells += cellWidth
+		sb.WriteRune(r)
+	}
+	sb.WriteString(sgrReset)
+	return sb.String()
 }
 
 // wrapLogLine word-wraps s to at most width display cells. Tokens longer than
