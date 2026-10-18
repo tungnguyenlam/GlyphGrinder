@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-10-19 (tiny-terminal frame, degradation-matrix, help/docs, headless-tick, connectivity/docs-check, and clipper-tests batches landed and green)
+**Last updated:** 2026-10-19 (tiny-terminal frame, degradation-matrix, help/docs, headless-tick, connectivity/docs-check, clipper-tests, and defensive-guards batches landed and green)
 
 ## Current milestone
 
@@ -126,6 +126,11 @@ promoting a committed roadmap milestone once one exists.
       (escapes copied whole, wide runes dropped rather than split, result
       always ends with a style reset) and `clipColumns` rebuilds only
       overflowing lines.
+- [x] **M4.28** The defensive guards AGENTS.md calls load-bearing are pinned:
+      stepping off every map edge (artificial unwalled border) stays put
+      without a turn or log, `Descend`/`useStairs` reject off-map players
+      without changing state, and zero/negative clip limits leave input alone.
+      Removing either map-bounds guard makes the new tests panic.
 
 ## Acceptance criteria for M4
 
@@ -149,6 +154,20 @@ promoting a committed roadmap milestone once one exists.
 ```
 ./scripts/verify.sh   —  2026-10-19  —  VERIFY OK (go1.27.2 darwin/arm64); suite under -race 21.3s with the production connectivity sweep and the randomized-action and randomized-input canaries; installed-binary degradation matrix and docs link/index steps
 ```
+
+Defensive-guards batch (2026-10-19): the out-of-range branches that normal
+play cannot reach are now pinned. `TestStepOffEveryMapEdgeStaysPut` walks off
+all four edges and two corners of an artificially unwalled 7x7 map (the
+existing bounds subtest only covered the left edge) and asserts the player
+stays put with no monster turn, damage, or log;
+`TestStairsCommandsRejectOffMapPlayers` asserts `Descend` and `useStairs`
+return a state unchanged for players placed outside the map; and
+`TestZeroLimitClipFallbacks` pins that a zero/negative wrap width or clip
+height leaves the input alone. Proven by deleting each guard in turn: without
+the move guard the step test panics with `index out of range [-1]`, and
+without `Descend`'s guard the stairs test panics the same way. This makes the
+AGENTS.md "load-bearing but redundant" gotcha executable. Suite under -race
+21.3s.
 
 Clipper-tests batch (2026-10-19): the sidebar-clipping helpers added with the
 tiny-terminal frame fix had indirect coverage only, so

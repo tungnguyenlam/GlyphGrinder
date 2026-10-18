@@ -810,6 +810,22 @@ func TestWrapLogLineFitsSidebarWidth(t *testing.T) {
 	}
 }
 
+// TestZeroLimitClipFallbacks pins the documented non-positive-limit
+// fallbacks: callers drop an over-wide or over-tall block themselves, and a
+// zero width or height must leave the input alone rather than panic or emit
+// an empty line.
+func TestZeroLimitClipFallbacks(t *testing.T) {
+	if got, want := wrapLogLine("no width budget", 0), []string{"no width budget"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("wrapLogLine at width 0 = %q, want %q", got, want)
+	}
+	if got := clipLines("a\nb\nc", 0); got != "a\nb\nc" {
+		t.Errorf("clipLines at height 0 = %q, want it unchanged", got)
+	}
+	if got := clipLines("a\nb\nc", -2); got != "a\nb\nc" {
+		t.Errorf("clipLines at negative height = %q, want it unchanged", got)
+	}
+}
+
 func TestSidebarLogLinesFitReservedWidth(t *testing.T) {
 	state := openTestState()
 	state.Log = append(state.Log, "You drink a potion and recover 25 health.")

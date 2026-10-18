@@ -1015,6 +1015,89 @@ func TestStepBlockedMovementDoesNotSpendATurn(t *testing.T) {
 	})
 }
 
+// TestStepOffEveryMapEdgeStaysPut extends the "map bounds" case to every
+// edge and corner. NewGame always walls the border, so the out-of-range
+// branch only fires in artificial states like these, but AGENTS.md calls the
+// guard load-bearing for any future generation that stops guaranteeing the
+// wall ring: stepping outward must not panic, move the player, spend a turn,
+// or log.
+func TestStepOffEveryMapEdgeStaysPut(t *testing.T) {
+	state := openTestState()
+	width, height := state.Map.Width, state.Map.Height
+	cases := []struct {
+		name   string
+		from   Position
+		action Action
+	}{
+		{name: "up", from: Position{X: 3, Y: 0}, action: ActionMoveUp},
+		{name: "down", from: Position{X: 3, Y: height - 1}, action: ActionMoveDown},
+		{name: "left", from: Position{X: 0, Y: 3}, action: ActionMoveLeft},
+		{name: "right", from: Position{X: width - 1, Y: 3}, action: ActionMoveRight},
+		{name: "corner up", from: Position{X: 0, Y: 0}, action: ActionMoveUp},
+		{name: "corner left", from: Position{X: 0, Y: 0}, action: ActionMoveLeft},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := openTestState()
+			g.Player.Pos = tc.from
+			before := g
+
+			got := g.Step(tc.action)
+
+			if got.Player.Pos != before.Player.Pos {
+				t.Errorf("player pos = %+v, want %+v", got.Player.Pos, before.Player.Pos)
+			}
+			if got.MonsterTurns != before.MonsterTurns {
+				t.Errorf("out-of-range step advanced monster turns to %d, want %d", got.MonsterTurns, before.MonsterTurns)
+			}
+			if got.Player.Health != before.Player.Health {
+				t.Errorf("out-of-range step changed health to %d, want %d", got.Player.Health, before.Player.Health)
+			}
+			if !reflect.DeepEqual(got.Log, before.Log) {
+				t.Errorf("out-of-range step logged %q, want %q", got.Log, before.Log)
+			}
+		})
+	}
+}
+
+// TestStairsCommandsRejectOffMapPlayers pins the out-of-range guards in
+// Descend and useStairs. Normal play cannot put the player outside the map,
+// so these branches are defensive only; they must keep a corrupted position
+// from indexing tiles out of range or changing any state.
+func TestStairsCommandsRejectOffMapPlayers(t *testing.T) {
+	state := openTestState()
+	width, height := state.Map.Width, state.Map.Height
+	cases := []struct {
+		name string
+		pos  Position
+	}{
+		{name: "left of map", pos: Position{X: -1, Y: 3}},
+		{name: "right of map", pos: Position{X: width, Y: 3}},
+		{name: "above map", pos: Position{X: 3, Y: -1}},
+		{name: "below map", pos: Position{X: 3, Y: height}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := openTestState()
+			g.Player.Pos = tc.pos
+			before := g
+			commands := []struct {
+				name string
+				run  func(*rand.Rand) GameState
+			}{
+				{name: "Descend", run: g.Descend},
+				{name: "useStairs", run: g.useStairs},
+			}
+			for _, command := range commands {
+				got := command.run(rand.New(rand.NewSource(1)))
+				if !reflect.DeepEqual(got, before) {
+					t.Errorf("%s with player at %+v changed the state", command.name, tc.pos)
+				}
+			}
+		})
+	}
+}
+
 func TestStepIgnoresNoAction(t *testing.T) {
 	g := newTestGame(6)
 	priorTurns := g.MonsterTurns
