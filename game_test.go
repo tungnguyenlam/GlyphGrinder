@@ -256,6 +256,65 @@ func TestGeneratedDungeonFloorsAreReachable(t *testing.T) {
 	}
 }
 
+// TestProductionDungeonsStayConnectedAcrossDepths extends the reachability
+// guarantee to the sizes the game actually ships, on every depth of a run:
+// exactly one stairs reachable from the player, every floor reachable, and
+// every monster and item standing on a reachable floor. The run canaries
+// cannot tell an unreachable level from a bad bot, so a generation change that
+// quietly disconnects a region would otherwise ship an unwinnable dungeon.
+// The sweep descends by placing the player on the stairs and calling Descend
+// directly, keeping this invariant independent of combat and monster turns.
+func TestProductionDungeonsStayConnectedAcrossDepths(t *testing.T) {
+	const seeds = 60
+	for seed := int64(1); seed <= seeds; seed++ {
+		rng := rand.New(rand.NewSource(seed))
+		g := NewGame(productionDungeonWidth, productionDungeonHeight, rng)
+		for {
+			label := "seed " + strconv.FormatInt(seed, 10) + " depth " + strconv.Itoa(g.Depth)
+			if g.Map.Tiles[g.Player.Pos.Y][g.Player.Pos.X] != TileFloor {
+				t.Fatalf("%s: player at %+v is not on a floor", label, g.Player.Pos)
+			}
+			stairs := tilePositions(g.Map, TileStairs)
+			if len(stairs) != 1 {
+				t.Fatalf("%s: stair count = %d, want 1", label, len(stairs))
+			}
+			reachable := reachableTiles(g.Map, g.Player.Pos)
+			if _, ok := reachable[stairs[0]]; !ok {
+				t.Fatalf("%s: stairs at %+v unreachable from player at %+v", label, stairs[0], g.Player.Pos)
+			}
+			for y := 0; y < g.Map.Height; y++ {
+				for x := 0; x < g.Map.Width; x++ {
+					if g.Map.Tiles[y][x] == TileWall {
+						continue
+					}
+					if _, ok := reachable[Position{X: x, Y: y}]; !ok {
+						t.Fatalf("%s: floor at (%d,%d) unreachable from the player", label, x, y)
+					}
+				}
+			}
+			for _, monster := range g.Entities {
+				if _, ok := reachable[monster.Pos]; !ok {
+					t.Fatalf("%s: monster %d at %+v is unreachable", label, monster.ID, monster.Pos)
+				}
+			}
+			for _, item := range g.Items {
+				if _, ok := reachable[item.Pos]; !ok {
+					t.Fatalf("%s: item at %+v is unreachable", label, item.Pos)
+				}
+			}
+			if g.Depth >= finalDepth {
+				break
+			}
+			depth := g.Depth
+			g.Player.Pos = stairs[0]
+			g = g.Descend(rng)
+			if g.Depth != depth+1 {
+				t.Fatalf("%s: descent landed on depth %d, want %d", label, g.Depth, depth+1)
+			}
+		}
+	}
+}
+
 func TestDifferentSeedsVaryDungeon(t *testing.T) {
 	maps := make(map[string]struct{})
 	for _, seed := range []int64{1, 2, 3, 4} {
