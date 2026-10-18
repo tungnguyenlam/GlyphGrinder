@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-10-19 (tiny-terminal frame, degradation-matrix, help/docs, headless-tick, and connectivity/docs-check batches landed and green)
+**Last updated:** 2026-10-19 (tiny-terminal frame, degradation-matrix, help/docs, headless-tick, connectivity/docs-check, and clipper-tests batches landed and green)
 
 ## Current milestone
 
@@ -121,6 +121,11 @@ promoting a committed roadmap milestone once one exists.
       player, every floor reachable, monsters and items on reachable floors),
       and `verify.sh` enforces the docs contract: every relative markdown link
       resolves and every notice/ADR is indexed from `docs/agent/index.md`.
+- [x] **M4.27** The sidebar clipper is pinned by direct tests:
+      `clipLineToWidth` spends its budget on printable display cells only
+      (escapes copied whole, wide runes dropped rather than split, result
+      always ends with a style reset) and `clipColumns` rebuilds only
+      overflowing lines.
 
 ## Acceptance criteria for M4
 
@@ -144,6 +149,19 @@ promoting a committed roadmap milestone once one exists.
 ```
 ./scripts/verify.sh   —  2026-10-19  —  VERIFY OK (go1.27.2 darwin/arm64); suite under -race 21.3s with the production connectivity sweep and the randomized-action and randomized-input canaries; installed-binary degradation matrix and docs link/index steps
 ```
+
+Clipper-tests batch (2026-10-19): the sidebar-clipping helpers added with the
+tiny-terminal frame fix had indirect coverage only, so
+`TestClipLineToWidthCountsOnlyPrintableCells` now pins the ANSI-safe cut
+contract directly (budget spent on printable cells, escapes copied whole,
+wide runes dropped rather than split, result always ends with a style reset)
+and `TestClipColumnsRebuildsOnlyOverflowingLines` pins that fitting lines
+pass through byte-for-byte and width 0 leaves the block alone. Proven by
+forcing every rune to one cell in `clipLineToWidth`, which fails both
+wide-rune cases. Re-verified order independence: `go test -count=1
+-shuffle=on .` passes (3.1s). `parseArgs` was already fully covered by
+`main_flag_test.go`, including `--help` winning over `--dump-frame` in either
+order.
 
 Connectivity + docs-check batch (2026-10-19): the winnability invariant now
 holds where the game actually ships. `TestProductionDungeonsStayConnectedAcrossDepths`

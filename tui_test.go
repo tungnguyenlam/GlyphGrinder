@@ -368,6 +368,78 @@ func applyMsg(t *testing.T, m model, msg tea.Msg) (model, tea.Cmd) {
 	return updated, cmd
 }
 
+// TestClipLineToWidthCountsOnlyPrintableCells pins the ANSI-safe cut
+// contract of the sidebar clipper: escapes are copied whole, the budget is
+// spent on printable display cells, a wide rune is dropped rather than split
+// across the cut, and the result always ends with a style reset so the
+// dropped tail cannot leak color into the next line.
+func TestClipLineToWidthCountsOnlyPrintableCells(t *testing.T) {
+	tests := []struct {
+		name  string
+		line  string
+		width int
+		want  string
+	}{
+		{
+			name:  "plain ascii",
+			line:  "abcdef",
+			width: 3,
+			want:  "abc" + sgrReset,
+		},
+		{
+			name:  "styled text cut mid-style",
+			line:  "\x1b[31mabcdef\x1b[0m",
+			width: 3,
+			want:  "\x1b[31mabc" + sgrReset,
+		},
+		{
+			name:  "escape sequences do not spend cells",
+			line:  "\x1b[1ma\x1b[22mb",
+			width: 2,
+			want:  "\x1b[1ma\x1b[22mb" + sgrReset,
+		},
+		{
+			name:  "wide rune fits exactly",
+			line:  "\u6c49a",
+			width: 2,
+			want:  "\u6c49" + sgrReset,
+		},
+		{
+			name:  "wide rune is dropped rather than split",
+			line:  "\u6c49a",
+			width: 1,
+			want:  sgrReset,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := clipLineToWidth(tc.line, tc.width); got != tc.want {
+				t.Errorf("clipLineToWidth(%q, %d) = %q, want %q", tc.line, tc.width, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestClipColumnsRebuildsOnlyOverflowingLines pins the block-level contract:
+// lines that already fit pass through byte-for-byte (so normal frames are
+// untouched), overflowing lines are clipped independently, and a width of
+// zero leaves the block alone because View drops the sidebar itself in that
+// case.
+func TestClipColumnsRebuildsOnlyOverflowingLines(t *testing.T) {
+	short := "ab"
+	long := "\x1b[32mabcdef\x1b[0m"
+
+	if got, want := clipColumns(short+"\n"+long, 4), short+"\n\x1b[32mabcd"+sgrReset; got != want {
+		t.Errorf("clipColumns mixed block = %q, want %q", got, want)
+	}
+	if got := clipColumns(short+"\n"+long, 8); got != short+"\n"+long {
+		t.Errorf("clipColumns fitting block = %q, want it unchanged", got)
+	}
+	if got := clipColumns(long, 0); got != long {
+		t.Errorf("clipColumns width 0 = %q, want it unchanged", got)
+	}
+}
+
 func TestTinyResizeKeepsViewportValid(t *testing.T) {
 	state := openTestStateSized(60, 30)
 	state.Player.Pos = Position{X: 30, Y: 15}
