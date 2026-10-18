@@ -17,16 +17,18 @@ green outside the maintainer's machine.
 ## Exact next action
 
 **Complete the external release checks when the environment allows** — the
-2026-10-19 robustness batch is landed and `./scripts/verify.sh` is green under
-the race detector (20.8s, randomized canaries included). Local M4 engineering
-is complete: `--dump-frame`,
-`--help`, in-game `?` controls, wait/hjkl, low-HP danger HUD, wrapped sidebar
-logs, remembered items, diagonal FOV, free wall/OOB bumps, failed
-`p`/`e`/`>` log lines, distance-faded torch lighting, stair uses that spend a
-monster turn, no duplicate iron sword, run-unique monster IDs, a seeded
-full-run simulation canary (14/200 naive-bot wins, all runs terminate), and
-race-detector coverage. Remaining acceptance work cannot run in this
-environment:
+2026-10-19 robustness and hardening batches are landed and `./scripts/verify.sh`
+is green under the race detector (21.3s, randomized canaries included). Local
+M4 engineering is complete: `--dump-frame`, `--help`, in-game `?` controls,
+wait/hjkl, low-HP danger HUD, wrapped sidebar logs, remembered items, diagonal
+FOV, free wall/OOB bumps, failed `p`/`e`/`>` log lines, distance-faded torch
+lighting, stair uses that spend a monster turn, no duplicate iron sword,
+run-unique monster IDs, a seeded full-run simulation canary (14/200 naive-bot
+wins, all runs terminate), race-detector coverage, an injectable animation
+tick that keeps the headless suite fast (root suite 3.2s), a production-size
+connectivity sweep, a docs link/index check in `verify.sh`, and direct tests
+for the clipper and the load-bearing out-of-range guards. Remaining acceptance
+work cannot run in this environment:
 
 - Confirm the `Verify` GitHub Actions workflow passes on the first pushed
   commit and that its only verification entry point is `./scripts/verify.sh`.
@@ -40,11 +42,13 @@ environment:
 If the next session cannot push or open a TTY: GOAL.md audit passes
 (2026-09-21, 2026-10-15) have parked every remaining GOAL.md gap (doors,
 hunger clock, title/death screens, camera easing, seed replay, golden
-frames). The 2026-10-19 audit re-checked tests and behavior against GOAL.md,
-fixed one real frame-geometry defect, and found no other invariant
-violations; the parked list is unchanged. Do not manufacture local work;
-prefer a re-verification, a reproduction of a newly reported bug, or
-promoting a committed roadmap milestone once one exists.
+frames). The 2026-10-19 audits re-checked tests and behavior against GOAL.md,
+fixed one real frame-geometry defect and the headless driver's real-time
+animation sleeps, and hardened coverage (production connectivity, docs
+integrity, clipper and out-of-range guard contracts); the parked list is
+unchanged. Do not manufacture local work; prefer a re-verification, a
+reproduction of a newly reported bug, or promoting a committed roadmap
+milestone once one exists.
 
 ## Milestone plan
 
@@ -152,7 +156,7 @@ promoting a committed roadmap milestone once one exists.
 ## Last verification
 
 ```
-./scripts/verify.sh   —  2026-10-19  —  VERIFY OK (go1.27.2 darwin/arm64); suite under -race 21.3s with the production connectivity sweep and the randomized-action and randomized-input canaries; installed-binary degradation matrix and docs link/index steps
+./scripts/verify.sh   —  2026-10-19  —  VERIFY OK (go1.27.2 darwin/arm64); suite under -race 20.7s (20.7–21.3s across runs) with the production connectivity sweep, the guard/clipper tests, and the randomized-action and randomized-input canaries; installed-binary degradation matrix and docs link/index steps
 ```
 
 Defensive-guards batch (2026-10-19): the out-of-range branches that normal
@@ -277,7 +281,9 @@ descent (asserted). `verify.sh` runs the suite under `-race`
 (`internal/tuitest` is synchronous, so the suite stays deterministic). README
 now embeds a genuine ASCII-profile 62x20 starting frame (seed 42, produced by
 the game's own `View` via a window size message) with an honest caption about
-the rich truecolor/Nerd Font rendering.
+the rich truecolor/Nerd Font rendering. Re-verified 2026-10-19: the embedded
+block reproduces byte-for-byte from `initialModel(seed 42)` at 62x20 in the
+ASCII profile, minus three trailing all-space rows trimmed for display.
 
 Duplicate-sword batch (2026-09-21): `placeItems` omits the ground sword when
 `hasSword` is set; depth 1 still places 2 potions and 1 sword. Stepping onto
