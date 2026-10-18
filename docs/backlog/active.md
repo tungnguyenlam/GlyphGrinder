@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-10-19 (tiny-terminal frame, degradation-matrix, help/docs, and headless-tick batches landed and green)
+**Last updated:** 2026-10-19 (tiny-terminal frame, degradation-matrix, help/docs, headless-tick, and connectivity/docs-check batches landed and green)
 
 ## Current milestone
 
@@ -116,6 +116,11 @@ promoting a committed roadmap milestone once one exists.
       60 Hz interval is injectable (`model.frameDelay`), test-built models
       resolve ticks immediately, and `initialModel` keeps the production delay
       (both halves pinned by tests). Root suite 5.5s -> 3.2s.
+- [x] **M4.26** Every shipped dungeon is proven connected on every depth
+      (60 seeds x 3 depths at 96x48: exactly one stairs reachable from the
+      player, every floor reachable, monsters and items on reachable floors),
+      and `verify.sh` enforces the docs contract: every relative markdown link
+      resolves and every notice/ADR is indexed from `docs/agent/index.md`.
 
 ## Acceptance criteria for M4
 
@@ -137,8 +142,29 @@ promoting a committed roadmap milestone once one exists.
 ## Last verification
 
 ```
-./scripts/verify.sh   —  2026-10-19  —  VERIFY OK (go1.27.2 darwin/arm64); suite under -race 20.9s (down from 22.8s after headless ticks stopped sleeping) with the randomized-action and randomized-input canaries; installed-binary degradation matrix step
+./scripts/verify.sh   —  2026-10-19  —  VERIFY OK (go1.27.2 darwin/arm64); suite under -race 21.3s with the production connectivity sweep and the randomized-action and randomized-input canaries; installed-binary degradation matrix and docs link/index steps
 ```
+
+Connectivity + docs-check batch (2026-10-19): the winnability invariant now
+holds where the game actually ships. `TestProductionDungeonsStayConnectedAcrossDepths`
+builds 60 seeded 96x48 runs and walks all three depths of each (placing the
+player on the stairs and calling `Descend` directly, so the check is
+independent of combat), asserting exactly one stairs reachable from the
+player, every floor reachable, and every monster and item on a reachable
+floor. Proven to have teeth by temporarily removing the corridor carving in
+`generateDungeon`, which fails it immediately (seed 1, depth 1, floor
+(17,1) unreachable). The previous guarantee only covered 20x10 maps at four
+seeds; the run canaries cannot distinguish an unreachable level from a bad
+bot.
+
+`verify.sh` gained a "docs" step, placed with the other cheap static checks:
+relative markdown links must resolve (fences are skipped so illustrative
+links can't fail it) and every file under `docs/agent/notices/` and
+`docs/decisions/` must be indexed from `docs/agent/index.md`, the rule
+`AGENTS.md` and the index itself already state. Proven non-vacuous by
+temporarily adding an unlinked notice and a markdown file with one broken
+link; each fails the step. README and the index verification summary now list
+the docs check.
 
 Headless-tick batch (2026-10-19): a follow-up audit of the tuitest driver
 found that `dispatch` executes commands inline, so a driver-driven move key ran

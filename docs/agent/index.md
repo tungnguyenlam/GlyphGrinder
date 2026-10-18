@@ -22,7 +22,7 @@ One command, referenced by every doc here:
 ./scripts/verify.sh     # or: make verify
 ```
 
-Runs gofmt check → `go vet` → `go build` → isolated `go install` + `--dump-frame` + `--help` → degradation matrix on the installed binary (TERM/locale glyph fallback) → headless `View` + `go run --dump-frame` smoke test → full test suite under the race detector → `go mod tidy` check. Add new checks to that script, never to a doc.
+Runs gofmt check → docs link/index check → `go vet` → `go build` → isolated `go install` + `--dump-frame` + `--help` → degradation matrix on the installed binary (TERM/locale glyph fallback) → headless `View` + `go run --dump-frame` smoke test → full test suite under the race detector → `go mod tidy` check. Add new checks to that script, never to a doc.
 
 ## Backlog
 

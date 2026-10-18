@@ -50,7 +50,7 @@ sessions safer or faster. Rules:
 - Keep this file short. Push detail into `docs/agent/notices/` (small, dated,
   expiring) or `docs/decisions/` (architecture-shaping ADRs).
 - A new notice or ADR is not done until it is linked from
-  `docs/agent/index.md`.
+  `docs/agent/index.md` (enforced by the docs step in `verify.sh`).
 - Delete stale instructions in the same change that makes them stale. A gotcha
   you just fixed should be removed from Current Gotchas by that same commit.
 - Do not duplicate the workflow into subtree files; subtree files are

@@ -46,6 +46,47 @@ if [[ -n "$unformatted" ]]; then
 fi
 echo "all files gofmt-clean"
 
+step "docs (links resolve, index complete)"
+# Docs are the cross-session memory (docs/agent/continuity.md): a broken
+# relative link or an unindexed notice/ADR silently strands the next reader.
+# Fenced code blocks are skipped so illustrative markdown links cannot fail
+# this check.
+extract_links() {
+	awk '
+		/^[[:space:]]*```/ { fence = !fence; next }
+		fence { next }
+		{
+			while (match($0, /\]\([^)]+\)/)) {
+				print substr($0, RSTART + 2, RLENGTH - 3)
+				$0 = substr($0, RSTART + RLENGTH)
+			}
+		}
+	' "$1"
+}
+docs_ok=1
+while IFS= read -r doc; do
+	dir="$(dirname "$doc")"
+	while IFS= read -r link; do
+		case "$link" in http* | mailto:* | \#*) continue ;; esac
+		target="${link%%#*}"
+		if [ -n "$target" ] && [ ! -e "$dir/$target" ]; then
+			echo "broken link: $doc -> $link" >&2
+			docs_ok=0
+		fi
+	done < <(extract_links "$doc")
+done < <(find . -name '*.md' -not -path './.git/*' | sort)
+while IFS= read -r doc; do
+	if ! grep -q "$(basename "$doc")" docs/agent/index.md; then
+		echo "unindexed doc: $doc is not linked from docs/agent/index.md" >&2
+		docs_ok=0
+	fi
+done < <(find docs/agent/notices docs/decisions -name '*.md' | sort)
+if [ "$docs_ok" -ne 1 ]; then
+	echo "docs check failed; fix the entries above and re-run" >&2
+	exit 1
+fi
+echo "all relative markdown links resolve; every notice and ADR is indexed"
+
 step "go vet (static analysis)"
 go vet ./...
 
