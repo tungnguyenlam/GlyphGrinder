@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-10-15 (local hardening batch landed and green)
+**Last updated:** 2026-10-19 (tiny-terminal frame batch landed and green)
 
 ## Current milestone
 
@@ -17,8 +17,9 @@ green outside the maintainer's machine.
 ## Exact next action
 
 **Complete the external release checks when the environment allows** — the
-2026-10-15 local hardening batch is landed and `./scripts/verify.sh` is green
-under the race detector. Local M4 engineering is complete: `--dump-frame`,
+2026-10-19 robustness batch is landed and `./scripts/verify.sh` is green under
+the race detector (22.6s, randomized canaries included). Local M4 engineering
+is complete: `--dump-frame`,
 `--help`, in-game `?` controls, wait/hjkl, low-HP danger HUD, wrapped sidebar
 logs, remembered items, diagonal FOV, free wall/OOB bumps, failed
 `p`/`e`/`>` log lines, distance-faded torch lighting, stair uses that spend a
@@ -36,12 +37,14 @@ environment:
   add the image under `docs/assets/`, and embed it near the top of the README
   (the README now carries a genuine ASCII-profile frame as an interim aid).
 
-If the next session cannot push or open a TTY: two GOAL.md audit passes
+If the next session cannot push or open a TTY: GOAL.md audit passes
 (2026-09-21, 2026-10-15) have parked every remaining GOAL.md gap (doors,
 hunger clock, title/death screens, camera easing, seed replay, golden
-frames). Do not manufacture local work; prefer a re-verification, a
-reproduction of a newly reported bug, or promoting a committed roadmap
-milestone once one exists.
+frames). The 2026-10-19 audit re-checked tests and behavior against GOAL.md,
+fixed one real frame-geometry defect, and found no other invariant
+violations; the parked list is unchanged. Do not manufacture local work;
+prefer a re-verification, a reproduction of a newly reported bug, or
+promoting a committed roadmap milestone once one exists.
 
 ## Milestone plan
 
@@ -91,6 +94,18 @@ milestone once one exists.
       escape; death cancels the floor change. Off-stairs `>` stays free.
 - [x] **M4.20** Later depths skip a ground sword when one is already
       carried; walking onto a leftover logs `You already carry a sword.`
+- [x] **M4.21** A frame never renders wider or taller than its window: on
+      windows narrower than map plus sidebar the sidebar yields columns and is
+      clipped ANSI-safely, and it is dropped entirely when nothing is left
+      beside the map. Pinned by `TestViewFitsWindowAcrossSizes` (11 sizes x 2
+      glyph profiles x help open/closed) and `TestSidebarFitsReservedWidth`.
+- [x] **M4.22** The run canary asserts equipment and item invariants
+      (equipped ⇒ sword damage, no ground sword while carrying one, no item on
+      stairs, the player's own tile visible), a second seeded simulation spends
+      turns the way a distracted player does (wander, waits, invalid item
+      actions, off-stairs `>`), and a randomized key/resize canary keeps the
+      frame inside its window through restart, help, stairs, death, and
+      resize-during-animation.
 
 ## Acceptance criteria for M4
 
@@ -112,8 +127,32 @@ milestone once one exists.
 ## Last verification
 
 ```
-./scripts/verify.sh   —  2026-10-15  —  VERIFY OK (go1.27.0 darwin/arm64); suite now runs with -race (17.9s)
+./scripts/verify.sh   —  2026-10-19  —  VERIFY OK (go1.27.2 darwin/arm64); suite under -race now 22.6s with the randomized-action and randomized-input canaries
 ```
+
+Tiny-terminal frame batch (2026-10-19): an audit pass over `View` found that a
+window narrower than the sidebar (roughly under 34 columns) produced rows wider
+than the terminal — the map shrank to one cell but the sidebar kept its full
+width, so a real terminal wrapped the frame, scrolled the layout, and left
+stale cells. `View` now clips the sidebar to
+`windowWidth - map - gap` columns via `clipColumns`, which is ANSI-aware, stops
+only between cells, and resets styles after a cut; when no columns are left
+beside the map the sidebar is dropped rather than wrapped. Normal windows skip
+the measurement because `renderSidebar` is bounded by `sidebarWidth` (now
+pinned by `TestSidebarFitsReservedWidth` over eight sidebar states). Proven by
+`TestViewFitsWindowAcrossSizes`, which renders 11 window sizes in both glyph
+profiles with help open and closed; the pre-batch code fails it at 1x1
+(26 cells in a 1-cell window). Frame budget re-measured on Apple M4
+(go1.27.2): full 96x48 frames 140–142 µs/op, clipped 80x24 121–127 µs/op —
+unchanged from the pre-batch code; the M4.3 numbers predate the torch-band and
+remembered-item rendering work and are not comparable. The same audit extended
+the run canary (equipment, ground-sword, item-on-stairs and player-tile
+visibility invariants; `TestRandomizedActionRunsKeepInvariants`, 40 seeds of
+wander/wait/invalid-action turns) and added
+`TestRandomizedKeysAndResizesKeepFrameValid` (10 seeds of keys, resizes and
+animation ticks) plus `TestVisibilityNeverLeaksOutsideRadiusOrExploration`.
+Neither randomized canary found a violation; the parked GOAL.md gaps are
+unchanged.
 
 Local hardening batch (2026-10-15): `GameState.NextMonsterID` continues across
 descents so the surviving log never reuses "goblin 1"; `newDungeonLevel` and
