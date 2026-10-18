@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -18,6 +19,10 @@ const tuiTestSeed int64 = 42
 func newTUITestModel() model {
 	m := initialModel(rand.New(rand.NewSource(tuiTestSeed)))
 	m.glyphs = asciiGlyphs
+	// The tuitest driver runs commands inline, so a real frame delay would
+	// sleep the suite once per animation frame; test models resolve ticks
+	// immediately instead (the production delay is pinned separately).
+	m.frameDelay = 0
 	return m
 }
 
@@ -981,6 +986,47 @@ func TestMovementAnimationAdvancesOnlyOnTicks(t *testing.T) {
 	m = next.(model)
 	if cmd != nil || len(m.motion.Actors) != 0 {
 		t.Errorf("settled animation = %+v, cmd nil = %v", m.motion, cmd == nil)
+	}
+}
+
+// TestZeroFrameDelayResolvesTicksWithoutSleeping pins the headless-tick
+// contract: a test-built model (frameDelay left zero) must hand back a command
+// that resolves without waiting a real frame, because the tuitest driver
+// executes commands inline. Without this, every driver-driven move sleeps the
+// suite through a whole animation.
+func TestZeroFrameDelayResolvesTicksWithoutSleeping(t *testing.T) {
+	state := openTestState()
+	state.Entities = nil
+	m := model{state: state, rng: rand.New(rand.NewSource(tuiTestSeed)), glyphs: asciiGlyphs}
+
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	m = next.(model)
+	if cmd == nil || len(m.motion.Actors) == 0 {
+		t.Fatal("movement did not schedule an animation tick")
+	}
+
+	resolved := make(chan tea.Msg, 1)
+	go func() { resolved <- cmd() }()
+	select {
+	case msg := <-resolved:
+		tick, ok := msg.(animationTickMsg)
+		if !ok {
+			t.Fatalf("animation command produced %T, want animationTickMsg", msg)
+		}
+		if tick.Sequence != m.motion.Sequence {
+			t.Errorf("tick sequence = %d, want %d", tick.Sequence, m.motion.Sequence)
+		}
+	case <-time.After(animationFrameDuration / 2):
+		t.Fatalf("animation command took over %s; a real frame delay would sleep the inline driver", animationFrameDuration/2)
+	}
+}
+
+// TestInitialModelKeepsProductionFrameDelay guards the production half of the
+// injectable tick: test models resolve frames immediately, but the real
+// program must keep the 60 Hz interval that makes motion visible.
+func TestInitialModelKeepsProductionFrameDelay(t *testing.T) {
+	if got := initialModel(rand.New(rand.NewSource(tuiTestSeed))).frameDelay; got != animationFrameDuration {
+		t.Errorf("initialModel frameDelay = %s, want production %s", got, animationFrameDuration)
 	}
 }
 

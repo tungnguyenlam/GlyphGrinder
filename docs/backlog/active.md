@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-10-19 (tiny-terminal frame, degradation-matrix, and help/docs batches landed and green)
+**Last updated:** 2026-10-19 (tiny-terminal frame, degradation-matrix, help/docs, and headless-tick batches landed and green)
 
 ## Current milestone
 
@@ -18,7 +18,7 @@ green outside the maintainer's machine.
 
 **Complete the external release checks when the environment allows** — the
 2026-10-19 robustness batch is landed and `./scripts/verify.sh` is green under
-the race detector (22.6s, randomized canaries included). Local M4 engineering
+the race detector (20.8s, randomized canaries included). Local M4 engineering
 is complete: `--dump-frame`,
 `--help`, in-game `?` controls, wait/hjkl, low-HP danger HUD, wrapped sidebar
 logs, remembered items, diagonal FOV, free wall/OOB bumps, failed
@@ -112,6 +112,10 @@ promoting a committed roadmap milestone once one exists.
 - [x] **M4.24** The in-game `?` help names the core attack verb (`bump to
       attack`) without adding a row, and the README ends with a License
       section pointing at `LICENSE` (GPL-3.0).
+- [x] **M4.25** The headless driver never sleeps through an animation: the
+      60 Hz interval is injectable (`model.frameDelay`), test-built models
+      resolve ticks immediately, and `initialModel` keeps the production delay
+      (both halves pinned by tests). Root suite 5.5s -> 3.2s.
 
 ## Acceptance criteria for M4
 
@@ -133,8 +137,25 @@ promoting a committed roadmap milestone once one exists.
 ## Last verification
 
 ```
-./scripts/verify.sh   —  2026-10-19  —  VERIFY OK (go1.27.2 darwin/arm64); suite under -race 22.8s with the randomized-action and randomized-input canaries; installed-binary degradation matrix step
+./scripts/verify.sh   —  2026-10-19  —  VERIFY OK (go1.27.2 darwin/arm64); suite under -race 20.9s (down from 22.8s after headless ticks stopped sleeping) with the randomized-action and randomized-input canaries; installed-binary degradation matrix step
 ```
+
+Headless-tick batch (2026-10-19): a follow-up audit of the tuitest driver
+found that `dispatch` executes commands inline, so a driver-driven move key ran
+the game's real `tea.Tick` and slept through the complete animation — about
+50 ms per move key, roughly 2.3 s of the root suite. The game's animation
+interval is now a model field (`frameDelay`): test-built `model{}` literals
+leave it zero and get an immediate tick command with no timer at all, while
+`initialModel` wires the production 60 Hz interval. `newTUITestModel` zeroes
+the helper path explicitly. Both halves are pinned —
+`TestZeroFrameDelayResolvesTicksWithoutSleeping` runs the command under a
+half-frame deadline (proven to fail when the zero path is forced through a
+real `tea.Tick`) and `TestInitialModelKeepsProductionFrameDelay` pins the
+production value (proven to fail when `initialModel` drops the field). Root
+suite went 5.526s -> 3.231s, race suite ~22.8s -> ~20.8s on Apple M4
+(go1.27.2). `internal/tuitest/AGENTS.md` now states the true contract
+(commands run inline, so blocking commands block the driver) and the
+`verify.sh` race comment no longer claims the suite uses no timers.
 
 Help/docs batch (2026-10-19): the `?` overlay now names the game's core verb —
 `. space wait  bump to attack` — without adding a row, so the 50x9

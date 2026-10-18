@@ -11,8 +11,11 @@ only.
 - **No new dependencies, ever.** This exists instead of `teatest`/`pty` harnesses
   (ADR-0004). If it needs a real terminal to work, the design is wrong.
 - **Everything is synchronous.** `dispatch` runs commands inline and flattens
-  `tea.BatchMsg`; `tea.Quit` is recorded on the driver, not executed. No
-  goroutines, no timers, no sleeps — a flaky driver poisons every UI test.
+  `tea.BatchMsg`; `tea.Quit` is recorded on the driver, not executed. Commands
+  still take as long as they take: a `tea.Tick` with a real delay blocks the
+  whole test, so models must keep their delays injectable and leave them at
+  zero under test (the game's `model.frameDelay`). The driver itself starts no
+  goroutines or timers — a flaky driver poisons every UI test.
 - **Test-only.** Every exported function takes `*testing.T` and calls
   `t.Helper()`. Nothing here may be reachable from `main`.
 - **Assert on plain text.** Rendered output carries ANSI escapes; callers must

@@ -134,8 +134,9 @@ go test -count=1 -run 'TestViewRendersFullGrid' .
 
 step "full test suite"
 # The race detector guards the value-state slice isolation contract (ADR-0002)
-# and the synchronous tuitest driver (internal/tuitest/AGENTS.md); it stays
-# deterministic because nothing in the suite uses goroutines or timers.
+# and the synchronous tuitest driver (internal/tuitest/AGENTS.md): tests drive
+# the model from a single goroutine and resolve animation ticks without real
+# delays, so -race stays deterministic and fast.
 go test -count=1 -race ./...
 
 step "go.mod tidiness"

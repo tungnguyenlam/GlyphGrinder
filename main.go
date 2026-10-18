@@ -18,6 +18,7 @@ type model struct {
 	rng          *rand.Rand
 	renderer     *lipgloss.Renderer
 	glyphs       glyphProfile
+	frameDelay   time.Duration // zero resolves animation ticks immediately (test models); initialModel wires the real interval
 	motion       actorMotionState
 	motionSeq    uint64
 	windowWidth  int
@@ -268,10 +269,11 @@ func lerpU8(from, to uint8, num, den int) uint8 {
 
 func initialModel(rng *rand.Rand) model {
 	return model{
-		state:    NewGame(productionDungeonWidth, productionDungeonHeight, rng),
-		rng:      rng,
-		renderer: lipgloss.DefaultRenderer(),
-		glyphs:   glyphProfileForEnvironment(os.Getenv),
+		state:      NewGame(productionDungeonWidth, productionDungeonHeight, rng),
+		rng:        rng,
+		renderer:   lipgloss.DefaultRenderer(),
+		glyphs:     glyphProfileForEnvironment(os.Getenv),
+		frameDelay: animationFrameDuration,
 	}
 }
 
@@ -358,7 +360,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.motion = actorMotionState{}
 			return m, nil
 		}
-		return m, animationTick(m.motion.Sequence)
+		return m, m.animationTick()
 	case tea.KeyMsg:
 		action := ActionNone
 		key := msg.String()
@@ -397,7 +399,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.motionSeq++
 			m.motion = newActorMotion(previous, m.state, m.motionSeq)
 			if len(m.motion.Actors) > 0 {
-				return m, animationTick(m.motion.Sequence)
+				return m, m.animationTick()
 			}
 			return m, nil
 		case "up", "w", "k":
@@ -423,14 +425,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.motionSeq++
 		m.motion = newActorMotion(previous, m.state, m.motionSeq)
 		if len(m.motion.Actors) > 0 {
-			return m, animationTick(m.motion.Sequence)
+			return m, m.animationTick()
 		}
 	}
 	return m, nil
 }
 
-func animationTick(sequence uint64) tea.Cmd {
-	return tea.Tick(animationFrameDuration, func(time.Time) tea.Msg {
+// animationTick schedules the next frame of the current actor motion. A
+// positive frameDelay is the real 60 Hz interval that initialModel wires for
+// production; test-built models leave it zero so the headless driver, which
+// runs commands inline, resolves animation frames immediately instead of
+// sleeping a real interval per frame.
+func (m model) animationTick() tea.Cmd {
+	sequence := m.motion.Sequence
+	if m.frameDelay <= 0 {
+		return func() tea.Msg { return animationTickMsg{Sequence: sequence} }
+	}
+	return tea.Tick(m.frameDelay, func(time.Time) tea.Msg {
 		return animationTickMsg{Sequence: sequence}
 	})
 }

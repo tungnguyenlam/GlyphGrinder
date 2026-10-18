@@ -86,6 +86,11 @@ Sharp edges found during real work. Prune entries that stop being true.
 - **`View` returns styled cells**, so a rendered line's `len()` is not its
   column count. Tests must strip ANSI escapes before asserting positions — see
   `stripANSI` in `tui_test.go`.
+- **The tuitest driver runs commands inline, so a real delay sleeps the test.**
+  `model.frameDelay` is zero in test-built models (animation ticks resolve
+  immediately) and the production 60 Hz interval in `initialModel`. Keep both
+  halves — `newTUITestModel` zeroes the helper path, and tests pin the zero
+  path and the production path.
 - **Everything is `package main` at the repo root**, including tests. Only
   `internal/tuitest` is a separate package. See ADR-0001 before adding a new
   one.
