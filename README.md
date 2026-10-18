@@ -113,3 +113,8 @@ slice.
 Start at [AGENTS.md](AGENTS.md). The cross-session workflow is
 [docs/agent/continuity.md](docs/agent/continuity.md) and the doc index is
 [docs/agent/index.md](docs/agent/index.md).
+
+## License
+
+GlyphGrinder is free software under the terms of the GNU General Public
+License, version 3; see [LICENSE](LICENSE).

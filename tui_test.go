@@ -140,6 +140,9 @@ func TestInGameHelpFitsTinyTerminal(t *testing.T) {
 	if !strings.Contains(plain, "p drink") || !strings.Contains(plain, "> stairs") {
 		t.Errorf("tiny-terminal help clipped action keys:\n%s", plain)
 	}
+	if !strings.Contains(plain, "bump to attack") {
+		t.Errorf("tiny-terminal help does not name the attack verb:\n%s", plain)
+	}
 	if strings.Contains(plain, "Log:") {
 		t.Errorf("open help still shows the log on a tiny terminal:\n%s", plain)
 	}

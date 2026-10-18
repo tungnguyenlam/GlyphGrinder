@@ -33,7 +33,9 @@ change broke the game" and start debugging something that was never broken.
   initial model and prints one `View()` frame to stdout without calling
   `tea.NewProgram`. `GlyphGrinder --help` (or `-h`) prints usage and exits 0.
   Unknown arguments print usage to stderr and exit 2. `./scripts/verify.sh`
-  exercises `--dump-frame` and `--help` on the isolated `go install` binary.
+  exercises `--dump-frame` and `--help` on the isolated `go install` binary,
+  and renders that binary under `TERM=dumb` with a POSIX locale (pure ASCII)
+  and a UTF-8 locale (rich glyphs) to check the degraded profiles.
 - Verify interactive UI behavior through `internal/tuitest`, which drives
   `Init`, `Update` and `View` in-process with no terminal involved. See
   `tui_test.go` for the pattern.

@@ -3,7 +3,7 @@
 The only file you should need to read to answer "what do I do next".
 Update it continuously — as soon as a sub-task lands or the plan changes.
 
-**Last updated:** 2026-10-19 (tiny-terminal frame + degradation-matrix batches landed and green)
+**Last updated:** 2026-10-19 (tiny-terminal frame, degradation-matrix, and help/docs batches landed and green)
 
 ## Current milestone
 
@@ -109,6 +109,9 @@ promoting a committed roadmap milestone once one exists.
 - [x] **M4.23** `verify.sh` enforces the installed binary's degradation matrix:
       `TERM=dumb`/POSIX-locale `--dump-frame` output is pure ASCII, and a UTF-8
       locale frame carries the rich glyphs.
+- [x] **M4.24** The in-game `?` help names the core attack verb (`bump to
+      attack`) without adding a row, and the README ends with a License
+      section pointing at `LICENSE` (GPL-3.0).
 
 ## Acceptance criteria for M4
 
@@ -130,8 +133,17 @@ promoting a committed roadmap milestone once one exists.
 ## Last verification
 
 ```
-./scripts/verify.sh   —  2026-10-19  —  VERIFY OK (go1.27.2 darwin/arm64); suite under -race 23.4s with the randomized-action and randomized-input canaries; new installed-binary degradation matrix step
+./scripts/verify.sh   —  2026-10-19  —  VERIFY OK (go1.27.2 darwin/arm64); suite under -race 22.8s with the randomized-action and randomized-input canaries; installed-binary degradation matrix step
 ```
+
+Help/docs batch (2026-10-19): the `?` overlay now names the game's core verb —
+`. space wait  bump to attack` — without adding a row, so the 50x9
+tiny-terminal fit is unchanged (`TestInGameHelpFitsTinyTerminal` now asserts
+the hint). README gained a License section pointing at the GPLv3 `LICENSE`
+file; the LICENSE text itself carries no project copyright line, and only a
+human should decide what to add there. The TTY notice records that `verify.sh`
+also checks the installed binary's glyph fallback. The beeline canary still
+wins 14/200 seeds, matching the number recorded on 2026-10-15.
 
 Degradation-matrix batch (2026-10-19): `verify.sh` now renders the installed
 binary's `--dump-frame` under `TERM=dumb LC_ALL=C LANG=C` and asserts the frame
